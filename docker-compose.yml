@@ -6,6 +6,8 @@ services:
     tty: true
     environment:
      - PYTHONUNBUFFERED=1
+    volumes:
+     - ./example/conf:/code/conf
     networks:
       - aether
     command: start
