@@ -18,16 +18,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from setuptools import setup
-setup(
-    name='aether_sdk_example',
-    author='Shawn Sarwar',
-    author_email="shawn.sarwar@ehealthafrica.org",
-    decription='''An SDK demo implementing a simple command line Kafka topic viewer''',
-    version='1.0.0',
-    setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'sqlalchemy', 'alembic', 'aet.consumer', 'mock', 'aether_sdk_example'],
-    url='https://github.com/eHealthAfrica/aether-consumer-quickstart',
-    keywords=['aet', 'aether', 'kafka', 'consumer'],
-    classifiers=[]
-)
+from . import *  # get all test assets from test/__init__.py
+
+# Test Suite contains both unit and integration tests
+# Unit tests can be run on their own from the root directory
+# enter the bash environment for the version of python you want to test
+# for example for python 3
+# `docker-compose run consumer-sdk-test bash`
+# then start the unit tests with
+# `pytest -m unit`
+# to run integration tests / all tests run the test_all.sh script from the /tests directory.
+
+
+@pytest.mark.integration
+def test_kafka_connection_check_integration(MockKafkaViewer):
+    args = {"bootstrap_servers": [kafka_server]}
+    MockKafkaViewer.connect_consumer(**args)
+    assert(MockKafkaViewer.consumer_connected() is True)

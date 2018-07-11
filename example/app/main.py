@@ -6,11 +6,14 @@ import signal
 
 from aet.consumer import KafkaConsumer
 from blessings import Terminal
-from time import sleep
 
 
 class timeout(contextlib.ContextDecorator):
-    def __init__(self, seconds, *, timeout_message=os.strerror(errno.ETIME), suppress_timeout_errors=False):
+    def __init__(self,
+                 seconds,
+                 *,
+                 timeout_message=os.strerror(errno.ETIME),
+                 suppress_timeout_errors=False):
         self.seconds = int(seconds)
         self.timeout_message = timeout_message
         self.suppress = bool(suppress_timeout_errors)
@@ -40,7 +43,7 @@ def norm(obj):
 
 
 def error(obj):
-    with t.location(int(t.width/2 - len(obj)/2), 0):
+    with t.location(int(t.width / 2 - len(obj) / 2), 0):
         print(t.black_on_white(obj))
 
 
@@ -68,9 +71,9 @@ class KafkaViewer(object):
             norm(line)
         while True:
             x = input("choices: ( %s ) : " %
-                      ([x+1 for x in range(len(options))]))
+                      ([x + 1 for x in range(len(options))]))
             try:
-                res = options[int(x)-1]
+                res = options[int(x) - 1]
                 return res
             except Exception as err:
                 error("%s is not a valid option | %s" % (x, err))
@@ -98,9 +101,25 @@ class KafkaViewer(object):
         if not quiet:
             t.clear()
             pjson(["Creating Consumer from conf.json args:", args])
-        self.consumer = KafkaConsumer(**args)
+        self.connect_consumer(**args)
         if topic:
             self.consumer.subscribe(topic)
+
+    # Just need something for the unit test to do as this is almost 100% integration
+    def consumer_connected(self):
+        try:
+            if self.consumer:
+                return True
+            return False
+        except AttributeError:
+            return False
+
+    # Just need something for integration tests as everything else needs lots of mocking.
+    def connect_consumer(self, *args, **kwargs):
+        try:
+            self.consumer = KafkaConsumer(**kwargs)
+        except Exception as err:
+            self.consumer = None
 
     def kill(self, *args, **kwargs):
         self.killed = True
@@ -134,8 +153,10 @@ class KafkaViewer(object):
             choices = [i for i in messages.keys()]
             if len(choices) > 1:
                 bold("Choose a Parition to View")
-                part = ask(choices)
-            messages = messages.get(choices[0])
+                part = self.ask(choices)
+                messages = messages.get(choices[part])
+            else:
+                messages = messages.get(choices[0])
             if not self.view_messages(messages, batch_size, current):
                 return
             current += batch_size
@@ -150,7 +171,7 @@ class KafkaViewer(object):
         for x, message in enumerate(messages):
             t.clear()
             norm("message #%s (%s of batch sized %s)" %
-                 (current+x, x, batch_size))
+                 (current + x, x, batch_size))
             for msg in message.get('messages'):
                 pjson(msg)
                 res = self.ask(options)
@@ -165,4 +186,5 @@ class KafkaViewer(object):
                     return False
 
 
-viewer = KafkaViewer()
+if __name__ == "__main__":
+    viewer = KafkaViewer()

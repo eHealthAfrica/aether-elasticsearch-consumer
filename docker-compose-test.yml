@@ -1,14 +1,14 @@
 version: "2.1"
 services:
 
-  example-consumer:
+  example-consumer-test:
     extends:
       file: docker-compose-base.yml
       service: example-consumer-base
     networks:
-      - aether
+      - test_net
 
 networks:
-  aether:
+  test_net:
     external:
-      name: aether_internal
+      name: aether_test

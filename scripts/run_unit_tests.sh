@@ -1,5 +1,5 @@
-#!/usr/bin/env python
-
+#!/bin/bash
+#
 # Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
@@ -17,17 +17,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
+set -Eeuo pipefail
 
-from setuptools import setup
-setup(
-    name='aether_sdk_example',
-    author='Shawn Sarwar',
-    author_email="shawn.sarwar@ehealthafrica.org",
-    decription='''An SDK demo implementing a simple command line Kafka topic viewer''',
-    version='1.0.0',
-    setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'sqlalchemy', 'alembic', 'aet.consumer', 'mock', 'aether_sdk_example'],
-    url='https://github.com/eHealthAfrica/aether-consumer-quickstart',
-    keywords=['aet', 'aether', 'kafka', 'consumer'],
-    classifiers=[]
-)
+
+docker-compose run example-consumer test_unit

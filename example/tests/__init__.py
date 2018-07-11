@@ -18,16 +18,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from setuptools import setup
-setup(
-    name='aether_sdk_example',
-    author='Shawn Sarwar',
-    author_email="shawn.sarwar@ehealthafrica.org",
-    decription='''An SDK demo implementing a simple command line Kafka topic viewer''',
-    version='1.0.0',
-    setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'sqlalchemy', 'alembic', 'aet.consumer', 'mock', 'aether_sdk_example'],
-    url='https://github.com/eHealthAfrica/aether-consumer-quickstart',
-    keywords=['aet', 'aether', 'kafka', 'consumer'],
-    classifiers=[]
-)
+import pytest
+from app.main import KafkaViewer
+
+kafka_server = "kafka-test:29099"
+
+
+# We can use 'mark' distinctions to chose which tests are run and which assets are built
+# @pytest.mark.integration
+# @pytest.mark.unit
+# When possible use fixtures for reusable test assets
+# @pytest.fixture(scope="session")
+
+
+class _MockKafkaViewer(KafkaViewer):
+
+    def __init__(self):
+        pass
+
+
+@pytest.mark.integration
+@pytest.mark.unit
+@pytest.fixture(scope="function")
+def MockKafkaViewer():
+    viewer = _MockKafkaViewer()
+    viewer.killed = False
+    return viewer

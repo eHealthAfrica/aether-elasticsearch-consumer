@@ -12,7 +12,7 @@ show_help() {
     eval          : eval shell command
     pip_freeze    : freeze pip dependencies and write to requirements.txt
     start         : run application
-    test          : run tests
+    test_unit     : run tests
     test_lint     : run flake8 tests
     test_coverage : run tests with coverage output
 
@@ -23,17 +23,19 @@ test_flake8() {
     flake8 /code/. --config=/code/conf/extras/flake8.cfg
 }
 
-test_coverage() {
-    # Python3 Tests
-    python3 setup.py test
-
+test_unit() {
+    pytest -m unit
     cat /code/conf/extras/good_job.txt
-    rm -R ./*.egg*
     rm -R .pytest_cache
-    rm -rf .eggs
     rm -rf tests/__pycache__
 }
 
+test_integration() {
+    pytest -m integration
+    cat /code/conf/extras/good_job.txt
+    rm -R .pytest_cache
+    rm -rf tests/__pycache__
+}
 
 case "$1" in
     bash )
@@ -58,17 +60,18 @@ case "$1" in
         python ./app/main.py "${@:2}"
     ;;
 
-    test)
+    test_unit)
         test_flake8
-        test_coverage "${@:2}"
+        test_unit "${@:2}"
     ;;
 
     test_lint)
         test_flake8
     ;;
 
-    test_coverage)
-        test_coverage "${@:2}"
+    test_integration)
+        test_flake8
+        test_integration "${@:2}"
     ;;
 
     build)
@@ -76,7 +79,7 @@ case "$1" in
         rm -rf dist
         rm -rf build
         rm -rf .eggs
-        rm -rf myconsumer.egg-info
+        rm -rf aether-sdk-example.egg-info
 
         # create the distribution
         python setup.py bdist_wheel --universal

@@ -1,0 +1,11 @@
+version: "2.1"
+services:
+  example-consumer-base:
+    build: ./example
+    stdin_open: true
+    tty: true
+    environment:
+     - PYTHONUNBUFFERED=1
+    volumes:
+     - ./example/conf:/code/conf
+    command: start
