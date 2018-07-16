@@ -1,10 +1,28 @@
 version: "2.1"
 services:
 
-  example-consumer:
+  elasticsearch:
     extends:
       file: docker-compose-base.yml
-      service: example-consumer-base
+      service: elasticsearch-base
+    networks:
+      - aether
+
+  kibana:
+    extends:
+      file: docker-compose-base.yml
+      service: kibana-base
+    depends_on:
+      - elasticsearch
+    networks:
+      - aether
+
+  es-consumer:
+    extends:
+      file: docker-compose-base.yml
+      service: es-consumer-base
+    links:
+      - elasticsearch
     networks:
       - aether
 

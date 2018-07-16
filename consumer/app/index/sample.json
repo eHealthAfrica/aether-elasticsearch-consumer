@@ -1,0 +1,29 @@
+
+{
+    "mappings": {
+        "child": {
+            "_parent":{
+                "type": "session"
+            }
+
+        },
+        "household": {
+            "properties": {
+                        "location": {
+                                "type": "geo_point"
+                        },
+                        "place": {
+                            "type": "string"
+                    }
+                },
+            "_parent": {
+                "type": "session"
+            }
+        },
+        "session": {
+        },
+        "Session": {
+        }
+
+    }
+}

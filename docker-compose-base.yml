@@ -1,11 +1,27 @@
 version: "2.1"
 services:
-  example-consumer-base:
-    build: ./example
+  elasticsearch-base:
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.4
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+
+  kibana-base:
+    image: docker.elastic.co/kibana/kibana:5.6.4
+    ports:
+      - "5601:5601"
+    environment:
+      xpack.security.enabled: "false"
+      kibana.index: "aether-demo-2"
+
+  es-consumer-base:
+    build: consumer
     stdin_open: true
-    tty: true
+    volumes:
+     - ./consumer:/code
     environment:
      - PYTHONUNBUFFERED=1
-    volumes:
-     - ./example/conf:/code/conf
     command: start

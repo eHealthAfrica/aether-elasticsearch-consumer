@@ -20,14 +20,14 @@
 
 from setuptools import setup
 setup(
-    name='aether_sdk_example',
+    name='aether_elasticsearch_consumer',
     author='Shawn Sarwar',
     author_email="shawn.sarwar@ehealthafrica.org",
-    decription='''An SDK demo implementing a simple command line Kafka topic viewer''',
+    decription='''An Aether Elasticsearch Kafka consumer''',
     version='1.0.0',
     setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'sqlalchemy', 'alembic', 'aet.consumer', 'mock', 'aether_sdk_example'],
-    url='https://github.com/eHealthAfrica/aether-consumer-quickstart',
-    keywords=['aet', 'aether', 'kafka', 'consumer'],
+    tests_require=['pytest', 'sqlalchemy', 'alembic', 'aet.consumer', 'mock', 'aether_elasticsearch_consumer'],
+    url='https://github.com/eHealthAfrica/aether-elasticsearch-consumer',
+    keywords=['aet', 'aether', 'kafka', 'consumer', 'elasticsearch'],
     classifiers=[]
 )

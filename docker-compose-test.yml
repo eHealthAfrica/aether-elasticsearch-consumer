@@ -1,10 +1,10 @@
 version: "2.1"
 services:
 
-  example-consumer-test:
+  elasticsearch-consumer-test:
     extends:
       file: docker-compose-base.yml
-      service: example-consumer-base
+      service: es-consumer-base
     networks:
       - test_net
 
