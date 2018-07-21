@@ -77,7 +77,8 @@ class ESConsumerManager(object):
         self.consumer_groups = {}  # index_name : consumer group
         auto_conf = consumer_config.get('autoconfig_settings')
         if auto_conf.get('enabled'):
-            self.register_auto_config(**auto_conf)
+            # self.register_auto_config(**auto_conf)
+            pass
 
         # self.load_indices_from_file()
 
@@ -100,6 +101,14 @@ class ESConsumerManager(object):
     def register_auto_config(self, **autoconf):
         log.debug('Attempting to autoconfigure ES indices')
         log.debug([(k, v) for k, v in autoconf.items()])
+        args = dict(kafka_config)
+        try:
+            consumer = KafkaConsumer(**args)
+            topics = consumer.topics()
+        except Exception as ke:
+            log.error('Autoconfig failed to get available topics \n%s' % (ke))
+        log.debug([t for t in topics])
+        return False
 
     def register_index(self, index_path=None, index_file=None, index=None):
         if not any([index_path, index_file, index]):
