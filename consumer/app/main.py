@@ -7,7 +7,7 @@ import threading
 import signal
 
 import spavro
-from time import sleep as Sleep
+from time import sleep
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError, ConflictError
 from aet.consumer import KafkaConsumer
@@ -49,7 +49,7 @@ def connect_es():
             return
         except Exception:
             print("Could not connect to Elasticsearch Instance")
-            Sleep(CONN_RETRY_WAIT_TIME)
+            sleep(CONN_RETRY_WAIT_TIME)
     print("Failed to connect to ElasticSearch after %s retries" % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
 
@@ -63,7 +63,7 @@ def connect_kafka():
             return
         except Exception as ke:
             print("Could not connect to Kafka: %s" % (ke))
-            Sleep(CONN_RETRY_WAIT_TIME)
+            sleep(CONN_RETRY_WAIT_TIME)
     print("Failed to connect to Kafka after %s retries" % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
 
@@ -99,7 +99,9 @@ class ESConsumerManager(object):
                 }
 
     def register_auto_config(self, **autoconf):
-        log.info({autoconf})
+        log.debug('Attempting to autoconfigure ES indices')
+        log.debug({autoconf})
+
 
 
     def register_index(self, index_path=None, index_file=None, index=None):
@@ -182,7 +184,7 @@ class ESConsumer(threading.Thread):
                 break
             elif self.stopped:
                 return
-            Sleep(2)
+            sleep(2)
         last_schema = None
         while not self.stopped:
             new_messages = self.consumer.poll_and_deserialize(
@@ -381,7 +383,8 @@ class KafkaViewer(object):
             try:
                 pass
                 if not manager.stopped:
-                    Sleep(10)
+                    for x in range(10)
+                        sleep(1)
                 else:
                     log.info("Manager caught SIGTERM, exiting")
                     break

@@ -19,7 +19,7 @@
 # under the License.
 
 import pytest
-from app.main import KafkaViewer
+from app.main import KafkaViewer, ESConsumerManager
 
 kafka_server = "kafka-test:29099"
 
@@ -44,3 +44,23 @@ def MockKafkaViewer():
     viewer = _MockKafkaViewer()
     viewer.killed = False
     return viewer
+
+@pytest.mark.integration
+@pytest.mark.unit
+@pytest.fixture(scope="function")
+def MockConsumerManager():
+    return ESConsumerManager()
+
+@pytest.mark.unit
+@pytest.mark.integration
+def AutoConfigSettings(scope='module'):
+    return {
+        "index_name_template": "aet_auto_%s_1",
+        "enabled" : True,
+        "ignored_topics" : None,
+        "geo_point_creation": True,
+        "geo_point_name": "geo_point",
+        "latitude_fields" : ['lat', 'latitude'],
+        "longitude_fields" : ['long', 'lng', 'longitude']
+    }
+

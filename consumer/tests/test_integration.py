@@ -35,3 +35,9 @@ def test_kafka_connection_check_integration(MockKafkaViewer):
     args = {"bootstrap_servers": [kafka_server]}
     MockKafkaViewer.connect_consumer(**args)
     assert(MockKafkaViewer.consumer_connected() is True)
+
+
+
+@pytest.mark.integration
+def test_consumer_manager__register_auto_conf(MockConsumerManager, AutoConfigSettings):
+    res = MockConsumerManager.register_auto_conf(**AutoConfigSettings)
