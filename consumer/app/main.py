@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import logging
 import sys
 import threading
 import signal
@@ -11,9 +12,17 @@ from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError, ConflictError
 from aet.consumer import KafkaConsumer
 
-FILE_PATH = os.path.dirname(os.path.realpath(__file__))
-CONN_RETRY = 3
-CONN_RETRY_WAIT_TIME = 10
+from config import get_kafka_config, get_consumer_config
+
+consumer_config = get_consumer_config()
+kafka_config = get_kafka_config()
+
+log = logging.getLogger(consumer_config.get('log_name'))
+log_level = logging.getLevelName(consumer_config.get('log_level'))
+log.setLevel(log_level)
+
+CONN_RETRY = consumer_config.get('startup_connection_retry')
+CONN_RETRY_WAIT_TIME = consumer_config.get('connect_retry_wait')
 
 # Global Elasticsearch Connection
 es = None
@@ -33,8 +42,9 @@ def connect_es():
         try:
             global es
             # default connection on localhost
+            es_urls = consumer_config.get('elasticsearch_instance').get('urls')
             es = Elasticsearch(
-                ["localhost", "elasticsearch"], sniff_on_start=False)
+                es_urls, sniff_on_start=False)
             print (es.info())
             return
         except Exception:
@@ -45,13 +55,10 @@ def connect_es():
 
 
 def connect_kafka():
-    args = {}
-    with open("/code/conf/consumer/kafka.json") as f:
-        args = json.load(f)
     for x in range(CONN_RETRY):
         try:
-            consumer = KafkaConsumer(**args)
-            print(consumer.topics())
+            consumer = KafkaConsumer(**kafka_config)
+            consumer.topics()
             print("Connected to Kafka...")
             return
         except Exception as ke:
@@ -69,27 +76,44 @@ class ESConsumerManager(object):
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
         self.consumer_groups = {}  # index_name : consumer group
-        self.load_indices()
+        auto_conf = consumer_config.get('autoconfig_settings')
+        if auto_conf.get('enabled'):
+            self.register_auto_config(**auto_conf)
 
-    def load_indices(self):
+        #self.load_indices_from_file()
+
+    def load_indices_from_file(self):
         index_path = "%s/index" % FILE_PATH
         if os.path.isdir(index_path):
             index_files = os.listdir(index_path)
             for index_file in index_files:
-                self.register_index(index_path, index_file)
+                self.register_index(index_path=index_path, index_file=index_file)
 
-    def register_index(self, index_path, index_file):
+    def index_from_file(self, index_path, index_file):
         index_name = index_file.split(".")[0]
-        data = None
         path = "%s/%s" % (index_path, index_file)
         with open(path) as f:
-            data = json.load(f)
-        if es.indices.exists(index=index_name):
-            print ("index %s already exists, skipping creation." % index_name)
+            return {
+                "name" : index_name,
+                "body" : json.load(f)
+                }
+
+    def register_auto_config(self, **autoconf):
+        log.info({autoconf})
+
+
+    def register_index(self, index_path=None, index_file=None, index=None):
+        if not any([index_path, index_file, index]):
+            raise ValueError('Index cannot be created with an artifact')
+        if index_path and index_file:
+            index = index_from_file(index_path, index_file)
+
+        if es.indices.exists(index=index.get('name')):
+            log.debug("Index %s already exists, skipping creation." % index_name)
         else:
-            print ("Creating Index %s" % index_name)
-            es.indices.create(index=index_name, body=data)
-        self.start_consumer_group(index_name, data)
+            log.info("Creating Index %s" % index.get('name'))
+            es.indices.create(index=index_name, body=index.get('body'))
+        self.start_consumer_group(index_name, index.get('body'))
 
     def start_consumer_group(self, index_name, index_body):
         self.consumer_groups[index_name] = ESConsumerGroup(
@@ -141,16 +165,14 @@ class ESConsumer(threading.Thread):
         super(ESConsumer, self).__init__()
 
     def connect(self):
-        args = {}
-        with open("/code/conf/consumer/kafka.json") as f:
-            args = json.load(f)
+        args = dict(kafka_config)
         args["group_id"] = self.group_name
         try:
             self.consumer = KafkaConsumer(**args)
             self.consumer.subscribe([self.topic])
             return True
         except Exception as ke:
-            print ("%s failed to subscibe to topic %s with error \n%s" %
+            log.error("%s failed to subscibe to topic %s with error \n%s" %
                    (self.index, self.topic, ke))
             return False
 
@@ -169,18 +191,18 @@ class ESConsumer(threading.Thread):
             for parition_key, packages in new_messages.items():
                 for package in packages:
                     schema = package.get('schema')
-                    print(schema)
+                    log.debug("schema: %s" % schema)
                     messages = package.get('messages')
-                    print("messages", len(messages))
+                    log.debug("messages #%s" % len(messages))
                     if schema != last_schema:
                         self.processor.load_avro(schema)
                     for x, msg in enumerate(messages):
                         doc = self.processor.process(msg)
-                        print(doc)
+                        log.debug("processed doc %s" % doc)
                         self.submit(doc)
                     last_schema = schema
 
-        print ("Shutting down consumer %s | %s" % (self.index, self.topic))
+        log.info("Shutting down consumer %s | %s" % (self.index, self.topic))
         self.consumer.close()
         return
 
@@ -197,7 +219,7 @@ class ESConsumer(threading.Thread):
                 body=doc
             )
         except Exception as ese:
-            print("Couldn't create doc because of error: %s\nAttempting update." % ese)
+            log.info("Couldn't create doc because of error: %s\nAttempting update." % ese)
             try:
                 es.update(
                     index=self.index,
@@ -206,13 +228,13 @@ class ESConsumer(threading.Thread):
                     parent=parent,
                     body=doc
                 )
-                print("Success!")
+                log.debug("Success!")
             except TransportError as te:
-                print("conflict exists, ignoring document with id %s" %
+                log.debug("conflict exists, ignoring document with id %s" %
                       doc.get("id", "unknown"))
 
     def stop(self):
-        print ("%s caught stop signal" % (self.group_name))
+        log.info ("%s caught stop signal" % (self.group_name))
         self.stopped = True
 
 
@@ -234,7 +256,7 @@ class ESItemProcessor(object):
     def load(self):
         self.pipeline = []
         for key, value in self.type_instructions.items():
-            print("process : %s | %s" % (key, value))
+            log.debug("process : %s | %s" % (key, value))
             # Check for parent or child instuction and add function:
             #     _add_parent or _add_child to pipeline.
             if key in ["_parent", "_child"]:
@@ -276,7 +298,7 @@ class ESItemProcessor(object):
         try:
             doc["_parent"] = self._get_doc_field(doc, field_name)
         except Exception as e:
-            print ("Could not add parent to doc type %s. Error: %s" %
+            log.debug("Could not add parent to doc type %s. Error: %s" %
                    (self.es_type, e))
         return doc
 
@@ -284,7 +306,7 @@ class ESItemProcessor(object):
         try:
             doc["_child"] = self._get_doc_field(doc, field_name)
         except Exception as e:
-            print ("Could not add parent to doc type %s. Error: %s" %
+            log.debug("Could not add parent to doc type %s. Error: %s" %
                    (self.es_type, e))
         return doc
 
@@ -295,7 +317,7 @@ class ESItemProcessor(object):
             geo["lon"] = float(self._get_doc_field(doc, lon))
             doc[field_name] = geo
         except Exception as e:
-            print ("Could not add geo to doc type %s. Error: %s | %s" %
+            log.debug("Could not add geo to doc type %s. Error: %s | %s" %
                    (self.es_type, e, (lat, lon),))
         return doc
 
@@ -314,12 +336,11 @@ class ESItemProcessor(object):
                             return val.get(name)
                     except Exception as err:
                         pass
-            pprint(doc)
             raise ValueError()
         except ValueError as ve:
-            print ("Error getting field %s from doc type %s" %
+            log.debug("Error getting field %s from doc type %s" %
                    (name, self.es_type))
-            pprint(doc)
+            log.debug(doc)
             raise ve
 
     def _find_matching_predicate(self, obj):
@@ -355,20 +376,20 @@ class KafkaViewer(object):
         signal.signal(signal.SIGTERM, self.kill)
         connect()
         manager = ESConsumerManager()
-        print ("Started!")
+        log.info("Started ES Consumer")
         while True:
             try:
                 pass
                 if not manager.stopped:
                     Sleep(10)
                 else:
-                    print("Manager caught SIGTERM, exiting")
+                    log.info("Manager caught SIGTERM, exiting")
                     break
             except KeyboardInterrupt as e:
-                print("\nTrying to stop gracefully")
+                log.info("\nTrying to stop gracefully")
                 manager.stop()
                 break
-    
+
     def kill(self, *args, **kwargs):
         self.killed = True
 

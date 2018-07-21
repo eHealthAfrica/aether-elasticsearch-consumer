@@ -10,6 +10,13 @@
     },
     "ingest_routes" : {
         "(aet_auto_)(\w*)(_1)" : "route1"
-    }
-    "log_level" : "DEBUG"
+    },
+    "elasticsearch_instance" : {
+        "urls" ; ["localhost", "elasticsearch"]
+    },
+    "connect_retry_wait" : 30,
+    "startup_connection_retry" : 3,
+    "index_path" : "./index",
+    "log_level" : "DEBUG",
+    "log_name" : "ES_Consumer"
 }
