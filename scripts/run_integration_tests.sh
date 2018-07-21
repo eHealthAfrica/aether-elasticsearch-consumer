@@ -25,8 +25,10 @@ scripts/integration_test_teardown.sh
 scripts/integration_test_setup.sh
 popd
 docker-compose -f docker-compose-test.yml build
-sleep 10  # Wait for Kafka to finish coming up.
-docker-compose -f docker-compose-test.yml run example-consumer-test test_integration
+docker-compose -f docker-compose-test.yml run assets-test register
+docker-compose -f docker-compose-test.yml run assets-test generate 10
+#sleep 10  # Wait for Kafka to finish coming up.
+docker-compose -f docker-compose-test.yml run elasticsearch-consumer-test test_integration
 pushd aether-bootstrap
-scripts/integration_test_teardown.sh
+#scripts/integration_test_teardown.sh
 popd

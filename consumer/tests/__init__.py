@@ -5,7 +5,7 @@
 # See the NOTICE file distributed with this work for additional information
 # regarding copyright ownership.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with
 # the License.  You may obtain a copy of the License at
 #
@@ -19,48 +19,34 @@
 # under the License.
 
 import pytest
-from app.main import KafkaViewer, ESConsumerManager
+from app.main import ESConsumerManager
 
-kafka_server = "kafka-test:29099"
+kafka_server = 'kafka-test:29099'
 
 
 # We can use 'mark' distinctions to chose which tests are run and which assets are built
 # @pytest.mark.integration
 # @pytest.mark.unit
 # When possible use fixtures for reusable test assets
-# @pytest.fixture(scope="session")
-
-
-class _MockKafkaViewer(KafkaViewer):
-
-    def __init__(self):
-        pass
-
+# @pytest.fixture(scope='session')
 
 @pytest.mark.integration
 @pytest.mark.unit
-@pytest.fixture(scope="function")
-def MockKafkaViewer():
-    viewer = _MockKafkaViewer()
-    viewer.killed = False
-    return viewer
-
-@pytest.mark.integration
-@pytest.mark.unit
-@pytest.fixture(scope="function")
+@pytest.fixture(scope='function')
 def MockConsumerManager():
     return ESConsumerManager()
 
+
 @pytest.mark.unit
 @pytest.mark.integration
-def AutoConfigSettings(scope='module'):
+@pytest.fixture(scope='session')
+def AutoConfigSettings():
     return {
-        "index_name_template": "aet_auto_%s_1",
-        "enabled" : True,
-        "ignored_topics" : None,
-        "geo_point_creation": True,
-        "geo_point_name": "geo_point",
-        "latitude_fields" : ['lat', 'latitude'],
-        "longitude_fields" : ['long', 'lng', 'longitude']
+        'index_name_template': 'aet_auto_%s_1',
+        'enabled': True,
+        'ignored_topics': None,
+        'geo_point_creation': True,
+        'geo_point_name': 'geo_point',
+        'latitude_fields': ['lat', 'latitude'],
+        'longitude_fields': ['long', 'lng', 'longitude']
     }
-

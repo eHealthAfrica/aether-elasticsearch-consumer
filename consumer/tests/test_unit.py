@@ -32,6 +32,6 @@ from . import *  # get all test assets from test/__init__.py
 
 @pytest.mark.unit
 def test_kafka_connection_check_unit(MockKafkaViewer):
-    args = {"bootstrap_servers": ["kafka-test:29092"]}
+    args = {'bootstrap_servers': ['kafka-test:29092']}
     MockKafkaViewer.connect_consumer(args)
-    assert(MockKafkaViewer.consumer_connected() is not True), "Kafka should not be found."
+    assert(MockKafkaViewer.consumer_connected() is not True), 'Kafka should not be found.'

@@ -7,6 +7,28 @@ services:
       service: es-consumer-base
     networks:
       - test_net
+    environment:
+      ES_CONSUMER_CONFIG_PATH: "/code/conf/consumer/consumer.json"
+      ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/conf/consumer/kafka.json"
+
+  # ---------------------------------
+  # Mock Data Container
+  # ---------------------------------
+
+  assets-test:
+    build:
+      context: aether-bootstrap/assets/generation
+      dockerfile: Dockerfile
+    volumes:
+      - ./aether-bootstrap/assets:/code/assets
+    environment:
+      KERNEL_URL: "http://kernel-test:9001"
+      KERNEL_USER: "admin"
+      KERNEL_PASSWORD: "adminadmin"
+      PROJECT_NAME: "DefaultDemo"
+      SUBMISSION_ENDPOINT: "default_mapping"
+    networks:
+      - test_net
 
 networks:
   test_net:

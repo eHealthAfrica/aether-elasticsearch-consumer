@@ -1,5 +1,4 @@
 import os
-import io
 import json
 import logging
 import sys
@@ -9,10 +8,10 @@ import signal
 import spavro
 from time import sleep
 from elasticsearch import Elasticsearch
-from elasticsearch.exceptions import TransportError, ConflictError
+from elasticsearch.exceptions import TransportError
 from aet.consumer import KafkaConsumer
 
-from config import get_kafka_config, get_consumer_config
+from app.config import get_kafka_config, get_consumer_config
 
 consumer_config = get_consumer_config()
 kafka_config = get_kafka_config()
@@ -45,12 +44,12 @@ def connect_es():
             es_urls = consumer_config.get('elasticsearch_instance').get('urls')
             es = Elasticsearch(
                 es_urls, sniff_on_start=False)
-            print (es.info())
+            log.debug('ES Instance info: %s' % (es.info(),))
             return
         except Exception:
-            print("Could not connect to Elasticsearch Instance")
+            print('Could not connect to Elasticsearch Instance')
             sleep(CONN_RETRY_WAIT_TIME)
-    print("Failed to connect to ElasticSearch after %s retries" % CONN_RETRY)
+    print('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
 
 
@@ -59,12 +58,12 @@ def connect_kafka():
         try:
             consumer = KafkaConsumer(**kafka_config)
             consumer.topics()
-            print("Connected to Kafka...")
+            print('Connected to Kafka...')
             return
         except Exception as ke:
-            print("Could not connect to Kafka: %s" % (ke))
+            print('Could not connect to Kafka: %s' % (ke))
             sleep(CONN_RETRY_WAIT_TIME)
-    print("Failed to connect to Kafka after %s retries" % CONN_RETRY)
+    print('Failed to connect to Kafka after %s retries' % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
 
 
@@ -80,40 +79,38 @@ class ESConsumerManager(object):
         if auto_conf.get('enabled'):
             self.register_auto_config(**auto_conf)
 
-        #self.load_indices_from_file()
+        # self.load_indices_from_file()
 
     def load_indices_from_file(self):
-        index_path = "%s/index" % FILE_PATH
+        index_path = consumer_config.get('index_path')
         if os.path.isdir(index_path):
             index_files = os.listdir(index_path)
             for index_file in index_files:
                 self.register_index(index_path=index_path, index_file=index_file)
 
     def index_from_file(self, index_path, index_file):
-        index_name = index_file.split(".")[0]
-        path = "%s/%s" % (index_path, index_file)
+        index_name = index_file.split('.')[0]
+        path = '%s/%s' % (index_path, index_file)
         with open(path) as f:
             return {
-                "name" : index_name,
-                "body" : json.load(f)
-                }
+                'name': index_name,
+                'body': json.load(f)
+            }
 
     def register_auto_config(self, **autoconf):
         log.debug('Attempting to autoconfigure ES indices')
-        log.debug({autoconf})
-
-
+        log.debug([(k, v) for k, v in autoconf.items()])
 
     def register_index(self, index_path=None, index_file=None, index=None):
         if not any([index_path, index_file, index]):
             raise ValueError('Index cannot be created with an artifact')
         if index_path and index_file:
-            index = index_from_file(index_path, index_file)
-
+            index = self.index_from_file(index_path, index_file)
+        index_name = index.get('name')
         if es.indices.exists(index=index.get('name')):
-            log.debug("Index %s already exists, skipping creation." % index_name)
+            log.debug('Index %s already exists, skipping creation.' % index_name)
         else:
-            log.info("Creating Index %s" % index.get('name'))
+            log.info('Creating Index %s' % index.get('name'))
             es.indices.create(index=index_name, body=index.get('body'))
         self.start_consumer_group(index_name, index.get('body'))
 
@@ -139,7 +136,7 @@ class ESConsumerGroup(object):
         self.intuit_sources(index_body)
 
     def intuit_sources(self, index_body):
-        for name, instr in index_body.get("mappings", {}).items():
+        for name, instr in index_body.get('mappings', {}).items():
             processor = ESItemProcessor(name, instr)
             self.consumers[processor.topic_name] = ESConsumer(
                 self.name, processor)
@@ -160,7 +157,7 @@ class ESConsumer(threading.Thread):
         self.topic = processor.topic_name
         self.consumer_timeout = 1000  # MS
         self.consumer_max_records = 1000
-        self.group_name = "elastic_%s_%s" % (self.index, self.es_type)
+        self.group_name = 'elastic_%s_%s' % (self.index, self.es_type)
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
@@ -168,14 +165,14 @@ class ESConsumer(threading.Thread):
 
     def connect(self):
         args = dict(kafka_config)
-        args["group_id"] = self.group_name
+        args['group_id'] = self.group_name
         try:
             self.consumer = KafkaConsumer(**args)
             self.consumer.subscribe([self.topic])
             return True
         except Exception as ke:
-            log.error("%s failed to subscibe to topic %s with error \n%s" %
-                   (self.index, self.topic, ke))
+            log.error('%s failed to subscibe to topic %s with error \n%s' %
+                      (self.index, self.topic, ke))
             return False
 
     def run(self):
@@ -193,23 +190,23 @@ class ESConsumer(threading.Thread):
             for parition_key, packages in new_messages.items():
                 for package in packages:
                     schema = package.get('schema')
-                    log.debug("schema: %s" % schema)
+                    log.debug('schema: %s' % schema)
                     messages = package.get('messages')
-                    log.debug("messages #%s" % len(messages))
+                    log.debug('messages #%s' % len(messages))
                     if schema != last_schema:
                         self.processor.load_avro(schema)
                     for x, msg in enumerate(messages):
                         doc = self.processor.process(msg)
-                        log.debug("processed doc %s" % doc)
+                        log.debug('processed doc %s' % doc)
                         self.submit(doc)
                     last_schema = schema
 
-        log.info("Shutting down consumer %s | %s" % (self.index, self.topic))
+        log.info('Shutting down consumer %s | %s' % (self.index, self.topic))
         self.consumer.close()
         return
 
     def submit(self, doc):
-        parent = doc.get("_parent", None)
+        parent = doc.get('_parent', None)
         if parent:  # _parent field can only be in metadata apparently
             del doc['_parent']
         try:
@@ -221,7 +218,7 @@ class ESConsumer(threading.Thread):
                 body=doc
             )
         except Exception as ese:
-            log.info("Couldn't create doc because of error: %s\nAttempting update." % ese)
+            log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
                 es.update(
                     index=self.index,
@@ -230,13 +227,13 @@ class ESConsumer(threading.Thread):
                     parent=parent,
                     body=doc
                 )
-                log.debug("Success!")
+                log.debug('Success!')
             except TransportError as te:
-                log.debug("conflict exists, ignoring document with id %s" %
-                      doc.get("id", "unknown"))
+                log.debug('conflict exists, ignoring document with id %s' %
+                          doc.get('id', 'unknown'))
 
     def stop(self):
-        log.info ("%s caught stop signal" % (self.group_name))
+        log.info('%s caught stop signal' % (self.group_name))
         self.stopped = True
 
 
@@ -258,30 +255,30 @@ class ESItemProcessor(object):
     def load(self):
         self.pipeline = []
         for key, value in self.type_instructions.items():
-            log.debug("process : %s | %s" % (key, value))
+            log.debug('process : %s | %s' % (key, value))
             # Check for parent or child instuction and add function:
             #     _add_parent or _add_child to pipeline.
-            if key in ["_parent", "_child"]:
+            if key in ['_parent', '_child']:
                 # Given an instuction in the index like, we want to find
                 # the appropdiate action to fullfil this properly.
                 #
-                # "_parent": {
-                #     "type": "session"
+                # '_parent': {
+                #     'type': 'session'
                 # }
-                res = {"function": "_add%s" % key}
+                res = {'function': '_add%s' % key}
                 # now we need to look for the property matching the value name
                 res.update(self._find_matching_predicate(value))
                 # we should now have an instuction set with something like:
                 # {
-                #     "function" : "_add_parent",
-                #     "field_name" : "SessionID",
+                #     'function' : '_add_parent',
+                #     'field_name' : 'SessionID',
                 # }
                 self.pipeline.append(res)
             # Look for item named 'location' in properties
             #     If it's there we need a geopoint from _add_geopoint()
-            elif key == "properties":
-                if "location" in value.keys():
-                    res = {"function": "_add_geopoint"}
+            elif key == 'properties':
+                if 'location' in value.keys():
+                    res = {'function': '_add_geopoint'}
                     res.update(self._find_geopoints(value))
                     self.pipeline.append(res)
 
@@ -293,34 +290,34 @@ class ESItemProcessor(object):
 
     def exc(self, doc, instr):
         # Excecute by name
-        fn = getattr(self, instr.get("function"))
+        fn = getattr(self, instr.get('function'))
         return fn(doc, **instr)
 
     def _add_parent(self, doc, field_name=None, **kwargs):
         try:
-            doc["_parent"] = self._get_doc_field(doc, field_name)
+            doc['_parent'] = self._get_doc_field(doc, field_name)
         except Exception as e:
-            log.debug("Could not add parent to doc type %s. Error: %s" %
-                   (self.es_type, e))
+            log.debug('Could not add parent to doc type %s. Error: %s' %
+                      (self.es_type, e))
         return doc
 
     def _add_child(self, doc, field_name=None, **kwargs):
         try:
-            doc["_child"] = self._get_doc_field(doc, field_name)
+            doc['_child'] = self._get_doc_field(doc, field_name)
         except Exception as e:
-            log.debug("Could not add parent to doc type %s. Error: %s" %
-                   (self.es_type, e))
+            log.debug('Could not add parent to doc type %s. Error: %s' %
+                      (self.es_type, e))
         return doc
 
     def _add_geopoint(self, doc, field_name=None, lat=None, lon=None, **kwargs):
         geo = {}
         try:
-            geo["lat"] = float(self._get_doc_field(doc, lat))
-            geo["lon"] = float(self._get_doc_field(doc, lon))
+            geo['lat'] = float(self._get_doc_field(doc, lat))
+            geo['lon'] = float(self._get_doc_field(doc, lon))
             doc[field_name] = geo
         except Exception as e:
-            log.debug("Could not add geo to doc type %s. Error: %s | %s" %
-                   (self.es_type, e, (lat, lon),))
+            log.debug('Could not add geo to doc type %s. Error: %s | %s' %
+                      (self.es_type, e, (lat, lon),))
         return doc
 
     def _get_doc_field(self, doc, name):
@@ -340,33 +337,33 @@ class ESItemProcessor(object):
                         pass
             raise ValueError()
         except ValueError as ve:
-            log.debug("Error getting field %s from doc type %s" %
-                   (name, self.es_type))
+            log.debug('Error getting field %s from doc type %s' %
+                      (name, self.es_type))
             log.debug(doc)
             raise ve
 
     def _find_matching_predicate(self, obj):
         # looks for membership of lowercase name in one of the fields in the schema
-        name = obj.get("type")
+        name = obj.get('type')
 
-        for field in self.schema_obj.get("fields"):
-            test = field.get("name", "").lower()
+        for field in self.schema_obj.get('fields'):
+            test = field.get('name', '').lower()
             if name.lower() in test:
-                return {"field_name": field.get("name")}
-        raise ValueError("No matching field found for name %s in type %s | %s" % (
+                return {'field_name': field.get('name')}
+        raise ValueError('No matching field found for name %s in type %s | %s' % (
             name, self.es_type, self.schema_obj))
 
     def _find_geopoints(self, obj):
-        res = {"field_name": "location"}
-        for field in self.schema_obj.get("fields"):
-            test = field.get("name", "").lower()
-            if test in ["lat", "latitude"]:
-                res["lat"] = field.get("name")
-            elif test in ["lon", "lng", "long", "longitude"]:
-                res["lon"] = field.get("name")
-        if not "lat" and "lon" in res:
-            raise ValueError("Couldn't resolve geopoints for field %s of type %s" % (
-                "location", self.es_type))
+        res = {'field_name': 'location'}
+        for field in self.schema_obj.get('fields'):
+            test = field.get('name', '').lower()
+            if test in ['lat', 'latitude']:
+                res['lat'] = field.get('name')
+            elif test in ['lon', 'lng', 'long', 'longitude']:
+                res['lon'] = field.get('name')
+        if not 'lat' and 'lon' in res:
+            raise ValueError('Could not resolve geopoints for field %s of type %s' % (
+                'location', self.es_type))
         return res
 
 
@@ -378,18 +375,18 @@ class KafkaViewer(object):
         signal.signal(signal.SIGTERM, self.kill)
         connect()
         manager = ESConsumerManager()
-        log.info("Started ES Consumer")
+        log.info('Started ES Consumer')
         while True:
             try:
                 pass
                 if not manager.stopped:
-                    for x in range(10)
+                    for x in range(10):
                         sleep(1)
                 else:
-                    log.info("Manager caught SIGTERM, exiting")
+                    log.info('Manager caught SIGTERM, exiting')
                     break
             except KeyboardInterrupt as e:
-                log.info("\nTrying to stop gracefully")
+                log.info('\nTrying to stop gracefully')
                 manager.stop()
                 break
 
@@ -397,5 +394,5 @@ class KafkaViewer(object):
         self.killed = True
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     viewer = KafkaViewer()
