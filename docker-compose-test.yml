@@ -7,6 +7,8 @@ services:
       service: es-consumer-base
     networks:
       - test_net
+    volumes:
+      - ./consumer/conf/consumer:/code/conf/consumer
     environment:
       ES_CONSUMER_CONFIG_PATH: "/code/conf/consumer/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/conf/consumer/test_kafka.json"

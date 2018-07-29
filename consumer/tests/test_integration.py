@@ -33,4 +33,4 @@ from . import *  # get all test assets from test/__init__.py
 @pytest.mark.integration
 def test_consumer_manager__register_auto_conf(MockConsumerManager, AutoConfigSettings):
     res = MockConsumerManager.register_auto_config(**AutoConfigSettings)
-    assert(res)
+    assert(len(res) == 3)

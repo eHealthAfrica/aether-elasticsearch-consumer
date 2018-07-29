@@ -18,7 +18,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import json
 import pytest
+import os
 from app.main import ESConsumerManager
 
 kafka_server = 'kafka-test:29099'
@@ -41,12 +43,7 @@ def MockConsumerManager():
 @pytest.mark.integration
 @pytest.fixture(scope='session')
 def AutoConfigSettings():
-    return {
-        'index_name_template': 'aet_auto_%s_1',
-        'enabled': True,
-        'ignored_topics': None,
-        'geo_point_creation': True,
-        'geo_point_name': 'geo_point',
-        'latitude_fields': ['lat', 'latitude'],
-        'longitude_fields': ['long', 'lng', 'longitude']
-    }
+    path = os.environ['ES_CONSUMER_CONFIG_PATH']
+    with open(path) as f:
+        obj = json.load(f)
+        return obj.get('autoconfig_settings')

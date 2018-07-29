@@ -101,14 +101,30 @@ class ESConsumerManager(object):
     def register_auto_config(self, **autoconf):
         log.debug('Attempting to autoconfigure ES indices')
         log.debug([(k, v) for k, v in autoconf.items()])
+        ignored_topics = set(autoconf.get('ignored_topics', []))
         args = dict(kafka_config)
         try:
             consumer = KafkaConsumer(**args)
-            topics = consumer.topics()
+            topics = [i for i in consumer.topics() if i not in ignored_topics]
         except Exception as ke:
             log.error('Autoconfig failed to get available topics \n%s' % (ke))
-        log.debug([t for t in topics])
-        return False
+        geo_point = (
+            autoconf.get('geo_point_name', None)
+            if autoconf.get('geo_point_creation', False)
+            else None
+        )
+        indexes = []
+        for topic in topics:
+            indexes.append(self.get_index_for_topic(topic, geo_point))
+        return topics
+
+    def get_index_for_topic(self, name, geo_point=None):
+        log.debug('Creating index for %s' % name)
+        index = {name: {}}
+        if geo_point:
+            index[name]['properties'] = {geo_point: {'type': 'geo_point'}}
+        log.debug('created index: \n%s' % json.dumps(index, indent=2))
+        return index
 
     def register_index(self, index_path=None, index_file=None, index=None):
         if not any([index_path, index_file, index]):
