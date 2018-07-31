@@ -299,6 +299,31 @@ class ESItemProcessor(object):
 
     def load(self):
         self.pipeline = []
+        meta = self.type_instructions.get('_meta')
+        if not meta:
+            return
+        for key, value in meta.items():
+            log.debug('Type %s has meta type: %s' % (self.es_type, key))
+            if key is 'aet_parent_field':
+                cmd = {
+                    'function': '_add_parent',
+                    'field_name': value
+                }
+                self.pipeline.append(cmd)
+            elif key is 'aet_geopoint':
+                cmd = {
+                    'function': '_add_geopoint',
+                    'field_name': value
+                }
+                cmd.update(self._find_geopoints())
+                self.pipeline.append(cmd)
+
+            elif key.startswith('aet'):
+                log.error('Unsupported aet meta keyword %s in type %s' % (key, self.es_type))
+            else:
+                log.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
+
+        '''
         for key, value in self.type_instructions.items():
             log.debug('process : %s | %s' % (key, value))
             # Check for parent or child instuction and add function:
@@ -326,6 +351,7 @@ class ESItemProcessor(object):
                     res = {'function': '_add_geopoint'}
                     res.update(self._find_geopoints(value))
                     self.pipeline.append(res)
+        '''
 
     def process(self, doc, schema=None):
         # Runs the cached insturctions from the built pipeline
@@ -345,7 +371,7 @@ class ESItemProcessor(object):
             log.debug('Could not add parent to doc type %s. Error: %s' %
                       (self.es_type, e))
         return doc
-
+    '''
     def _add_child(self, doc, field_name=None, **kwargs):
         try:
             doc['_child'] = self._get_doc_field(doc, field_name)
@@ -353,6 +379,7 @@ class ESItemProcessor(object):
             log.debug('Could not add parent to doc type %s. Error: %s' %
                       (self.es_type, e))
         return doc
+    '''
 
     def _add_geopoint(self, doc, field_name=None, lat=None, lon=None, **kwargs):
         geo = {}
@@ -387,24 +414,15 @@ class ESItemProcessor(object):
             log.debug(doc)
             raise ve
 
-    def _find_matching_predicate(self, obj):
-        # looks for membership of lowercase name in one of the fields in the schema
-        name = obj.get('type')
-
+    def _find_geopoints(self):
+        res = {}
+        latitude_fields = consumer_config.get('latitude_fields')
+        longitude_fields = consumer_config.get('longitude_fields')
         for field in self.schema_obj.get('fields'):
             test = field.get('name', '').lower()
-            if name.lower() in test:
-                return {'field_name': field.get('name')}
-        raise ValueError('No matching field found for name %s in type %s | %s' % (
-            name, self.es_type, self.schema_obj))
-
-    def _find_geopoints(self, obj):
-        res = {'field_name': 'location'}
-        for field in self.schema_obj.get('fields'):
-            test = field.get('name', '').lower()
-            if test in ['lat', 'latitude']:
+            if test in latitude_fields:
                 res['lat'] = field.get('name')
-            elif test in ['lon', 'lng', 'long', 'longitude']:
+            elif test in longitude_fields:
                 res['lon'] = field.get('name')
         if not 'lat' and 'lon' in res:
             raise ValueError('Could not resolve geopoints for field %s of type %s' % (

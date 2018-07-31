@@ -14,8 +14,8 @@
 	},
 	"connect_retry_wait": 30,
 	"startup_connection_retry": 3,
-    "latitude_fields": [],
-	"longitude_fields": [],
+    "latitude_fields": ["lat", "latitude"],
+	"longitude_fields": ["lon", "lng", "long", "longitude"],
 	"index_path": "/code/tests/test_index",
 	"log_level": "DEBUG",
 	"log_name": "ES_Consumer"

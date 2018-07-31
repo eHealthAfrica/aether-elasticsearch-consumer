@@ -8,6 +8,21 @@ services:
     networks:
       - test_net
 
+  kibana-test:
+    extends:
+      file: docker-compose-base.yml
+      service: kibana-base
+    depends_on:
+      - elasticsearch-test
+    ports:
+      - "5601:5601"
+    environment:
+      SERVER_HOST: 0.0.0.0
+      ELASTICSEARCH_URL: http://elasticsearch-test
+    networks:
+      - test_net
+
+
   elasticsearch-consumer-test:
     extends:
       file: docker-compose-base.yml
