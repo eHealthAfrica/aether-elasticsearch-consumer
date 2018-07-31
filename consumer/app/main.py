@@ -1,27 +1,60 @@
+#!/usr/bin/env python
+
+# Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
+#
+# See the NOTICE file distributed with this work for additional information
+# regarding copyright ownership.
+#
+# Licensed under the Apache License, Version 2.0 (the 'License');
+# you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import os
 import json
 import logging
 import sys
 import threading
 import signal
-
-import spavro
 from time import sleep
+from urllib3.exceptions import NewConnectionError
+
+
+from aet.consumer import KafkaConsumer
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError
-from aet.consumer import KafkaConsumer
+import spavro
 
-from app.config import get_kafka_config, get_consumer_config
+from . import config
 
-consumer_config = get_consumer_config()
-kafka_config = get_kafka_config()
-
-log = logging.getLogger(consumer_config.get('log_name'))
-log_level = logging.getLevelName(consumer_config.get('log_level'))
-log.setLevel(log_level)
+consumer_config = config.get_consumer_config()
+kafka_config = config.get_kafka_config()
 
 CONN_RETRY = consumer_config.get('startup_connection_retry')
 CONN_RETRY_WAIT_TIME = consumer_config.get('connect_retry_wait')
+
+
+def get_module_logger(mod_name):
+    logger = logging.getLogger(mod_name)
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s [%(name)-12s] %(levelname)-8s %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    level = logging.getLevelName(consumer_config.get('log_level'))
+    logger.setLevel(level)
+    return logger
+
+
+log = get_module_logger(consumer_config.get('log_name'))
 
 # Global Elasticsearch Connection
 es = None
@@ -47,7 +80,7 @@ def connect_es():
                 es_urls, sniff_on_start=False)
             log.debug('ES Instance info: %s' % (es.info(),))
             return es
-        except Exception:
+        except NewConnectionError:
             log.debug('Could not connect to Elasticsearch Instance')
             sleep(CONN_RETRY_WAIT_TIME)
     print('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
@@ -73,15 +106,15 @@ class ESConsumerManager(object):
     def __init__(self, es_instance):
         self.es = es_instance
         self.stopped = False
+        self.autoconfigured_topics = []
         # SIGTERM should kill subprocess via manager.stop()
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
         self.consumer_groups = {}  # index_name : consumer group
         auto_conf = consumer_config.get('autoconfig_settings')
         if auto_conf.get('enabled'):
-            auto_indexes = self.get_indexes_for_auto_config(**auto_conf)
-            for idx in auto_indexes:
-                self.register_index(index=idx)
+            self.autoconf_maintainer = AutoConfMaintainer(self, auto_conf)
+            self.autoconf_maintainer.start()
         self.load_indices_from_file()
 
     def load_indices_from_file(self):
@@ -107,10 +140,13 @@ class ESConsumerManager(object):
         log.debug('Attempting to autoconfigure ES indices')
         ignored_topics = set(autoconf.get('ignored_topics', []))
         log.debug('Ignoring topics: %s' % (ignored_topics,))
+        log.debug('Previously Configured topics: %s' % (self.autoconfigured_topics,))
         args = dict(kafka_config)
         try:
             consumer = KafkaConsumer(**args)
-            topics = [i for i in consumer.topics() if i not in ignored_topics]
+            topics = [i for i in consumer.topics()
+                      if i not in ignored_topics and
+                      i not in self.autoconfigured_topics]
         except Exception as ke:
             log.error('Autoconfig failed to get available topics \n%s' % (ke))
         geo_point = (
@@ -120,6 +156,7 @@ class ESConsumerManager(object):
         )
         indexes = []
         for topic_name in topics:
+            self.autoconfigured_topics.append(topic_name)
             index_name = (autoconf.get('index_name_template') % topic_name).lower()
             log.debug('Index name => %s' % index_name)
             indexes.append(
@@ -170,16 +207,38 @@ class ESConsumerManager(object):
             self.stop_group(key)
 
 
+class AutoConfMaintainer(threading.Thread):
+
+    def __init__(self, parent, autoconf):
+        self.parent = parent
+        self.autoconf = autoconf
+        self.stopped = False
+        super(AutoConfMaintainer, self).__init__()
+
+    def run(self):
+        while not self.parent.stopped:
+            auto_indexes = self.parent.get_indexes_for_auto_config(**self.autoconf)
+            for idx in auto_indexes:
+                self.parent.register_index(index=idx)
+            for x in range(10):
+                if self.parent.stopped:
+                    return
+                sleep(1)
+
+
 class ESConsumerGroup(object):
     # Group of consumers (1 per topic) pushing to an ES index
 
     def __init__(self, index_name, index_body):
         self.name = index_name
         self.consumers = {}
+        log.debug('Consumer Group started for index: %s' % index_name)
         self.intuit_sources(index_body)
 
     def intuit_sources(self, index_body):
         for name, instr in index_body.get('mappings', {}).items():
+            log.debug('Adding processor for %s' % name)
+            log.debug('instructions: %s' % instr)
             processor = ESItemProcessor(name, instr)
             self.consumers[processor.topic_name] = ESConsumer(
                 self.name, processor)
@@ -201,8 +260,8 @@ class ESConsumer(threading.Thread):
         self.topic = processor.topic_name
         self.consumer_timeout = 1000  # MS
         self.consumer_max_records = 1000
-        self.group_name = 'elastic_%s_%s' % (self.index, self.es_type) \
-            if has_group else None
+        self.group_name = 'elastic_%s_%s_5' % (self.index, self.es_type) \
+            if has_group else None  # TODO KILL
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
@@ -239,10 +298,13 @@ class ESConsumer(threading.Thread):
                     messages = package.get('messages')
                     log.debug('messages #%s' % len(messages))
                     if schema != last_schema:
+                        log.debug('Schema change on type %s' % self.es_type)
                         self.processor.load_avro(schema)
+                    else:
+                        log.debug('Schema unchanged.')
                     for x, msg in enumerate(messages):
                         doc = self.processor.process(msg)
-                        log.debug('processed doc %s' % doc)
+                        log.debug('processed doc in index %s' % self.es_type)
                         self.submit(doc)
                     last_schema = schema
 
@@ -255,6 +317,7 @@ class ESConsumer(threading.Thread):
         if parent:  # _parent field can only be in metadata apparently
             del doc['_parent']
         try:
+            log.debug(doc)
             es.create(
                 index=self.index,
                 doc_type=self.es_type,
@@ -301,16 +364,17 @@ class ESItemProcessor(object):
         self.pipeline = []
         meta = self.type_instructions.get('_meta')
         if not meta:
+            log.debug('type: %s has no meta arguments' % (self.es_type))
             return
         for key, value in meta.items():
             log.debug('Type %s has meta type: %s' % (self.es_type, key))
-            if key is 'aet_parent_field':
+            if key == 'aet_parent_field':
                 cmd = {
                     'function': '_add_parent',
                     'field_name': value
                 }
                 self.pipeline.append(cmd)
-            elif key is 'aet_geopoint':
+            elif key == 'aet_geopoint':
                 cmd = {
                     'function': '_add_geopoint',
                     'field_name': value
@@ -322,6 +386,7 @@ class ESItemProcessor(object):
                 log.error('Unsupported aet meta keyword %s in type %s' % (key, self.es_type))
             else:
                 log.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
+        log.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
 
         '''
         for key, value in self.type_instructions.items():
@@ -390,6 +455,7 @@ class ESItemProcessor(object):
         except Exception as e:
             log.debug('Could not add geo to doc type %s. Error: %s | %s' %
                       (self.es_type, e, (lat, lon),))
+            log.error(e)
         return doc
 
     def _get_doc_field(self, doc, name):
@@ -430,14 +496,16 @@ class ESItemProcessor(object):
         return res
 
 
-class KafkaViewer(object):
+class ElasticSearchConsumer(object):
 
     def __init__(self):
         self.killed = False
         signal.signal(signal.SIGINT, self.kill)
         signal.signal(signal.SIGTERM, self.kill)
+        log.info('Connecting to Kafka and ES in 5 seconds')
+        sleep(5)
         connect()
-        manager = ESConsumerManager()
+        manager = ESConsumerManager(es)
         log.info('Started ES Consumer')
         while True:
             try:
@@ -458,4 +526,4 @@ class KafkaViewer(object):
 
 
 if __name__ == '__main__':
-    viewer = KafkaViewer()
+    viewer = ElasticSearchConsumer()

@@ -17,6 +17,6 @@
     "latitude_fields": ["lat", "latitude"],
 	"longitude_fields": ["lon", "lng", "long", "longitude"],
 	"index_path": "/code/tests/test_index",
-	"log_level": "DEBUG",
+	"log_level": "ERROR",
 	"log_name": "ES_Consumer"
 }

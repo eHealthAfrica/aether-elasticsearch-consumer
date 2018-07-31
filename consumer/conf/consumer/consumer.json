@@ -1,7 +1,7 @@
 {
 	"autoconfig_settings": {
-		"index_name_template": "aet_auto_%s_1",
-		"enabled": true,
+		"index_name_template": "aet_auto_%s_2",
+		"enabled": false,
 		"ignored_topics": ["__confluent.support.metrics"],
 		"geo_point_creation": true,
 		"geo_point_name": "geo_point"
@@ -14,9 +14,9 @@
 	},
 	"connect_retry_wait": 30,
 	"startup_connection_retry": 3,
-    "latitude_fields": [],
-	"longitude_fields": [],
-	"index_path": "./index",
+    "latitude_fields": ["lat", "latitude"],
+	"longitude_fields": ["lon", "lng", "long", "longitude"],
+	"index_path": "/code/app/index",
 	"log_level": "DEBUG",
 	"log_name": "ES_Consumer"
 }

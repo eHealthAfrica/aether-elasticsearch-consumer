@@ -41,10 +41,27 @@ def test_consumer_manager__get_indexes_for_auto_config(MockConsumerManager, Auto
 def test_consumer_manager__init(ConsumerManager, ElasticSearch):
     try:
         # wait for connection to ES
-        sleep(5)
+        sleep(20)
         groups = [name for name in ConsumerManager.consumer_groups]
         assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
     except Exception as err:
         raise(err)
     finally:
         ConsumerManager.stop()
+
+
+@pytest.mark.integration
+def test_consumer_manager__elasticsearch_index_consistency(ElasticSearch):
+    registered_indices = ElasticSearch.indices.get_alias('*')
+    assert(len(registered_indices) >= 5)
+
+
+@pytest.mark.integration
+def test_consumer_manager__elasticsearch_doc_consistency(ElasticSearch):
+    page = ElasticSearch.search(
+        index='combined',
+        scroll='2m',
+        size=1000
+    )
+    hits = page.get('hits').get('hits')
+    assert(len(hits) == 40)

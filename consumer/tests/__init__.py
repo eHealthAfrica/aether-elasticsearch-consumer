@@ -27,7 +27,8 @@ from app.main import ESConsumerManager, connect_es
 class _MockConsumerManager(ESConsumerManager):
 
     def __init__(self):
-        pass
+        self.stopped = False
+        self.autoconfigured_topics = []
 
 
 # We can use 'mark' distinctions to chose which tests are run and which assets are built

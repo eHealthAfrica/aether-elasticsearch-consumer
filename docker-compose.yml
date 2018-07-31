@@ -1,4 +1,10 @@
 version: "2.1"
+
+networks:
+  aether:
+    external:
+      name: aether_internal
+
 services:
 
   elasticsearch:
@@ -21,12 +27,10 @@ services:
     extends:
       file: docker-compose-base.yml
       service: es-consumer-base
+    environment:
+      ES_CONSUMER_CONFIG_PATH: "/code/conf/consumer/consumer.json"
+      ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/conf/consumer/kafka.json"
     links:
       - elasticsearch
     networks:
       - aether
-
-networks:
-  aether:
-    external:
-      name: aether_internal
