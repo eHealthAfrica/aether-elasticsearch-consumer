@@ -21,9 +21,13 @@
 import json
 import pytest
 import os
-from app.main import ESConsumerManager
+from app.main import ESConsumerManager, connect_es
 
-kafka_server = 'kafka-test:29099'
+
+class _MockConsumerManager(ESConsumerManager):
+
+    def __init__(self):
+        pass
 
 
 # We can use 'mark' distinctions to chose which tests are run and which assets are built
@@ -32,11 +36,26 @@ kafka_server = 'kafka-test:29099'
 # When possible use fixtures for reusable test assets
 # @pytest.fixture(scope='session')
 
+
+@pytest.mark.integration
+@pytest.fixture(scope='session')
+def ElasticSearch():
+    global es
+    es = connect_es()
+    return es
+
+
 @pytest.mark.integration
 @pytest.mark.unit
 @pytest.fixture(scope='function')
 def MockConsumerManager():
-    return ESConsumerManager()
+    return _MockConsumerManager()
+
+
+@pytest.mark.integration
+@pytest.fixture(scope='function')
+def ConsumerManager(ElasticSearch):
+    return ESConsumerManager(ElasticSearch)
 
 
 @pytest.mark.unit

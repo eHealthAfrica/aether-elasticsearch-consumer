@@ -42,12 +42,13 @@ def connect_es():
             global es
             # default connection on localhost
             es_urls = consumer_config.get('elasticsearch_instance').get('urls')
+            log.debug('Connecting to ES on %s' % (es_urls,))
             es = Elasticsearch(
                 es_urls, sniff_on_start=False)
             log.debug('ES Instance info: %s' % (es.info(),))
-            return
+            return es
         except Exception:
-            print('Could not connect to Elasticsearch Instance')
+            log.debug('Could not connect to Elasticsearch Instance')
             sleep(CONN_RETRY_WAIT_TIME)
     print('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
@@ -58,10 +59,10 @@ def connect_kafka():
         try:
             consumer = KafkaConsumer(**kafka_config)
             consumer.topics()
-            print('Connected to Kafka...')
+            log.debug('Connected to Kafka...')
             return
         except Exception as ke:
-            print('Could not connect to Kafka: %s' % (ke))
+            log.debug('Could not connect to Kafka: %s' % (ke))
             sleep(CONN_RETRY_WAIT_TIME)
     print('Failed to connect to Kafka after %s retries' % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
@@ -69,7 +70,8 @@ def connect_kafka():
 
 class ESConsumerManager(object):
 
-    def __init__(self):
+    def __init__(self, es_instance):
+        self.es = es_instance
         self.stopped = False
         # SIGTERM should kill subprocess via manager.stop()
         signal.signal(signal.SIGINT, self.stop)
@@ -77,13 +79,16 @@ class ESConsumerManager(object):
         self.consumer_groups = {}  # index_name : consumer group
         auto_conf = consumer_config.get('autoconfig_settings')
         if auto_conf.get('enabled'):
-            # self.register_auto_config(**auto_conf)
-            pass
-
-        # self.load_indices_from_file()
+            auto_indexes = self.get_indexes_for_auto_config(**auto_conf)
+            for idx in auto_indexes:
+                self.register_index(index=idx)
+        self.load_indices_from_file()
 
     def load_indices_from_file(self):
         index_path = consumer_config.get('index_path')
+        if not index_path:
+            log.debug('No valid path for directory of index files')
+            return
         if os.path.isdir(index_path):
             index_files = os.listdir(index_path)
             for index_file in index_files:
@@ -98,10 +103,10 @@ class ESConsumerManager(object):
                 'body': json.load(f)
             }
 
-    def register_auto_config(self, **autoconf):
+    def get_indexes_for_auto_config(self, **autoconf):
         log.debug('Attempting to autoconfigure ES indices')
-        log.debug([(k, v) for k, v in autoconf.items()])
         ignored_topics = set(autoconf.get('ignored_topics', []))
+        log.debug('Ignoring topics: %s' % (ignored_topics,))
         args = dict(kafka_config)
         try:
             consumer = KafkaConsumer(**args)
@@ -114,30 +119,43 @@ class ESConsumerManager(object):
             else None
         )
         indexes = []
-        for topic in topics:
-            indexes.append(self.get_index_for_topic(topic, geo_point))
-        return topics
+        for topic_name in topics:
+            index_name = (autoconf.get('index_name_template') % topic_name).lower()
+            log.debug('Index name => %s' % index_name)
+            indexes.append(
+                {
+                    'name': index_name,
+                    'body': self.get_index_for_topic(topic_name, geo_point)
+                }
+            )
+        return indexes
 
     def get_index_for_topic(self, name, geo_point=None):
-        log.debug('Creating index for %s' % name)
+        log.debug('Auto creating index for topic %s' % name)
         index = {name: {}}
         if geo_point:
             index[name]['properties'] = {geo_point: {'type': 'geo_point'}}
         log.debug('created index: \n%s' % json.dumps(index, indent=2))
-        return index
+        return {'mappings': index}
 
     def register_index(self, index_path=None, index_file=None, index=None):
         if not any([index_path, index_file, index]):
-            raise ValueError('Index cannot be created with an artifact')
-        if index_path and index_file:
-            index = self.index_from_file(index_path, index_file)
-        index_name = index.get('name')
-        if es.indices.exists(index=index.get('name')):
-            log.debug('Index %s already exists, skipping creation.' % index_name)
-        else:
-            log.info('Creating Index %s' % index.get('name'))
-            es.indices.create(index=index_name, body=index.get('body'))
-        self.start_consumer_group(index_name, index.get('body'))
+            raise ValueError('Index cannot be created without an artifact')
+        try:
+            if index_path and index_file:
+                log.debug('Loading index %s from file: %s' % (index_file, index_path))
+                index = self.index_from_file(index_path, index_file)
+            index_name = index.get('name')
+            if self.es.indices.exists(index=index.get('name')):
+                log.debug('Index %s already exists, skipping creation.' % index_name)
+            else:
+                log.info('Creating Index %s' % index.get('name'))
+                self.es.indices.create(index=index_name, body=index.get('body'))
+            self.start_consumer_group(index_name, index.get('body'))
+        except Exception as ese:
+            log.error('Error creating index in elasticsearch %s' %
+                      ([index_path, index_file, index],))
+            log.error(ese)
 
     def start_consumer_group(self, index_name, index_body):
         self.consumer_groups[index_name] = ESConsumerGroup(
@@ -175,20 +193,22 @@ class ESConsumerGroup(object):
 class ESConsumer(threading.Thread):
     # A single consumer subscribed to topic, pushing to an index
     # Runs as a daemon to avoid weird stops
-    def __init__(self, index, processor):
+    def __init__(self, index, processor, has_group=True):
+        # has_group = False only used for testing
         self.processor = processor
         self.index = index
         self.es_type = processor.es_type
         self.topic = processor.topic_name
         self.consumer_timeout = 1000  # MS
         self.consumer_max_records = 1000
-        self.group_name = 'elastic_%s_%s' % (self.index, self.es_type)
+        self.group_name = 'elastic_%s_%s' % (self.index, self.es_type) \
+            if has_group else None
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
         super(ESConsumer, self).__init__()
 
-    def connect(self):
+    def connect(self, kafka_config):
         args = dict(kafka_config)
         args['group_id'] = self.group_name
         try:
@@ -202,7 +222,7 @@ class ESConsumer(threading.Thread):
 
     def run(self):
         while True:
-            if self.connect():
+            if self.connect(kafka_config):
                 break
             elif self.stopped:
                 return

@@ -31,7 +31,12 @@ from . import *  # get all test assets from test/__init__.py
 
 
 @pytest.mark.unit
-def test_kafka_connection_check_unit(MockKafkaViewer):
-    args = {'bootstrap_servers': ['kafka-test:29092']}
-    MockKafkaViewer.connect_consumer(args)
-    assert(MockKafkaViewer.consumer_connected() is not True), 'Kafka should not be found.'
+def test__get_index_for_topic(MockConsumerManager, AutoConfigSettings):
+    name = 'Person'
+    geo_name = AutoConfigSettings.get('geo_point_name')
+    index = MockConsumerManager.get_index_for_topic(name, geo_name)
+    index = index.get('mappings', None)
+    assert(len(index) is 1)
+    assert(index.get(name) is not None)
+    assert(index.get(name).get('properties').get(geo_name) is not None)
+    assert(index.get(name).get('properties').get(geo_name).get('type') is 'geo_point')

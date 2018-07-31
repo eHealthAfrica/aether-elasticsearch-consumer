@@ -1,17 +1,26 @@
 version: "2.1"
 services:
 
+  elasticsearch-test:
+    extends:
+      file: docker-compose-base.yml
+      service: elasticsearch-base
+    networks:
+      - test_net
+
   elasticsearch-consumer-test:
     extends:
       file: docker-compose-base.yml
       service: es-consumer-base
     networks:
       - test_net
+    links:
+      - elasticsearch-test
     volumes:
-      - ./consumer/conf/consumer:/code/conf/consumer
+      - ./consumer/tests:/code/tests
     environment:
-      ES_CONSUMER_CONFIG_PATH: "/code/conf/consumer/consumer.json"
-      ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/conf/consumer/test_kafka.json"
+      ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
+      ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
 
   # ---------------------------------
   # Mock Data Container

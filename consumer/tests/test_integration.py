@@ -19,6 +19,7 @@
 # under the License.
 
 from . import *  # get all test assets from test/__init__.py
+from time import sleep
 
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
@@ -31,6 +32,19 @@ from . import *  # get all test assets from test/__init__.py
 
 
 @pytest.mark.integration
-def test_consumer_manager__register_auto_conf(MockConsumerManager, AutoConfigSettings):
-    res = MockConsumerManager.register_auto_config(**AutoConfigSettings)
-    assert(len(res) == 3)
+def test_consumer_manager__get_indexes_for_auto_config(MockConsumerManager, AutoConfigSettings):
+    res = MockConsumerManager.get_indexes_for_auto_config(**AutoConfigSettings)
+    assert(len(res) == 4), 'There should be 4 available indexes in this set.'
+
+
+@pytest.mark.integration
+def test_consumer_manager__init(ConsumerManager, ElasticSearch):
+    try:
+        # wait for connection to ES
+        sleep(5)
+        groups = [name for name in ConsumerManager.consumer_groups]
+        assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
+    except Exception as err:
+        raise(err)
+    finally:
+        ConsumerManager.stop()
