@@ -1,0 +1,19 @@
+language: python
+python:
+  - "3.6"
+git:
+  submodules: true
+services:
+- docker
+cache: pip
+before_script:
+- docker login -u ehealthafricadevops -p $DOCKER_HUB_PASSWORD
+script: "./scripts/run_travis.sh"
+
+deploy:
+- provider: script
+  script: "./scripts/release.sh"
+  skip_cleanup: true
+  on:
+    all_branches: true
+    condition: ($TRAVIS_BRANCH =~ ^release\-[0-9]+\.[0-9]+[\.0-9]*$) || ($TRAVIS_TAG =~ ^[0-9]+\.[0-9]+[\.0-9]*$)
