@@ -1,0 +1,22 @@
+{
+	"autoconfig_settings": {
+		"index_name_template": "test_auto_%s_1",
+		"enabled": true,
+		"ignored_topics": ["__confluent.support.metrics"],
+		"geo_point_creation": true,
+		"geo_point_name": "geo_point"
+	},
+	"ingest_routes": {
+		"(aet_auto_)(\\w*)(_1)": "route1"
+	},
+	"elasticsearch_instance_urls": ["bad_url_overwritten_by_env"],
+    "elasticsearch_http_auth" : null,
+    "elasticsearch_port": 0,
+	"connect_retry_wait": 30,
+	"startup_connection_retry": 3,
+    "latitude_fields": ["lat", "latitude"],
+	"longitude_fields": ["lon", "lng", "long", "longitude"],
+	"index_path": "/code/tests/test_index",
+	"log_level": "ERROR",
+	"log_name": "ES_Consumer"
+}

@@ -1,9 +1,11 @@
+#!/usr/bin/env python
+
 # Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
 # regarding copyright ownership.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with
 # the License.  You may obtain a copy of the License at
 #
@@ -16,21 +18,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[aliases]
-test=pytest
+from app.main import ElasticSearchConsumer
 
-[flake8]
-max-line-length = 100
-ignore =
-        F403,
-        F405
-exclude =
-    /code/./.eggs/*
-    */__pycache__/*
-
-[metadata]
-description-file = README.md
-
-[tool:pytest]
-python_files = tests/test*.py
-addopts = --maxfail=100 --capture=no
+if __name__ == '__main__':
+    consumer = ElasticSearchConsumer()

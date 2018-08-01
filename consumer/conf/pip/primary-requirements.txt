@@ -9,8 +9,10 @@
 #################################################################################################
 
 aet.consumer
+elasticsearch
 blessings
 flake8
+flake8-quotes
 mock
 pytest
 pytest-runner

@@ -5,7 +5,7 @@
 # See the NOTICE file distributed with this work for additional information
 # regarding copyright ownership.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with
 # the License.  You may obtain a copy of the License at
 #
@@ -18,29 +18,52 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import json
 import pytest
-from app.main import KafkaViewer
+import os
+from app.main import ESConsumerManager, connect_es
 
-kafka_server = "kafka-test:29099"
+
+class _MockConsumerManager(ESConsumerManager):
+
+    def __init__(self):
+        self.stopped = False
+        self.autoconfigured_topics = []
 
 
 # We can use 'mark' distinctions to chose which tests are run and which assets are built
 # @pytest.mark.integration
 # @pytest.mark.unit
 # When possible use fixtures for reusable test assets
-# @pytest.fixture(scope="session")
+# @pytest.fixture(scope='session')
 
 
-class _MockKafkaViewer(KafkaViewer):
-
-    def __init__(self):
-        pass
+@pytest.mark.integration
+@pytest.fixture(scope='session')
+def ElasticSearch():
+    global es
+    es = connect_es()
+    return es
 
 
 @pytest.mark.integration
 @pytest.mark.unit
-@pytest.fixture(scope="function")
-def MockKafkaViewer():
-    viewer = _MockKafkaViewer()
-    viewer.killed = False
-    return viewer
+@pytest.fixture(scope='function')
+def MockConsumerManager():
+    return _MockConsumerManager()
+
+
+@pytest.mark.integration
+@pytest.fixture(scope='function')
+def ConsumerManager(ElasticSearch):
+    return ESConsumerManager(ElasticSearch)
+
+
+@pytest.mark.unit
+@pytest.mark.integration
+@pytest.fixture(scope='session')
+def AutoConfigSettings():
+    path = os.environ['ES_CONSUMER_CONFIG_PATH']
+    with open(path) as f:
+        obj = json.load(f)
+        return obj.get('autoconfig_settings')

@@ -30,8 +30,13 @@ from . import *  # get all test assets from test/__init__.py
 # to run integration tests / all tests run the test_all.sh script from the /tests directory.
 
 
-@pytest.mark.integration
-def test_kafka_connection_check_integration(MockKafkaViewer):
-    args = {"bootstrap_servers": [kafka_server]}
-    MockKafkaViewer.connect_consumer(**args)
-    assert(MockKafkaViewer.consumer_connected() is True)
+@pytest.mark.unit
+def test__get_index_for_topic(MockConsumerManager, AutoConfigSettings):
+    name = 'Person'
+    geo_name = AutoConfigSettings.get('geo_point_name')
+    index = MockConsumerManager.get_index_for_topic(name, geo_name)
+    index = index.get('mappings', None)
+    assert(len(index) is 1)
+    assert(index.get(name) is not None)
+    assert(index.get(name).get('properties').get(geo_name) is not None)
+    assert(index.get(name).get('properties').get(geo_name).get('type') is 'geo_point')

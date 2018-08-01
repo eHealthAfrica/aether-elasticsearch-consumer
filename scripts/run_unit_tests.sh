@@ -21,4 +21,4 @@
 set -Eeuo pipefail
 
 
-docker-compose run example-consumer test_unit
+docker-compose -f docker-compose-test.yml run elasticsearch-consumer-test test_unit

@@ -19,6 +19,7 @@
 # under the License.
 
 from . import *  # get all test assets from test/__init__.py
+from time import sleep
 
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
@@ -30,8 +31,37 @@ from . import *  # get all test assets from test/__init__.py
 # to run integration tests / all tests run the test_all.sh script from the /tests directory.
 
 
-@pytest.mark.unit
-def test_kafka_connection_check_unit(MockKafkaViewer):
-    args = {"bootstrap_servers": ["kafka-test:29092"]}
-    MockKafkaViewer.connect_consumer(args)
-    assert(MockKafkaViewer.consumer_connected() is not True), "Kafka should not be found."
+@pytest.mark.integration
+def test_consumer_manager__get_indexes_for_auto_config(MockConsumerManager, AutoConfigSettings):
+    res = MockConsumerManager.get_indexes_for_auto_config(**AutoConfigSettings)
+    assert(len(res) == 4), 'There should be 4 available indexes in this set.'
+
+
+@pytest.mark.integration
+def test_consumer_manager__init(ConsumerManager, ElasticSearch):
+    try:
+        # wait for connection to ES
+        sleep(20)
+        groups = [name for name in ConsumerManager.consumer_groups]
+        assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
+    except Exception as err:
+        raise(err)
+    finally:
+        ConsumerManager.stop()
+
+
+@pytest.mark.integration
+def test_consumer_manager__elasticsearch_index_consistency(ElasticSearch):
+    registered_indices = ElasticSearch.indices.get_alias('*')
+    assert(len(registered_indices) >= 5)
+
+
+@pytest.mark.integration
+def test_consumer_manager__elasticsearch_doc_consistency(ElasticSearch):
+    page = ElasticSearch.search(
+        index='combined',
+        scroll='2m',
+        size=1000
+    )
+    hits = page.get('hits').get('hits')
+    assert(len(hits) == 40)

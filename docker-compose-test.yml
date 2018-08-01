@@ -1,10 +1,48 @@
 version: "2.1"
 services:
 
-  example-consumer-test:
+  elasticsearch-test:
     extends:
       file: docker-compose-base.yml
-      service: example-consumer-base
+      service: elasticsearch-base
+    networks:
+      - test_net
+
+  elasticsearch-consumer-test:
+    extends:
+      file: docker-compose-base.yml
+      service: es-consumer-base
+    networks:
+      - test_net
+    links:
+      - elasticsearch-test
+    volumes:
+      - ./consumer/tests:/code/tests
+    environment:
+      ELASTICSEARCH_INSTANCE_URLS: "elasticsearch-test"
+      ELASTICSEARCH_PORT: 9200
+      LOG_LEVEL: "ERROR"
+      ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
+      ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
+      CONNECT_RETRY_WAIT: 1
+      STARTUP_CONNECTION_RETRY: 1
+
+  # ---------------------------------
+  # Mock Data Container
+  # ---------------------------------
+
+  assets-test:
+    build:
+      context: aether-bootstrap/assets/generation
+      dockerfile: Dockerfile
+    volumes:
+      - ./aether-bootstrap/assets:/code/assets
+    environment:
+      KERNEL_URL: "http://kernel-test:9001"
+      KERNEL_USER: "admin"
+      KERNEL_PASSWORD: "adminadmin"
+      PROJECT_NAME: "DefaultDemo"
+      SUBMISSION_ENDPOINT: "default_mapping"
     networks:
       - test_net
 
