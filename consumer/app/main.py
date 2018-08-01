@@ -31,6 +31,7 @@ from urllib3.exceptions import NewConnectionError
 from aet.consumer import KafkaConsumer
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError
+from elasticsearch.exceptions import ConnectionError as ESConnectionError
 import spavro
 
 from . import config
@@ -38,8 +39,8 @@ from . import config
 consumer_config = config.get_consumer_config()
 kafka_config = config.get_kafka_config()
 
-CONN_RETRY = consumer_config.get('startup_connection_retry')
-CONN_RETRY_WAIT_TIME = consumer_config.get('connect_retry_wait')
+CONN_RETRY = int(consumer_config.get('startup_connection_retry'))
+CONN_RETRY_WAIT_TIME = int(consumer_config.get('connect_retry_wait'))
 
 
 def get_module_logger(mod_name):
@@ -60,10 +61,6 @@ log = get_module_logger(consumer_config.get('log_name'))
 es = None
 
 
-def pprint(obj):
-    print(json.dumps(obj, indent=2))
-
-
 def connect():
     connect_kafka()
     connect_es()
@@ -74,16 +71,30 @@ def connect_es():
         try:
             global es
             # default connection on localhost
-            es_urls = consumer_config.get('elasticsearch_instance').get('urls')
+            es_urls = consumer_config.get('elasticsearch_instance_urls')
             log.debug('Connecting to ES on %s' % (es_urls,))
+            es_connection_info = {
+                'port': int(consumer_config.get('elasticsearch_port', 0)),
+                'http_auth': consumer_config.get('elasticsearch_http_auth')
+            }
+            es_connection_info = {k: v for k, v in es_connection_info.items() if v}
+            es_connection_info['sniff_on_start'] = False
+
             es = Elasticsearch(
-                es_urls, sniff_on_start=False)
+                es_urls, **es_connection_info)
+
             log.debug('ES Instance info: %s' % (es.info(),))
             return es
-        except NewConnectionError:
-            log.debug('Could not connect to Elasticsearch Instance')
+        except NewConnectionError as nce:
+            log.debug('Could not connect to Elasticsearch Instance: nce')
+            log.debug(nce)
             sleep(CONN_RETRY_WAIT_TIME)
-    print('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
+        except ESConnectionError as ese:
+            log.debug('Could not connect to Elasticsearch Instance: ese')
+            log.debug(ese)
+            sleep(CONN_RETRY_WAIT_TIME)
+
+    log.critical('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
 
 
@@ -97,7 +108,7 @@ def connect_kafka():
         except Exception as ke:
             log.debug('Could not connect to Kafka: %s' % (ke))
             sleep(CONN_RETRY_WAIT_TIME)
-    print('Failed to connect to Kafka after %s retries' % CONN_RETRY)
+    log.critical('Failed to connect to Kafka after %s retries' % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
 
 
@@ -260,8 +271,8 @@ class ESConsumer(threading.Thread):
         self.topic = processor.topic_name
         self.consumer_timeout = 1000  # MS
         self.consumer_max_records = 1000
-        self.group_name = 'elastic_%s_%s_5' % (self.index, self.es_type) \
-            if has_group else None  # TODO KILL
+        self.group_name = 'elastic_%s_%s' % (self.index, self.es_type) \
+            if has_group else None
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
@@ -379,44 +390,16 @@ class ESItemProcessor(object):
                     'function': '_add_geopoint',
                     'field_name': value
                 }
-                cmd.update(self._find_geopoints())
-                self.pipeline.append(cmd)
-
+                try:
+                    cmd.update(self._find_geopoints())
+                    self.pipeline.append(cmd)
+                except ValueError as ver:
+                    log.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
             elif key.startswith('aet'):
-                log.error('Unsupported aet meta keyword %s in type %s' % (key, self.es_type))
+                log.error('Unsupported aet _meta keyword %s in type %s' % (key, self.es_type))
             else:
                 log.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
         log.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
-
-        '''
-        for key, value in self.type_instructions.items():
-            log.debug('process : %s | %s' % (key, value))
-            # Check for parent or child instuction and add function:
-            #     _add_parent or _add_child to pipeline.
-            if key in ['_parent', '_child']:
-                # Given an instuction in the index like, we want to find
-                # the appropdiate action to fullfil this properly.
-                #
-                # '_parent': {
-                #     'type': 'session'
-                # }
-                res = {'function': '_add%s' % key}
-                # now we need to look for the property matching the value name
-                res.update(self._find_matching_predicate(value))
-                # we should now have an instuction set with something like:
-                # {
-                #     'function' : '_add_parent',
-                #     'field_name' : 'SessionID',
-                # }
-                self.pipeline.append(res)
-            # Look for item named 'location' in properties
-            #     If it's there we need a geopoint from _add_geopoint()
-            elif key == 'properties':
-                if 'location' in value.keys():
-                    res = {'function': '_add_geopoint'}
-                    res.update(self._find_geopoints(value))
-                    self.pipeline.append(res)
-        '''
 
     def process(self, doc, schema=None):
         # Runs the cached insturctions from the built pipeline
@@ -433,18 +416,9 @@ class ESItemProcessor(object):
         try:
             doc['_parent'] = self._get_doc_field(doc, field_name)
         except Exception as e:
-            log.debug('Could not add parent to doc type %s. Error: %s' %
+            log.error('Could not add parent to doc type %s. Error: %s' %
                       (self.es_type, e))
         return doc
-    '''
-    def _add_child(self, doc, field_name=None, **kwargs):
-        try:
-            doc['_child'] = self._get_doc_field(doc, field_name)
-        except Exception as e:
-            log.debug('Could not add parent to doc type %s. Error: %s' %
-                      (self.es_type, e))
-        return doc
-    '''
 
     def _add_geopoint(self, doc, field_name=None, lat=None, lon=None, **kwargs):
         geo = {}
@@ -453,9 +427,8 @@ class ESItemProcessor(object):
             geo['lon'] = float(self._get_doc_field(doc, lon))
             doc[field_name] = geo
         except Exception as e:
-            log.debug('Could not add geo to doc type %s. Error: %s | %s' %
+            log.error('Could not add geo to doc type %s. Error: %s | %s' %
                       (self.es_type, e, (lat, lon),))
-            log.error(e)
         return doc
 
     def _get_doc_field(self, doc, name):

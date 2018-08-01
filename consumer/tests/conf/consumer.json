@@ -9,9 +9,9 @@
 	"ingest_routes": {
 		"(aet_auto_)(\\w*)(_1)": "route1"
 	},
-	"elasticsearch_instance": {
-		"urls": ["elasticsearch-test"]
-	},
+	"elasticsearch_instance_urls": ["bad_url_overwritten_by_env"],
+    "elasticsearch_http_auth" : null,
+    "elasticsearch_port": 0,
 	"connect_retry_wait": 30,
 	"startup_connection_retry": 3,
     "latitude_fields": ["lat", "latitude"],
