@@ -182,7 +182,7 @@ class ESConsumerManager(object):
         log.debug('Auto creating index for topic %s' % name)
         index = {name: {}}
         if geo_point:
-            index[name]['_meta'] = {"aet_geopoint": geo_point}
+            index[name]['_meta'] = {'aet_geopoint': geo_point}
             index[name]['properties'] = {geo_point: {'type': 'geo_point'}}
         log.debug('created index: \n%s' % json.dumps(index, indent=2))
         return {'mappings': index}
@@ -428,11 +428,13 @@ class ESItemProcessor(object):
             geo['lon'] = float(self._get_doc_field(doc, lon))
             doc[field_name] = geo
         except Exception as e:
-            log.error('Could not add geo to doc type %s. Error: %s | %s' %
+            log.debug('Could not add geo to doc type %s. Error: %s | %s' %
                       (self.es_type, e, (lat, lon),))
         return doc
 
     def _get_doc_field(self, doc, name):
+        if not name:
+            raise ValueError('Invalid field name')
         doc = json.loads(json.dumps(doc))
         try:
             # Looks for the key directly
