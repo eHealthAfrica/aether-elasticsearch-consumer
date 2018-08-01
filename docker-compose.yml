@@ -23,7 +23,7 @@ services:
     networks:
       - aether
 
-  es-consumer:
+  elasticsearch-consumer:
     extends:
       file: docker-compose-base.yml
       service: es-consumer-base

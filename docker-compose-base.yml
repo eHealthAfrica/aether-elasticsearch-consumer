@@ -19,6 +19,7 @@ services:
 
   es-consumer-base:
     build: consumer
+    image: aether-elasticsearch-consumer
     stdin_open: true
     volumes:
      - ./consumer:/code
