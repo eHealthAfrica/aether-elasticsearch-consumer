@@ -101,7 +101,9 @@ def connect_es():
 def connect_kafka():
     for x in range(CONN_RETRY):
         try:
-            consumer = KafkaConsumer(**kafka_config)
+            # have to get to force env lookups
+            args = {k: kafka_config.get(k) for k in kafka_config.keys()}
+            consumer = KafkaConsumer(**args)
             consumer.topics()
             log.debug('Connected to Kafka...')
             return
@@ -152,7 +154,8 @@ class ESConsumerManager(object):
         ignored_topics = set(autoconf.get('ignored_topics', []))
         log.debug('Ignoring topics: %s' % (ignored_topics,))
         log.debug('Previously Configured topics: %s' % (self.autoconfigured_topics,))
-        args = dict(kafka_config)
+        # have to get to force env lookups
+        args = {k: kafka_config.get(k) for k in kafka_config.keys()}
         try:
             consumer = KafkaConsumer(**args)
             topics = [i for i in consumer.topics()
@@ -280,7 +283,8 @@ class ESConsumer(threading.Thread):
         super(ESConsumer, self).__init__()
 
     def connect(self, kafka_config):
-        args = dict(kafka_config)
+        # have to get to force env lookups
+        args = {k: kafka_config.get(k) for k in kafka_config.keys()}
         args['group_id'] = self.group_name
         try:
             self.consumer = KafkaConsumer(**args)
