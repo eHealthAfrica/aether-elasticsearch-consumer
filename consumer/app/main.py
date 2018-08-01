@@ -182,6 +182,7 @@ class ESConsumerManager(object):
         log.debug('Auto creating index for topic %s' % name)
         index = {name: {}}
         if geo_point:
+            index[name]['_meta'] = {"aet_geopoint": geo_point}
             index[name]['properties'] = {geo_point: {'type': 'geo_point'}}
         log.debug('created index: \n%s' % json.dumps(index, indent=2))
         return {'mappings': index}
