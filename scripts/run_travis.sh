@@ -20,5 +20,16 @@
 #
 set -Eeuo pipefail
 
+{
+    docker network create aether_test
+} || { # catch
+    echo "aether_test is ready."
+}
+{
+    docker network create aether_internal
+} || { # catch
+    echo "aether_internal is ready."
+}
+
 scripts/run_unit_tests.sh
 scripts/run_integration_tests.sh
