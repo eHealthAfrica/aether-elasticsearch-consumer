@@ -19,7 +19,10 @@
 # under the License.
 
 from . import *  # get all test assets from test/__init__.py
+import requests
 from time import sleep
+
+from app.main import consumer_config
 
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
@@ -35,6 +38,25 @@ from time import sleep
 def test_consumer_manager__get_indexes_for_auto_config(MockConsumerManager, AutoConfigSettings):
     res = MockConsumerManager.get_indexes_for_auto_config(**AutoConfigSettings)
     assert(len(res) == 4), 'There should be 4 available indexes in this set.'
+
+
+@pytest.mark.integration
+def test_consumer_manager__test_healthcheck(ConsumerManager, ElasticSearch):
+    try:
+        sleep(1)
+        url = 'http://localhost:%s' % consumer_config.get('consumer_port')
+        r = requests.head(url)
+        assert(r.status_code == 200)
+        r = requests.head(url + '/healthcheck')
+        assert(r.status_code == 200)
+    except Exception as err:
+        raise(err)
+    finally:
+        ConsumerManager.stop()
+        sleep(1)
+        with pytest.raises(requests.exceptions.ConnectionError):
+            r = requests.head('http://localhost:%s' % consumer_config.get('consumer_port'))
+            assert(r.status_code != 200)
 
 
 @pytest.mark.integration

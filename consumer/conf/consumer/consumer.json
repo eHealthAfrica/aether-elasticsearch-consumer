@@ -12,6 +12,7 @@
     "elasticsearch_instance_urls": ["elasticsearch"],
     "elasticsearch_http_auth" : null,
     "elasticsearch_port": 9200,
+    "consumer_port" : 9009,
 	"connect_retry_wait": 30,
 	"startup_connection_retry": 3,
     "latitude_fields": ["lat", "latitude"],
