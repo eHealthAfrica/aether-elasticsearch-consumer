@@ -9,7 +9,7 @@
 	"ingest_routes": {
 		"(aet_auto_)(\\w*)(_1)": "route1"
 	},
-	"elasticsearch_instance_urls": ["bad_url_overwritten_by_env"],
+	"elasticsearch_url": ["bad_url_overwritten_by_env"],
     "elasticsearch_http_auth" : null,
     "elasticsearch_port": 0,
     "consumer_port" : 9009,
