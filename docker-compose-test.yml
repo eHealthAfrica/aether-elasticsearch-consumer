@@ -23,7 +23,7 @@ services:
       ELASTICSEARCH_PORT: 9200
       BOOTSTRAP_SERVERS: "kafka-test:29099"
       CONSUMER_PORT: 9099
-      LOG_LEVEL: "DEBUG"
+      LOG_LEVEL: "ERROR"
       ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
