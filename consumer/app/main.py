@@ -73,7 +73,7 @@ def connect_es():
         try:
             global es
             # default connection on localhost
-            es_urls = consumer_config.get('elasticsearch_url')
+            es_urls = consumer_config.get('elasticsearch_instance_urls')
             log.debug('Connecting to ES on %s' % (es_urls,))
             es_connection_info = {
                 'port': int(consumer_config.get('elasticsearch_port', 0)),
@@ -104,7 +104,7 @@ def connect_kafka():
     for x in range(CONN_RETRY):
         try:
             # have to get to force env lookups
-            args = kafka_config.copy()
+            args = {k: kafka_config.get(k) for k in kafka_config.keys()}
             consumer = KafkaConsumer(**args)
             consumer.topics()
             log.debug('Connected to Kafka...')
@@ -158,7 +158,7 @@ class ESConsumerManager(object):
         log.debug('Ignoring topics: %s' % (ignored_topics,))
         log.debug('Previously Configured topics: %s' % (self.autoconfigured_topics,))
         # have to get to force env lookups
-        args = kafka_config.copy()
+        args = {k: kafka_config.get(k) for k in kafka_config.keys()}
         try:
             consumer = KafkaConsumer(**args)
             topics = [i for i in consumer.topics()
@@ -254,20 +254,14 @@ class HealthcheckServer(threading.Thread):
     def run(self):
         host, port = 'localhost', int(consumer_config.get('consumer_port'))
         handler = HealthcheckHandler
-        TCPServer.allow_reuse_address = True
-        try:
-            self.httpd = TCPServer((host, port), handler)
-            self.httpd.serve_forever()
-        except OSError as ose:
-            log.critical('Could not serve healthcheck endpoint: %s' % ose)
-            sys.exit(1)
+        self.httpd = TCPServer((host, port), handler)
+        self.httpd.serve_forever()
 
     def stop(self):
         try:
             log.debug('stopping healthcheck endpoint')
             self.httpd.shutdown()
             self.httpd.server_close()
-            log.debug('healthcheck stopped.')
         except AttributeError:
             log.debug('Healthcheck was already down.')
 
@@ -333,7 +327,7 @@ class ESConsumer(threading.Thread):
 
     def connect(self, kafka_config):
         # have to get to force env lookups
-        args = kafka_config.copy()
+        args = {k: kafka_config.get(k) for k in kafka_config.keys()}
         args['group_id'] = self.group_name
         try:
             self.consumer = KafkaConsumer(**args)
@@ -382,7 +376,7 @@ class ESConsumer(threading.Thread):
         if parent:  # _parent field can only be in metadata apparently
             del doc['_parent']
         try:
-            log.debug('submitting on type %s' % self.es_type)
+            log.debug(doc)
             es.create(
                 index=self.index,
                 doc_type=self.es_type,

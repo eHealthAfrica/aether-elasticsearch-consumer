@@ -27,36 +27,21 @@ kafka_config = None
 
 class Settings(dict):
     # A container for our settings
-    def __init__(self, file_path=None, alias=None, exclude=None):
-        if not exclude:
-            self.exclude = []
-        else:
-            self.exclude = exclude
-        self.alias = alias
+    def __init__(self, file_path=None):
         self.load(file_path)
 
     def get(self, key, default=None):
-        if self.exclude is not None and key in self.exclude:
-            return default
         try:
             return self.__getitem__(key)
         except KeyError:
             return default
 
     def __getitem__(self, key):
-        if self.alias and key in self.alias:
-            key = self.alias.get(key)
         result = os.environ.get(key.upper())
         if result is None:
             result = super().__getitem__(key)
 
         return result
-
-    def copy(self):
-        keys = [k for k in self.keys() if k not in self.exclude]
-        for key in self.alias:
-            keys.append(key)
-        return {k: self.get(k) for k in keys}
 
     def load(self, path):
         with open(path) as f:
@@ -71,11 +56,7 @@ def load_config():
     global consumer_config
     consumer_config = Settings(file_path=CONSUMER_CONFIG_PATH)
     global kafka_config
-    kafka_config = Settings(
-        file_path=KAFKA_CONFIG_PATH,
-        alias={'bootstrap_servers': 'kafka_url'},
-        exclude=['kafka_url']
-    )
+    kafka_config = Settings(file_path=KAFKA_CONFIG_PATH)
 
 
 def get_kafka_config():

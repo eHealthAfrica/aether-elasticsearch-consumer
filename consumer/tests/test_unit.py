@@ -18,10 +18,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
-
 from . import *  # get all test assets from test/__init__.py
-from app.main import kafka_config
 
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
@@ -34,19 +31,8 @@ from app.main import kafka_config
 
 
 @pytest.mark.unit
-def test__get_config_alias():
-    assert(kafka_config.get('bootstrap_servers') is not None)
-    args = kafka_config.copy()
-    assert('bootstrap_servers' in args)
-    assert(args.get('bootstrap_servers') == os.environ.get('KAFKA_URL'))
-    assert(args.get('kafka_url') is None)
-    assert(kafka_config.get('kafka_url') is None)
-
-
-@pytest.mark.unit
 def test__get_index_for_topic(MockConsumerManager, AutoConfigSettings):
     name = 'Person'
-    MockConsumerManager = MockConsumerManager()
     geo_name = AutoConfigSettings.get('geo_point_name')
     index = MockConsumerManager.get_index_for_topic(name, geo_name)
     index = index.get('mappings', None)
