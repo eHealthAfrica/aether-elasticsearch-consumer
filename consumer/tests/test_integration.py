@@ -36,12 +36,14 @@ from app.main import consumer_config
 
 @pytest.mark.integration
 def test_consumer_manager__get_indexes_for_auto_config(MockConsumerManager, AutoConfigSettings):
+    MockConsumerManager = MockConsumerManager()
     res = MockConsumerManager.get_indexes_for_auto_config(**AutoConfigSettings)
     assert(len(res) == 4), 'There should be 4 available indexes in this set.'
 
 
 @pytest.mark.integration
-def test_consumer_manager__test_healthcheck(ConsumerManager, ElasticSearch):
+def test_consumer_manager__test_healthcheck(MockConsumerManager, ElasticSearch):
+    ConsumerManager = MockConsumerManager(start_healthcheck=True)
     try:
         sleep(1)
         url = 'http://localhost:%s' % consumer_config.get('consumer_port')
@@ -61,6 +63,7 @@ def test_consumer_manager__test_healthcheck(ConsumerManager, ElasticSearch):
 
 @pytest.mark.integration
 def test_consumer_manager__init(ConsumerManager, ElasticSearch):
+    ConsumerManager = ConsumerManager(ElasticSearch)
     try:
         # wait for connection to ES
         sleep(20)
@@ -70,6 +73,30 @@ def test_consumer_manager__init(ConsumerManager, ElasticSearch):
         raise(err)
     finally:
         ConsumerManager.stop()
+        sleep(1)
+        with pytest.raises(requests.exceptions.ConnectionError):
+            r = requests.head('http://localhost:%s' % consumer_config.get('consumer_port'))
+            assert(r.status_code != 200)
+
+
+@pytest.mark.integration
+def test_consumer_manager__reconnect(ConsumerManager, ElasticSearch):
+    ConsumerManager = ConsumerManager(ElasticSearch)
+    try:
+        # wait for connection to ES
+        sleep(5)
+        r = requests.head('http://localhost:%s/healthcheck' % consumer_config.get('consumer_port'))
+        assert(r.status_code == 200)
+        groups = [name for name in ConsumerManager.consumer_groups]
+        assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
+    except Exception as err:
+        raise(err)
+    finally:
+        ConsumerManager.stop()
+        sleep(5)
+        with pytest.raises(requests.exceptions.ConnectionError):
+            r = requests.head('http://localhost:%s' % consumer_config.get('consumer_port'))
+            assert(r.status_code != 200)
 
 
 @pytest.mark.integration

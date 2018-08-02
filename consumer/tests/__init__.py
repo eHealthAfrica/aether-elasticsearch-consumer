@@ -26,9 +26,12 @@ from app.main import ESConsumerManager, connect_es
 
 class _MockConsumerManager(ESConsumerManager):
 
-    def __init__(self):
+    def __init__(self, start_healthcheck=False):
         self.stopped = False
         self.autoconfigured_topics = []
+        self.consumer_groups = {}
+        if start_healthcheck:
+            self.serve_healthcheck()
 
 
 # We can use 'mark' distinctions to chose which tests are run and which assets are built
@@ -50,13 +53,13 @@ def ElasticSearch():
 @pytest.mark.unit
 @pytest.fixture(scope='function')
 def MockConsumerManager():
-    return _MockConsumerManager()
+    return _MockConsumerManager
 
 
 @pytest.mark.integration
 @pytest.fixture(scope='function')
 def ConsumerManager(ElasticSearch):
-    return ESConsumerManager(ElasticSearch)
+    return ESConsumerManager
 
 
 @pytest.mark.unit
