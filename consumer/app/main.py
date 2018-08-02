@@ -24,6 +24,8 @@ import logging
 import sys
 import threading
 import signal
+import http.server
+from socketserver import TCPServer
 from time import sleep
 from urllib3.exceptions import NewConnectionError
 
@@ -123,6 +125,7 @@ class ESConsumerManager(object):
         # SIGTERM should kill subprocess via manager.stop()
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
+        self.serve_healthcheck()
         self.consumer_groups = {}  # index_name : consumer group
         auto_conf = consumer_config.get('autoconfig_settings')
         if auto_conf.get('enabled'):
@@ -181,6 +184,10 @@ class ESConsumerManager(object):
             )
         return indexes
 
+    def serve_healthcheck(self):
+        self.healthcheck = HealthcheckServer()
+        self.healthcheck.start()
+
     def get_index_for_topic(self, name, geo_point=None):
         log.debug('Auto creating index for topic %s' % name)
         index = {name: {}}
@@ -218,8 +225,45 @@ class ESConsumerManager(object):
 
     def stop(self, *args, **kwargs):
         self.stopped = True
+        self.healthcheck.stop()
         for key in self.consumer_groups.keys():
             self.stop_group(key)
+
+
+class HealthcheckHandler(http.server.BaseHTTPRequestHandler):
+
+    def __init__(self, *args, **kwargs):
+        super(HealthcheckHandler, self).__init__(*args, **kwargs)
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+
+
+class HealthcheckServer(threading.Thread):
+
+    def __init__(self):
+        super(HealthcheckServer, self).__init__()
+
+    def run(self):
+        host, port = 'localhost', int(consumer_config.get('consumer_port'))
+        handler = HealthcheckHandler
+        self.httpd = TCPServer((host, port), handler)
+        self.httpd.serve_forever()
+
+    def stop(self):
+        try:
+            log.debug('stopping healthcheck endpoint')
+            self.httpd.shutdown()
+            self.httpd.server_close()
+        except AttributeError:
+            log.debug('Healthcheck was already down.')
 
 
 class AutoConfMaintainer(threading.Thread):
@@ -227,7 +271,6 @@ class AutoConfMaintainer(threading.Thread):
     def __init__(self, parent, autoconf):
         self.parent = parent
         self.autoconf = autoconf
-        self.stopped = False
         super(AutoConfMaintainer, self).__init__()
 
     def run(self):

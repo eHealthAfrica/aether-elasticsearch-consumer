@@ -16,3 +16,4 @@ flake8-quotes
 mock
 pytest
 pytest-runner
+requests
