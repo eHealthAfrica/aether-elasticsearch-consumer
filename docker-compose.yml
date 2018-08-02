@@ -28,6 +28,7 @@ services:
       file: docker-compose-base.yml
       service: es-consumer-base
     environment:
+      CONSUMER_PORT: 9009
       ES_CONSUMER_CONFIG_PATH: "/code/conf/consumer/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/conf/consumer/kafka.json"
     links:

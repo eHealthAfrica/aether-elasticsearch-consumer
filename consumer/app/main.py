@@ -252,7 +252,7 @@ class HealthcheckServer(threading.Thread):
         super(HealthcheckServer, self).__init__()
 
     def run(self):
-        host, port = 'localhost', int(consumer_config.get('consumer_port'))
+        host, port = '0.0.0.0', int(consumer_config.get('consumer_port'))
         handler = HealthcheckHandler
         TCPServer.allow_reuse_address = True
         try:
