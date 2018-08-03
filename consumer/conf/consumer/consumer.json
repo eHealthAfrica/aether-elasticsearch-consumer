@@ -17,7 +17,7 @@
 	"startup_connection_retry": 3,
     "latitude_fields": ["lat", "latitude"],
 	"longitude_fields": ["lon", "lng", "long", "longitude"],
-	"index_path": "/code/app/index",
+	"index_path": "/code/app/index/es6",
 	"log_level": "DEBUG",
 	"log_name": "ES_Consumer"
 }

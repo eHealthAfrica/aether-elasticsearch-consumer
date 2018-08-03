@@ -61,6 +61,7 @@ log = get_module_logger(consumer_config.get('log_name'))
 
 # Global Elasticsearch Connection
 es = None
+ES_VERSION = 0
 
 
 def connect():
@@ -84,16 +85,13 @@ def connect_es():
 
             es = Elasticsearch(
                 es_urls, **es_connection_info)
-
-            log.debug('ES Instance info: %s' % (es.info(),))
+            es_info = es.info()
+            log.debug('ES Instance info: %s' % (es_info,))
+            log.debug(es_info.get('version').get('number'))
             return es
-        except NewConnectionError as nce:
+        except (NewConnectionError, ConnectionRefusedError, ESConnectionError) as nce:
             log.debug('Could not connect to Elasticsearch Instance: nce')
             log.debug(nce)
-            sleep(CONN_RETRY_WAIT_TIME)
-        except ESConnectionError as ese:
-            log.debug('Could not connect to Elasticsearch Instance: ese')
-            log.debug(ese)
             sleep(CONN_RETRY_WAIT_TIME)
 
     log.critical('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
@@ -118,6 +116,8 @@ def connect_kafka():
 
 class ESConsumerManager(object):
 
+    SUPPORTED_ES_SERIES = [5, 6]
+
     def __init__(self, es_instance):
         self.es = es_instance
         self.stopped = False
@@ -126,6 +126,7 @@ class ESConsumerManager(object):
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
         self.serve_healthcheck()
+        self.es_version = self.get_es_version()
         self.consumer_groups = {}  # index_name : consumer group
         auto_conf = consumer_config.get('autoconfig_settings')
         if auto_conf.get('enabled'):
@@ -142,6 +143,16 @@ class ESConsumerManager(object):
             index_files = os.listdir(index_path)
             for index_file in index_files:
                 self.register_index(index_path=index_path, index_file=index_file)
+
+    def get_es_version(self):
+        info = self.es.info()
+        version = info.get('version').get('number')
+        series = int(version.split('.')[0])
+        if series not in ESConsumerManager.SUPPORTED_ES_SERIES:
+            raise ValueError('Version : %s is not supported' % version)
+        global ES_VERSION
+        ES_VERSION = series
+        return series
 
     def index_from_file(self, index_path, index_file):
         index_name = index_file.split('.')[0]
@@ -190,11 +201,17 @@ class ESConsumerManager(object):
 
     def get_index_for_topic(self, name, geo_point=None):
         log.debug('Auto creating index for topic %s' % name)
-        index = {name: {}}
+        index = {
+            name: {
+                '_meta': {
+                    'aet_subscribed_topics': [name]
+                }
+            }
+        }
         if geo_point:
-            index[name]['_meta'] = {'aet_geopoint': geo_point}
+            index[name]['_meta']['aet_geopoint'] = geo_point
             index[name]['properties'] = {geo_point: {'type': 'geo_point'}}
-        log.debug('created index: \n%s' % json.dumps(index, indent=2))
+        log.debug('created index: %s' % index.get(name))
         return {'mappings': index}
 
     def register_index(self, index_path=None, index_file=None, index=None):
@@ -215,10 +232,16 @@ class ESConsumerManager(object):
             log.error('Error creating index in elasticsearch %s' %
                       ([index_path, index_file, index],))
             log.error(ese)
+            log.critical('Index not created: path:%s file:%s name:%s' %
+                         (index_path, index_file, index.get('name')))
 
     def start_consumer_group(self, index_name, index_body):
-        self.consumer_groups[index_name] = ESConsumerGroup(
-            index_name, index_body)
+        if self.es_version == 5:
+            self.consumer_groups[index_name] = ESConsumerGroupV5(
+                index_name, index_body)
+        else:
+            self.consumer_groups[index_name] = ESConsumerGroup(
+                index_name, index_body)
 
     def stop_group(self, index_name):
         self.consumer_groups[index_name].stop()
@@ -244,6 +267,9 @@ class HealthcheckHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'text/html')
         self.end_headers()
+
+    def log_message(self, format, *args):
+        log.debug(*args)
 
 
 class HealthcheckServer(threading.Thread):
@@ -301,25 +327,43 @@ class ESConsumerGroup(object):
 
     def intuit_sources(self, index_body):
         for name, instr in index_body.get('mappings', {}).items():
+            # There's only one type per mapping allowed in ES6
             log.debug('Adding processor for %s' % name)
             log.debug('instructions: %s' % instr)
-            processor = ESItemProcessor(name, instr)
-            self.consumers[processor.topic_name] = ESConsumer(
-                self.name, processor)
-            self.consumers[processor.topic_name].start()
+            topics = instr.get('_meta').get('aet_subscribed_topics')
+            if not topics:
+                raise ValueError('No topics in aet_subscribed_topics section in index %s' %
+                                 self.name)
+            for topic in topics:
+                processor = ESItemProcessor(topic, instr)
+                self.consumers[topic] = ESConsumer(self.name, processor, doc_type=name)
+                self.consumers[topic].start()
 
     def stop(self):
         for name in self.consumers.keys():
             self.consumers[name].stop()
 
 
+class ESConsumerGroupV5(ESConsumerGroup):
+
+    def intuit_sources(self, index_body):
+        for name, instr in index_body.get('mappings', {}).items():
+            log.debug('Adding processor for %s' % name)
+            log.debug('instructions: %s' % instr)
+            processor = ESItemProcessorV5(name, instr)
+            self.consumers[processor.topic_name] = ESConsumer(
+                self.name, processor)
+            self.consumers[processor.topic_name].start()
+
+
 class ESConsumer(threading.Thread):
     # A single consumer subscribed to topic, pushing to an index
     # Runs as a daemon to avoid weird stops
-    def __init__(self, index, processor, has_group=True):
+    def __init__(self, index, processor, has_group=True, doc_type=None):
         # has_group = False only used for testing
         self.processor = processor
         self.index = index
+        self.doc_type = doc_type
         self.es_type = processor.es_type
         self.topic = processor.topic_name
         self.consumer_timeout = 1000  # MS
@@ -338,6 +382,8 @@ class ESConsumer(threading.Thread):
         try:
             self.consumer = KafkaConsumer(**args)
             self.consumer.subscribe([self.topic])
+            log.debug('Consumer %s subscribed on topic: %s @ group %s' %
+                      (self.index, self.topic, self.group_name))
             return True
         except Exception as ke:
             log.error('%s failed to subscibe to topic %s with error \n%s' %
@@ -345,6 +391,7 @@ class ESConsumer(threading.Thread):
             return False
 
     def run(self):
+        log.debug('Consumer running on %s : %s' % (self.index, self.es_type))
         while True:
             if self.connect(kafka_config):
                 break
@@ -365,6 +412,7 @@ class ESConsumer(threading.Thread):
                     if schema != last_schema:
                         log.debug('Schema change on type %s' % self.es_type)
                         self.processor.load_avro(schema)
+                        self.get_route = self.processor.create_route()
                     else:
                         log.debug('Schema unchanged.')
                     for x, msg in enumerate(messages):
@@ -377,29 +425,60 @@ class ESConsumer(threading.Thread):
         self.consumer.close()
         return
 
-    def submit(self, doc):
+    def submit(self, doc, route=None):
         parent = doc.get('_parent', None)
         if parent:  # _parent field can only be in metadata apparently
             del doc['_parent']
         try:
             log.debug('submitting on type %s' % self.es_type)
-            es.create(
-                index=self.index,
-                doc_type=self.es_type,
-                id=doc.get('id'),
-                parent=parent,
-                body=doc
-            )
-        except Exception as ese:
-            log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
-            try:
-                es.update(
+            if ES_VERSION > 5:
+                route = self.get_route(doc)
+                '''
+                if route:
+                    log.debug(doc)
+                    log.debug(route)
+                '''
+                es.create(
+                    index=self.index,
+                    id=doc.get('id'),
+                    routing=route,
+                    doc_type=self.doc_type,
+                    body=doc
+                )
+            else:
+                es.create(
                     index=self.index,
                     doc_type=self.es_type,
                     id=doc.get('id'),
                     parent=parent,
                     body=doc
                 )
+        except TransportError as tse:
+            log.debug(json.dumps(doc, indent=2))
+            log.error(tse.info)
+            log.error(tse.with_traceback)
+            raise(tse)
+        except Exception as ese:
+            log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
+            log.debug(json.dumps(doc, indent=2))
+            try:
+                if ES_VERSION > 5:
+                    route = self.get_route(doc)
+                    es.update(
+                        index=self.index,
+                        id=doc.get('id'),
+                        routing=route,
+                        doc_type=self.doc_type,
+                        body=doc
+                    )
+                else:
+                    es.update(
+                        index=self.index,
+                        doc_type=self.es_type,
+                        id=doc.get('id'),
+                        parent=parent,
+                        body=doc
+                    )
                 log.debug('Success!')
             except TransportError as te:
                 log.debug('conflict exists, ignoring document with id %s' %
@@ -419,6 +498,7 @@ class ESItemProcessor(object):
         self.es_type = type_name
         self.type_instructions = type_instructions
         self.topic_name = type_name
+        self.has_parent = False
 
     def load_avro(self, schema_obj):
         self.schema = spavro.schema.parse(json.dumps(schema_obj))
@@ -427,6 +507,7 @@ class ESItemProcessor(object):
 
     def load(self):
         self.pipeline = []
+        self.has_parent = False
         meta = self.type_instructions.get('_meta')
         if not meta:
             log.debug('type: %s has no meta arguments' % (self.es_type))
@@ -434,11 +515,16 @@ class ESItemProcessor(object):
         for key, value in meta.items():
             log.debug('Type %s has meta type: %s' % (self.es_type, key))
             if key == 'aet_parent_field':
-                cmd = {
-                    'function': '_add_parent',
-                    'field_name': value
-                }
-                self.pipeline.append(cmd)
+                join_field = meta.get('aet_join_field')
+                field = value.get(self.es_type)
+                if field and join_field:
+                    self.has_parent = True
+                    cmd = {
+                        'function': '_add_parent',
+                        'field_name': field,
+                        'join_field': join_field
+                    }
+                    self.pipeline.append(cmd)
             elif key == 'aet_geopoint':
                 cmd = {
                     'function': '_add_geopoint',
@@ -450,10 +536,23 @@ class ESItemProcessor(object):
                 except ValueError as ver:
                     log.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
             elif key.startswith('aet'):
-                log.error('Unsupported aet _meta keyword %s in type %s' % (key, self.es_type))
+                log.debug('aet _meta keyword %s in type %s generates no command'
+                          % (key, self.es_type))
             else:
                 log.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
         log.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
+
+    def create_route(self):
+        _meta = self.type_instructions.get('_meta')
+        join_field = _meta.get('aet_join_field', None)
+        if not self.has_parent or not join_field:
+            log.debug('NO Routing created for type %s' % self.es_type)
+            return lambda *args: None
+
+        def route(doc):
+            return doc.get(join_field).get('parent')
+        log.debug('Routing created for child type %s' % self.es_type)
+        return route
 
     def process(self, doc, schema=None):
         # Runs the cached insturctions from the built pipeline
@@ -466,9 +565,13 @@ class ESItemProcessor(object):
         fn = getattr(self, instr.get('function'))
         return fn(doc, **instr)
 
-    def _add_parent(self, doc, field_name=None, **kwargs):
+    def _add_parent(self, doc, field_name=None, join_field=None, **kwargs):
         try:
-            doc['_parent'] = self._get_doc_field(doc, field_name)
+            payload = {
+                'name': self.es_type,
+                'parent': self._get_doc_field(doc, field_name)
+            }
+            doc[join_field] = payload
         except Exception as e:
             log.error('Could not add parent to doc type %s. Error: %s' %
                       (self.es_type, e))
@@ -525,6 +628,50 @@ class ESItemProcessor(object):
         return res
 
 
+class ESItemProcessorV5(ESItemProcessor):
+
+    def load(self):
+        self.pipeline = []
+        meta = self.type_instructions.get('_meta')
+        if not meta:
+            log.debug('type: %s has no meta arguments' % (self.es_type))
+            return
+        for key, value in meta.items():
+            log.debug('Type %s has meta type: %s' % (self.es_type, key))
+            if key == 'aet_parent_field':
+                cmd = {
+                    'function': '_add_parent',
+                    'field_name': value
+                }
+                self.pipeline.append(cmd)
+                log.debug('Added %s to pipeline' % cmd)
+            elif key == 'aet_geopoint':
+                cmd = {
+                    'function': '_add_geopoint',
+                    'field_name': value
+                }
+                try:
+                    cmd.update(self._find_geopoints())
+                    self.pipeline.append(cmd)
+                    log.debug('Added %s to pipeline' % cmd)
+                except ValueError as ver:
+                    log.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
+            elif key.startswith('aet'):
+                log.debug('aet _meta keyword %s in type %s generates no command'
+                          % (key, self.es_type))
+            else:
+                log.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
+        log.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
+
+    def _add_parent(self, doc, field_name=None, **kwargs):
+        try:
+            doc['_parent'] = self._get_doc_field(doc, field_name)
+        except Exception as e:
+            log.error('Could not add parent to doc type %s. Error: %s' %
+                      (self.es_type, e))
+        return doc
+
+
 class ElasticSearchConsumer(object):
 
     def __init__(self):
@@ -538,7 +685,6 @@ class ElasticSearchConsumer(object):
         log.info('Started ES Consumer')
         while True:
             try:
-                pass
                 if not manager.stopped:
                     for x in range(10):
                         sleep(1)
