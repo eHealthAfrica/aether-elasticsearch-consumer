@@ -1,7 +1,7 @@
 {
 	"autoconfig_settings": {
 		"index_name_template": "aet_auto_%s_1",
-		"enabled": false,
+		"enabled": true,
 		"ignored_topics": ["__confluent.support.metrics"],
 		"geo_point_creation": true,
 		"geo_point_name": "geo_point"
