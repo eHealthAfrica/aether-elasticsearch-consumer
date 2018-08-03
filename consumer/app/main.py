@@ -118,6 +118,8 @@ def connect_kafka():
 
 class ESConsumerManager(object):
 
+    ES_VERSION_SERIES = 5
+
     def __init__(self, es_instance):
         self.es = es_instance
         self.stopped = False
@@ -194,7 +196,7 @@ class ESConsumerManager(object):
         if geo_point:
             index[name]['_meta'] = {'aet_geopoint': geo_point}
             index[name]['properties'] = {geo_point: {'type': 'geo_point'}}
-        log.debug('created index: \n%s' % json.dumps(index, indent=2))
+        log.debug('created index: %s' % index.get('name'))
         return {'mappings': index}
 
     def register_index(self, index_path=None, index_file=None, index=None):
@@ -215,6 +217,8 @@ class ESConsumerManager(object):
             log.error('Error creating index in elasticsearch %s' %
                       ([index_path, index_file, index],))
             log.error(ese)
+            log.critical("Index not created: path:%s file:%s name:%s" %
+                         (index_path, index_file, index.get('name')))
 
     def start_consumer_group(self, index_name, index_body):
         self.consumer_groups[index_name] = ESConsumerGroup(
