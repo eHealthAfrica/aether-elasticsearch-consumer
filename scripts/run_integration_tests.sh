@@ -27,13 +27,20 @@ popd
 docker-compose -f docker-compose-test.yml kill
 docker-compose -f docker-compose-test.yml down
 docker-compose -f docker-compose-test.yml build
-docker-compose -f docker-compose-test.yml run -d elasticsearch-test
+docker-compose -f docker-compose-test.yml run -d elasticsearch-test-6
 sleep 3
 docker-compose -f docker-compose-test.yml run assets-test register
 docker-compose -f docker-compose-test.yml run assets-test generate 10
 echo Waiting for Kafka...
 sleep 15  # Wait for Kafka to finish coming up.
-docker-compose -f docker-compose-test.yml run elasticsearch-consumer-test test_integration
+echo "Elasticsearch 6.x Tests"
+docker-compose -f docker-compose-test.yml run elasticsearch-consumer-test-6 test_integration
+docker-compose -f docker-compose-test.yml kill
+docker-compose -f docker-compose-test.yml down
+docker-compose -f docker-compose-test.yml run -d elasticsearch-test-5
+sleep 3
+echo "Elasticsearch 5.x Tests"
+docker-compose -f docker-compose-test.yml run elasticsearch-consumer-test-5 test_integration
 docker-compose -f docker-compose-test.yml kill
 docker-compose -f docker-compose-test.yml down
 pushd aether-bootstrap
