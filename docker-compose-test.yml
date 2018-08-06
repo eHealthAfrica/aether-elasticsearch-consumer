@@ -8,6 +8,13 @@ services:
     networks:
       - test_net
 
+  elasticsearch-test-5:
+    extends:
+      file: docker-compose-base.yml
+      service: elasticsearch-base-5
+    networks:
+      - test_net
+
   elasticsearch-consumer-test:
     extends:
       file: docker-compose-base.yml
@@ -28,6 +35,12 @@ services:
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
       STARTUP_CONNECTION_RETRY: 1
+
+  elasticsearch-consumer-test-5:
+    extends:
+      service: es-consumer-test
+    environment:
+      ELASTICSEARCH_URL: "elasticsearch-test-5"
 
   # ---------------------------------
   # Mock Data Container
