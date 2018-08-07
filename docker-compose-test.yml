@@ -75,9 +75,9 @@ services:
     volumes:
       - ./aether-bootstrap/assets:/code/assets
     environment:
-      KERNEL_URL: "http://kernel-test:9001"
-      KERNEL_USER: "admin"
-      KERNEL_PASSWORD: "adminadmin"
+      KERNEL_URL: "http://kernel-test:9000"
+      KERNEL_USER: "admin-test"
+      KERNEL_PASSWORD: "testingtesting"
       PROJECT_NAME: "DefaultDemo"
       SUBMISSION_ENDPOINT: "default_mapping"
     networks:
