@@ -19,5 +19,6 @@
 	"longitude_fields": ["lon", "lng", "long", "longitude"],
 	"index_path": "/code/app/index/es6",
 	"log_level": "DEBUG",
-	"log_name": "ES_Consumer"
+	"log_name": "ES_Consumer",
+    "kafka_topic_template": "elastic_{es_index_name}_{data_type}"
 }

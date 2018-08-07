@@ -1,12 +1,23 @@
 version: "2.1"
 services:
 
-  elasticsearch-test:
+  # Elasticsearch Containers
+
+  elasticsearch-test-6:
     extends:
       file: docker-compose-base.yml
-      service: elasticsearch-base
+      service: elasticsearch-base-6
     networks:
       - test_net
+
+  elasticsearch-test-5:
+    extends:
+      file: docker-compose-base.yml
+      service: elasticsearch-base-5
+    networks:
+      - test_net
+
+  # ES Test Containers
 
   elasticsearch-consumer-test:
     extends:
@@ -14,12 +25,9 @@ services:
       service: es-consumer-base
     networks:
       - test_net
-    links:
-      - elasticsearch-test
     volumes:
       - ./consumer/tests:/code/tests
     environment:
-      ELASTICSEARCH_URL: "elasticsearch-test"
       ELASTICSEARCH_PORT: 9200
       KAFKA_URL: "kafka-test:29099"
       CONSUMER_PORT: 9099
@@ -28,6 +36,33 @@ services:
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
       STARTUP_CONNECTION_RETRY: 1
+
+  # ES 5
+
+  elasticsearch-consumer-test-5:
+    extends:
+      service: elasticsearch-consumer-test
+    links:
+      - elasticsearch-test-5
+    environment:
+      ELASTICSEARCH_URL: "elasticsearch-test-5"
+      INDEX_PATH: "/code/tests/test_index/es5"
+      LOG_NAME: "ES_6-Consumer"
+      KAFKA_TOPIC_TEMPLATE: "elastic5_{es_index_name}_{data_type}"
+
+  # ES 6
+
+  elasticsearch-consumer-test-6:
+    extends:
+      service: elasticsearch-consumer-test
+    links:
+      - elasticsearch-test-6
+    environment:
+      ELASTICSEARCH_URL: "elasticsearch-test-6"
+      INDEX_PATH: "/code/tests/test_index/es6"
+      LOG_NAME: "ES_5-Consumer"
+      KAFKA_TOPIC_TEMPLATE: "elastic6_{es_index_name}_{data_type}"
+
 
   # ---------------------------------
   # Mock Data Container
@@ -40,9 +75,9 @@ services:
     volumes:
       - ./aether-bootstrap/assets:/code/assets
     environment:
-      KERNEL_URL: "http://kernel-test:9001"
-      KERNEL_USER: "admin"
-      KERNEL_PASSWORD: "adminadmin"
+      KERNEL_URL: "http://kernel-test:9000"
+      KERNEL_USER: "admin-test"
+      KERNEL_PASSWORD: "testingtesting"
       PROJECT_NAME: "DefaultDemo"
       SUBMISSION_ENDPOINT: "default_mapping"
     networks:

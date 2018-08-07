@@ -269,7 +269,7 @@ class HealthcheckHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format, *args):
-        log.debug(*args)
+        log.debug(args)
 
 
 class HealthcheckServer(threading.Thread):
@@ -368,7 +368,13 @@ class ESConsumer(threading.Thread):
         self.topic = processor.topic_name
         self.consumer_timeout = 1000  # MS
         self.consumer_max_records = 1000
-        self.group_name = 'elastic_%s_%s' % (self.index, self.es_type) \
+        kafka_topic_template = consumer_config.get(
+            'kafka_topic_template',
+            'elastic_{es_index_name}_{data_type}'
+        )
+        self.group_name = kafka_topic_template.format(
+            es_index_name=self.index,
+            data_type=self.es_type)\
             if has_group else None
         self.sleep_time = 10
         self.stopped = False
@@ -515,8 +521,11 @@ class ESItemProcessor(object):
         for key, value in meta.items():
             log.debug('Type %s has meta type: %s' % (self.es_type, key))
             if key == 'aet_parent_field':
-                join_field = meta.get('aet_join_field')
-                field = value.get(self.es_type)
+                join_field = meta.get('aet_join_field', None)
+                if join_field:  # ES 6
+                    field = value.get(self.es_type)
+                else:  # ES 5
+                    field = value
                 if field and join_field:
                     self.has_parent = True
                     cmd = {
@@ -543,8 +552,8 @@ class ESItemProcessor(object):
         log.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
 
     def create_route(self):
-        _meta = self.type_instructions.get('_meta')
-        join_field = _meta.get('aet_join_field', None)
+        meta = self.type_instructions.get('_meta', {})
+        join_field = meta.get('aet_join_field', None)
         if not self.has_parent or not join_field:
             log.debug('NO Routing created for type %s' % self.es_type)
             return lambda *args: None
