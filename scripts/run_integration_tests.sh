@@ -38,7 +38,7 @@ docker-compose -f docker-compose-test.yml run elasticsearch-consumer-test-6 test
 docker-compose -f docker-compose-test.yml kill
 docker-compose -f docker-compose-test.yml down
 docker-compose -f docker-compose-test.yml run -d elasticsearch-test-5
-sleep 3
+sleep 8
 echo "Elasticsearch 5.x Tests"
 docker-compose -f docker-compose-test.yml run elasticsearch-consumer-test-5 test_integration
 docker-compose -f docker-compose-test.yml kill
