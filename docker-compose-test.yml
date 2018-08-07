@@ -35,7 +35,7 @@ services:
       ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
-      STARTUP_CONNECTION_RETRY: 1
+      STARTUP_CONNECTION_RETRY: 3
 
   # ES 5
 
