@@ -269,7 +269,7 @@ class HealthcheckHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format, *args):
-        log.debug(*args)
+        log.debug(args)
 
 
 class HealthcheckServer(threading.Thread):

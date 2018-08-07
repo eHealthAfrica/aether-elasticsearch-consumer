@@ -30,6 +30,9 @@ set -Eeuo pipefail
 } || { # catch
     echo "aether_internal is ready."
 }
+pushd aether-bootstrap
+scripts/initialise_docker_environment.sh
+popd
 
 scripts/run_unit_tests.sh
 scripts/run_integration_tests.sh
