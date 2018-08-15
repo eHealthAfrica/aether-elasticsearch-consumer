@@ -569,7 +569,7 @@ class ESItemProcessor(object):
         for key in doc:
             if key in reserved:
                 val = self._get_doc_field(doc, key)
-                safe_name = "es_reserved_%s" % key
+                safe_name = 'es_reserved_%s' % key
                 doc[safe_name] = val
                 del doc[key]
         return doc
