@@ -563,10 +563,22 @@ class ESItemProcessor(object):
         log.debug('Routing created for child type %s' % self.es_type)
         return route
 
+    def rename_reserved_fields(self, doc):
+        reserved = ['_uid', '_id', '_type', '_source', '_all', '_field_names',
+                    '_routing', '_index', '_size', '_timestamp', '_ttl']
+        for key in doc:
+            if key in reserved:
+                val = self._get_doc_field(doc, key)
+                safe_name = "es_reserved_%s" % key
+                doc[safe_name] = val
+                del doc[key]
+        return doc
+
     def process(self, doc, schema=None):
         # Runs the cached insturctions from the built pipeline
         for instr in self.pipeline:
             doc = self.exc(doc, instr)
+        doc = self.rename_reserved_fields(doc)
         return doc
 
     def exc(self, doc, instr):
