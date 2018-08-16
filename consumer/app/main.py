@@ -637,16 +637,33 @@ class ESItemProcessor(object):
         res = {}
         latitude_fields = consumer_config.get('latitude_fields')
         longitude_fields = consumer_config.get('longitude_fields')
-        for field in self.schema_obj.get('fields'):
-            test = field.get('name', '').lower()
-            if test in latitude_fields:
-                res['lat'] = field.get('name')
-            elif test in longitude_fields:
-                res['lon'] = field.get('name')
-        if not 'lat' and 'lon' in res:
+        for lat in latitude_fields:
+            if self.exists_in_schema(self.schema_obj, lat):
+                res['lat'] = lat
+                break
+        for lng in longitude_fields:
+            if self.exists_in_schema(self.schema_obj, lng):
+                res['lon'] = lng
+                break
+        if 'lat' not in res or 'lon' not in res:
             raise ValueError('Could not resolve geopoints for field %s of type %s' % (
                 'location', self.es_type))
         return res
+
+    def exists_in_schema(self, schema, test):
+        matches = []
+        if isinstance(schema, list):
+            for _dict in schema:
+                _type = _dict.get('type')
+                if isinstance(_type, dict):
+                    next_level = _type.get('fields')
+                    if next_level:
+                        matches.append(self.exists_in_schema(next_level, test))
+                if _dict.get('name', '').lower() == test.lower():
+                    return True
+        elif schema.get('fields'):
+            matches.append(self.exists_in_schema(schema.get('fields'), test))
+        return True in matches
 
 
 class ESItemProcessorV5(ESItemProcessor):

@@ -54,3 +54,27 @@ def test__get_index_for_topic(MockConsumerManager, AutoConfigSettings):
     assert(index.get(name) is not None)
     assert(index.get(name).get('properties').get(geo_name) is not None)
     assert(index.get(name).get('properties').get(geo_name).get('type') is 'geo_point')
+
+
+@pytest.mark.unit
+def test__get_field_by_name():
+    processor = ESItemProcessor(None, None)
+    vals = [
+        ('today', SAMPLE_DOC.get('today')),
+        ('residents_module', SAMPLE_DOC.get('residents_module')),
+        ('supervisor_name', SAMPLE_DOC.get('residents_module').get('supervisor_name')),
+        ('latitude', SAMPLE_DOC.get('geo').get('latitude'))
+    ]
+    for field, value in vals:
+        assert(processor._get_doc_field(SAMPLE_DOC, field) == value)
+
+
+@pytest.mark.unit
+def test__process_geo_field():
+    processor = ESItemProcessor('test', TYPE_INSTRUCTIONS)
+    processor.schema_obj = DOC_SCHEMA
+    processor.load()
+    res = processor._find_geopoints()
+    assert(res.get('lat') is not None)
+    doc = processor.process(SAMPLE_DOC)
+    assert(doc.get('geo_point').get('lon') is not None)
