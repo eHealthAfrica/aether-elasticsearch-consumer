@@ -32,7 +32,16 @@ set -Eeuo pipefail
 }
 pushd aether-bootstrap
 scripts/initialise_docker_environment.sh
+cp .env ..
 popd
 
 scripts/run_unit_tests.sh
+sleep 1
+pushd aether-bootstrap
+docker-compose -f docker-compose-test.yml down
+sleep 5
+scripts/initialise_docker_environment.sh
+cp .env ..
+popd
+
 scripts/run_integration_tests.sh
