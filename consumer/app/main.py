@@ -177,6 +177,7 @@ class ESConsumerManager(object):
                       i not in self.autoconfigured_topics]
         except Exception as ke:
             log.error('Autoconfig failed to get available topics \n%s' % (ke))
+            return []  # Can't auto-configure if Kafka isn't available
         geo_point = (
             autoconf.get('geo_point_name', None)
             if autoconf.get('geo_point_creation', False)
