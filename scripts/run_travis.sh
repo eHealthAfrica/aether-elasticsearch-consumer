@@ -36,4 +36,12 @@ cp .env ..
 popd
 
 scripts/run_unit_tests.sh
+sleep 1
+pushd aether-bootstrap
+docker-compose-test down
+sleep 5
+scripts/initialise_docker_environment.sh
+cp .env ..
+popd
+
 scripts/run_integration_tests.sh
