@@ -32,6 +32,7 @@ set -Eeuo pipefail
 }
 pushd aether-bootstrap
 scripts/initialise_docker_environment.sh
+cp .env ..
 popd
 
 scripts/run_unit_tests.sh
