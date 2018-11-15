@@ -29,7 +29,7 @@ services:
       - ./consumer/tests:/code/tests
     environment:
       ELASTICSEARCH_PORT: 9200
-      KAFKA_URL: "kafka-test:29099"
+      KAFKA_URL: "kafka-test:29092"
       CONSUMER_PORT: 9099
       LOG_LEVEL: "ERROR"
       ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
