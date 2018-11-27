@@ -460,7 +460,7 @@ class ESConsumer(threading.Thread):
                     parent=parent,
                     body=doc
                 )
-        except ( Exception, TransportError ) as ese:
+        except (Exception, TransportError) as ese:
             log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
             log.info(ese.info)
             log.info(ese.with_traceback)
