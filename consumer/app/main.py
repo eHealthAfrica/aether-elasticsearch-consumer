@@ -462,8 +462,8 @@ class ESConsumer(threading.Thread):
                 )
         except ( Exception, TransportError ) as ese:
             log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
-            log.error(ese.info)
-            log.error(ese.with_traceback)
+            log.info(ese.info)
+            log.info(ese.with_traceback)
             try:
                 if ES_VERSION > 5:
                     route = self.get_route(doc)
