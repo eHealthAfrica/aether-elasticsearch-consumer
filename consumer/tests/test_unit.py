@@ -62,8 +62,9 @@ def test__get_field_by_name():
     vals = [
         ('today', SAMPLE_DOC.get('today')),
         ('residents_module', SAMPLE_DOC.get('residents_module')),
-        ('supervisor_name', SAMPLE_DOC.get('residents_module').get('supervisor_name')),
-        ('latitude', SAMPLE_DOC.get('geo').get('latitude'))
+        ('residents_module.supervisor_name', SAMPLE_DOC.get(
+            'residents_module').get('supervisor_name')),
+        ('geo.latitude', SAMPLE_DOC.get('geo').get('latitude'))
     ]
     for field, value in vals:
         assert(processor._get_doc_field(SAMPLE_DOC, field) == value)
@@ -72,6 +73,17 @@ def test__get_field_by_name():
 @pytest.mark.unit
 def test__process_geo_field():
     processor = ESItemProcessor('test', TYPE_INSTRUCTIONS)
+    processor.schema_obj = DOC_SCHEMA
+    processor.load()
+    res = processor._find_geopoints()
+    assert(res.get('lat') is not None)
+    doc = processor.process(SAMPLE_DOC)
+    assert(doc.get('geo_point').get('lon') is not None)
+
+
+@pytest.mark.unit
+def test__process_nested_geo_field():
+    processor = ESItemProcessor('test2', TYPE_INSTRUCTIONS)
     processor.schema_obj = DOC_SCHEMA
     processor.load()
     res = processor._find_geopoints()

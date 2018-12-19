@@ -20,15 +20,12 @@
 
 import os
 import json
-import logging
 import sys
 import threading
 import signal
-import http.server
-from socketserver import TCPServer
+from jsonpath_ng.ext import parse as jsonpath_ng_ext_parse
 from time import sleep
 from urllib3.exceptions import NewConnectionError
-
 
 from aet.consumer import KafkaConsumer
 from elasticsearch import Elasticsearch
@@ -36,32 +33,47 @@ from elasticsearch.exceptions import TransportError
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 import spavro
 
-from . import config
+from . import config, logger, healthcheck
 
 consumer_config = config.get_consumer_config()
 kafka_config = config.get_kafka_config()
 
 CONN_RETRY = int(consumer_config.get('startup_connection_retry'))
 CONN_RETRY_WAIT_TIME = int(consumer_config.get('connect_retry_wait'))
-
-
-def get_module_logger(mod_name):
-    logger = logging.getLogger(mod_name)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s [%(name)-12s] %(levelname)-8s %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    level = logging.getLevelName(consumer_config.get('log_level'))
-    logger.setLevel(level)
-    return logger
-
-
-log = get_module_logger(consumer_config.get('log_name'))
+log = logger.get_module_logger(consumer_config.get('log_name'))
 
 # Global Elasticsearch Connection
 es = None
 ES_VERSION = 0
+
+
+class CachedParser(object):
+    # jsonpath_ng.parse is a very time/compute expensive operation. The output is always
+    # the same for a given path. To reduce the number of times parse() is called, we cache
+    # all calls to jsonpath_ng here.
+
+    cache = {}
+
+    @staticmethod
+    def parse(path):
+        # we never need to call parse directly; use find()
+        if path not in CachedParser.cache.keys():
+            try:
+                CachedParser.cache[path] = jsonpath_ng_ext_parse(path)
+            except Exception as err:  # jsonpath-ng raises the base exception type
+                new_err = 'exception parsing path {path} : {error} '.format(
+                    path=path, error=err
+                )
+                log.error(new_err)
+                raise err
+
+        return CachedParser.cache[path]
+
+    @staticmethod
+    def find(path, obj):
+        # find is an optimized call with a potentially cached parse object.
+        parser = CachedParser.parse(path)
+        return parser.find(obj)
 
 
 def connect():
@@ -197,7 +209,7 @@ class ESConsumerManager(object):
         return indexes
 
     def serve_healthcheck(self):
-        self.healthcheck = HealthcheckServer()
+        self.healthcheck = healthcheck.HealthcheckServer()
         self.healthcheck.start()
 
     def get_index_for_topic(self, name, geo_point=None):
@@ -252,51 +264,6 @@ class ESConsumerManager(object):
         self.healthcheck.stop()
         for key in self.consumer_groups.keys():
             self.stop_group(key)
-
-
-class HealthcheckHandler(http.server.BaseHTTPRequestHandler):
-
-    def __init__(self, *args, **kwargs):
-        super(HealthcheckHandler, self).__init__(*args, **kwargs)
-
-    def do_HEAD(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-
-    def log_message(self, format, *args):
-        log.debug(args)
-
-
-class HealthcheckServer(threading.Thread):
-
-    def __init__(self):
-        super(HealthcheckServer, self).__init__()
-
-    def run(self):
-        host, port = '0.0.0.0', int(consumer_config.get('consumer_port'))
-        handler = HealthcheckHandler
-        TCPServer.allow_reuse_address = True
-        try:
-            self.httpd = TCPServer((host, port), handler)
-            self.httpd.serve_forever()
-        except OSError as ose:
-            log.critical('Could not serve healthcheck endpoint: %s' % ose)
-            sys.exit(1)
-
-    def stop(self):
-        try:
-            log.debug('stopping healthcheck endpoint')
-            self.httpd.shutdown()
-            self.httpd.server_close()
-            log.debug('healthcheck stopped.')
-        except AttributeError:
-            log.debug('Healthcheck was already down.')
 
 
 class AutoConfMaintainer(threading.Thread):
@@ -611,19 +578,13 @@ class ESItemProcessor(object):
             raise ValueError('Invalid field name')
         doc = json.loads(json.dumps(doc))
         try:
-            # Looks for the key directly
-            if name in doc.keys():
-                return doc[name]
-            else:
-                # Looks for Nested Keys
-                for key in doc.keys():
-                    val = doc.get(key)
-                    try:
-                        if name in val.keys():
-                            return val.get(name)
-                    except Exception as err:
-                        pass
-            raise ValueError()
+            matches = CachedParser.find(name, doc)
+            if not matches:
+                raise ValueError(name, doc)
+            if len(matches) > 1:
+                log.warn('More than one value for %s in doc type %s, using first' %
+                         (name, self.es_type))
+            return matches[0].value
         except ValueError as ve:
             log.debug('Error getting field %s from doc type %s' %
                       (name, self.es_type))
@@ -635,32 +596,40 @@ class ESItemProcessor(object):
         latitude_fields = consumer_config.get('latitude_fields')
         longitude_fields = consumer_config.get('longitude_fields')
         for lat in latitude_fields:
-            if self.exists_in_schema(self.schema_obj, lat):
-                res['lat'] = lat
+            path = self.find_path_in_schema(self.schema_obj, lat)
+            if path:
+                res['lat'] = path[0]  # Take the first Lat
                 break
         for lng in longitude_fields:
-            if self.exists_in_schema(self.schema_obj, lng):
-                res['lon'] = lng
+            path = self.find_path_in_schema(self.schema_obj, lng)
+            if path:
+                res['lon'] = path[0]  # Take the first Lng
                 break
         if 'lat' not in res or 'lon' not in res:
             raise ValueError('Could not resolve geopoints for field %s of type %s' % (
                 'location', self.es_type))
         return res
 
-    def exists_in_schema(self, schema, test):
+    def find_path_in_schema(self, schema, test, previous_path='$'):
         matches = []
         if isinstance(schema, list):
             for _dict in schema:
                 _type = _dict.get('type')
                 if isinstance(_type, dict):
+                    name = _dict.get('name')
                     next_level = _type.get('fields')
                     if next_level:
-                        matches.append(self.exists_in_schema(next_level, test))
-                if _dict.get('name', '').lower() == test.lower():
-                    return True
+                        matches.extend(
+                            self.find_path_in_schema(next_level, test, f'{previous_path}.{name}')
+                        )
+                test_name = _dict.get('name', '').lower()
+                if test_name == test.lower():
+                    return [f'{previous_path}.{test_name}']
         elif schema.get('fields'):
-            matches.append(self.exists_in_schema(schema.get('fields'), test))
-        return True in matches
+            matches.extend(
+                self.find_path_in_schema(schema.get('fields'), test, previous_path)
+            )
+        return [m for m in matches if m]
 
 
 class ESItemProcessorV5(ESItemProcessor):
