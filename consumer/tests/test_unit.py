@@ -79,14 +79,3 @@ def test__process_geo_field():
     assert(res.get('lat') is not None)
     doc = processor.process(SAMPLE_DOC)
     assert(doc.get('geo_point').get('lon') is not None)
-
-
-@pytest.mark.unit
-def test__process_nested_geo_field():
-    processor = ESItemProcessor('test2', TYPE_INSTRUCTIONS)
-    processor.schema_obj = DOC_SCHEMA
-    processor.load()
-    res = processor._find_geopoints()
-    assert(res.get('lat') is not None)
-    doc = processor.process(SAMPLE_DOC)
-    assert(doc.get('geo_point').get('lon') is not None)
