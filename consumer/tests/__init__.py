@@ -110,6 +110,28 @@ SAMPLE_DOC = {
     '_version': '1'
 }
 
+SAMPLE_DOC2 = {
+        'Encounter_Date_Time': None,
+        'Location': {
+            'accuracy': 26.0,
+            'altitude': 486.0,
+            'latitude': 9.070648346096277,
+            'longitude': 7.413686318323016
+        },
+        'Patient_Age': 29,
+        'Patient_Name': 'Jane Smith ',
+        'QR_Code': '0626b3a2-401c-4012-8b81-1f5b14df8c7b',
+        'Test_Name': 'TEST_1',
+        '_id': 'rapidtest_start',
+        '_version': '0',
+        'end': '2019-01-28T09:05:51.154000+01:00',
+        'id': '75dc93fa-647a-4c53-bc5a-18aa5394fd40',
+        'meta': {
+            'instanceID': 'uuid:adda71c0-2099-4123-87d1-c210838e0565'
+        },
+        'start': '2019-01-28T09:05:18.680000+01:00'
+    }
+
 TYPE_INSTRUCTIONS = {
     '_meta': {
         'aet_subscribed_topics': [
@@ -267,4 +289,170 @@ DOC_SCHEMA = {
         }
     ],
     'name': 'Auto_0'
+}
+
+
+DOC_SCHEMA2 = {
+    'doc': 'Rapid Test - Start (id: rapidtest_start, version: 2019012807)',
+    'fields': [
+        {
+            'default': 'rapidtest_start',
+            'doc': 'xForm ID',
+            'name': '_id',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'string'
+            ]
+        },
+        {
+            'default': '2019012807',
+            'doc': 'xForm version',
+            'name': '_version',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'string'
+            ]
+        },
+        {
+            'name': 'start',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'string'
+            ]
+        },
+        {
+            'name': 'end',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'string'
+            ]
+        },
+        {
+            'doc': 'Test Name',
+            'name': 'Test_Name',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'string'
+            ]
+        },
+        {
+            'doc': 'Scan QR Code',
+            'name': 'QR_Code',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'string'
+            ]
+        },
+        {
+            'doc': 'Patient Name',
+            'name': 'Patient_Name',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'string'
+            ]
+        },
+        {
+            'doc': 'Patient Age',
+            'name': 'Patient_Age',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'int'
+            ]
+        },
+        {
+            'doc': 'Location',
+            'name': 'Location',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                {
+                    'doc': 'Location',
+                    'fields': [
+                        {
+                            'doc': 'latitude',
+                            'name': 'latitude',
+                            'namespace': 'Rapidtest_Start_2019012807.Location',
+                            'type': [
+                                'None',
+                                'float'
+                            ]
+                        },
+                        {
+                            'doc': 'longitude',
+                            'name': 'longitude',
+                            'namespace': 'Rapidtest_Start_2019012807.Location',
+                            'type': [
+                                'None',
+                                'float'
+                            ]
+                        },
+                        {
+                            'doc': 'altitude',
+                            'name': 'altitude',
+                            'namespace': 'Rapidtest_Start_2019012807.Location',
+                            'type': [
+                                'None',
+                                'float'
+                            ]
+                        },
+                        {
+                            'doc': 'accuracy',
+                            'name': 'accuracy',
+                            'namespace': 'Rapidtest_Start_2019012807.Location',
+                            'type': [
+                                'None',
+                                'float'
+                            ]
+                        }
+                    ],
+                    'name': 'Location',
+                    'namespace': 'Rapidtest_Start_2019012807',
+                    'type': 'record'
+                }
+            ]
+        },
+        {
+            'name': 'Encounter_Date_Time',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                'string'
+            ]
+        },
+        {
+            'name': 'meta',
+            'namespace': 'Rapidtest_Start_2019012807',
+            'type': [
+                'None',
+                {
+                    'fields': [
+                        {
+                            'name': 'instanceID',
+                            'namespace': 'Rapidtest_Start_2019012807.meta',
+                            'type': [
+                                'None',
+                                'string'
+                            ]
+                        }
+                    ],
+                    'name': 'meta',
+                    'namespace': 'Rapidtest_Start_2019012807',
+                    'type': 'record'
+                }
+            ]
+        },
+        {
+            'doc': 'UUID',
+            'name': 'id',
+            'type': 'string'
+        }
+    ]
 }

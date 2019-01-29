@@ -595,6 +595,7 @@ class ESItemProcessor(object):
         res = {}
         latitude_fields = consumer_config.get('latitude_fields')
         longitude_fields = consumer_config.get('longitude_fields')
+        log.debug(f'looking for matches in {latitude_fields} & {longitude_fields}')
         for lat in latitude_fields:
             path = self.find_path_in_schema(self.schema_obj, lat)
             if path:
@@ -611,20 +612,28 @@ class ESItemProcessor(object):
         return res
 
     def find_path_in_schema(self, schema, test, previous_path='$'):
+        # Searches a schema document for matching instances of an element.
+        # Will look in nested objects. Aggregates matching paths.
+        log.debug(f'search: {test}:{previous_path}')
         matches = []
         if isinstance(schema, list):
             for _dict in schema:
-                _type = _dict.get('type')
-                if isinstance(_type, dict):
-                    name = _dict.get('name')
-                    next_level = _type.get('fields')
-                    if next_level:
-                        matches.extend(
-                            self.find_path_in_schema(next_level, test, f'{previous_path}.{name}')
-                        )
-                test_name = _dict.get('name', '').lower()
-                if test_name == test.lower():
-                    return [f'{previous_path}.{test_name}']
+                types = _dict.get('type')
+                if not isinstance(types, list):
+                    types = [types]  # treat everything as a union
+                for _type in types:
+                    if not _type:  # ignore nulls in unions
+                        continue
+                    if isinstance(_type, dict):
+                        name = _dict.get('name')
+                        next_level = _type.get('fields')
+                        if next_level:
+                            matches.extend(
+                                self.find_path_in_schema(next_level, test, f'{previous_path}.{name}')
+                            )
+                    test_name = _dict.get('name', '').lower()
+                    if str(test_name) == str(test.lower()):
+                        return [f'{previous_path}.{test_name}']
         elif schema.get('fields'):
             matches.extend(
                 self.find_path_in_schema(schema.get('fields'), test, previous_path)
