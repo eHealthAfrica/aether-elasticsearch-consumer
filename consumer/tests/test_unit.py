@@ -72,10 +72,15 @@ def test__get_field_by_name():
 
 @pytest.mark.unit
 def test__process_geo_field():
-    processor = ESItemProcessor('test', TYPE_INSTRUCTIONS)
-    processor.schema_obj = DOC_SCHEMA
-    processor.load()
-    res = processor._find_geopoints()
-    assert(res.get('lat') is not None)
-    doc = processor.process(SAMPLE_DOC)
-    assert(doc.get('geo_point').get('lon') is not None)
+    to_test = [
+        [TYPE_INSTRUCTIONS, DOC_SCHEMA, SAMPLE_DOC],
+        [TYPE_INSTRUCTIONS, DOC_SCHEMA2, SAMPLE_DOC2]
+    ]
+    for instr, schema, doc in to_test:
+        processor = ESItemProcessor('test', instr)
+        processor.schema_obj = schema
+        processor.load()
+        res = processor._find_geopoints()
+        assert(res.get('lat') is not None)
+        doc = processor.process(doc)
+        assert(doc.get('geo_point').get('lon') is not None)
