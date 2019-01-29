@@ -23,6 +23,8 @@ import pytest
 import os
 from app.main import ESConsumerManager, connect_es, ESItemProcessor  # NOQA
 
+# Some of the fixtures are non-compliant so we don't QA this file.
+# flake8: noqa
 
 class _MockConsumerManager(ESConsumerManager):
 
