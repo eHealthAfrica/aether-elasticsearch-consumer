@@ -629,7 +629,11 @@ class ESItemProcessor(object):
                         next_level = _type.get('fields')
                         if next_level:
                             matches.extend(
-                                self.find_path_in_schema(next_level, test, f'{previous_path}.{name}')
+                                self.find_path_in_schema(
+                                    next_level,
+                                    test,
+                                    f'{previous_path}.{name}'
+                                )
                             )
                     test_name = _dict.get('name', '').lower()
                     if str(test_name) == str(test.lower()):
