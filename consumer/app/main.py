@@ -31,6 +31,7 @@ from aet.consumer import KafkaConsumer
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
+import requests
 import spavro
 
 from . import config, logger, healthcheck
@@ -140,7 +141,7 @@ class ESConsumerManager(object):
         self.serve_healthcheck()
         self.es_version = self.get_es_version()
         self.consumer_groups = {}  # index_name : consumer group
-        auto_conf = consumer_config.get('autoconfig_settings')
+        auto_conf = consumer_config.get('autoconfig_settings', {})
         self.autoconf_maintainer = AutoConfMaintainer(self, auto_conf)
         self.autoconf_maintainer.start()
         self.load_indices_from_file()
@@ -206,6 +207,31 @@ class ESConsumerManager(object):
                 }
             )
         return indexes
+
+    def make_kibana_index(self, name):
+        # throws HTTPError on failure
+        handle = lambda x: x.raise_for_status()
+        host = consumer_config.get('kibana_url', None)
+        if not host:
+            log.debug('No kibana_url in config for default index creation.')
+            return
+        pattern = f'{name}*'
+        index_url = f'{host}/api/saved_objects/index-pattern/{pattern}'
+        headers = {'kbn-xsrf': 'meaningless-but-required'}
+        data = {
+            'attributes': {
+                'title': pattern
+            }
+        }
+        # register the base index
+        handle(requests.post(index_url, headers=headers, json=data))
+        default_url = f'{host}/api/kibana/settings/defaultIndex'
+        data = {
+            'value': pattern
+        }
+        # make this index the default
+        handle(requests.post(default_url, headers=headers, json=data))
+        log.debug(f'Created default index {pattern} on host {host}')
 
     def serve_healthcheck(self):
         self.healthcheck = healthcheck.HealthcheckServer()
@@ -273,9 +299,18 @@ class AutoConfMaintainer(threading.Thread):
         super(AutoConfMaintainer, self).__init__()
 
     def run(self):
+        # On start
+        if self.autoconf.get('create_kibana_index', True):
+            kibana_index = self.autoconf.get('index_name_template')
+            kibana_index = kibana_index.split('%s')[0]
+            try:
+                self.parent.make_kibana_index(kibana_index)
+            except requests.exceptions.HTTPError as hter:
+                log.debug(f'Could not register default kibana index: {hter}')
+        # Every ten seconds
         while not self.parent.stopped:
             # Check autoconfig
-            if self.autoconf.get('enabled'):
+            if self.autoconf.get('enabled', False):
                 auto_indexes = self.parent.get_indexes_for_auto_config(**self.autoconf)
                 for idx in auto_indexes:
                     self.parent.register_index(index=idx)
