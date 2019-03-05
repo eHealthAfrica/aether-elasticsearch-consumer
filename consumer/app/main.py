@@ -430,7 +430,7 @@ class ESConsumer(threading.Thread):
                         doc = self.processor.process(msg)
                         count = x
                         self.submit(doc)
-                    log.info('processed %s docs in index %s' % ((count + 1) , self.es_type))
+                    log.info('processed %s docs in index %s' % ((count + 1), self.es_type))
                     last_schema = schema
 
         log.info('Shutting down consumer %s | %s' % (self.index, self.topic))
