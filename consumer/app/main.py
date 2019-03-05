@@ -283,6 +283,11 @@ class AutoConfMaintainer(threading.Thread):
                     return
                 sleep(1)
 
+    def check_running_groups(self):
+        groups = self.parent.consumer_groups
+        for k, group in groups.items():
+            group.monitor_threads()
+
 
 class ESConsumerGroup(object):
     # Group of consumers (1 per topic) pushing to an ES index
@@ -290,6 +295,7 @@ class ESConsumerGroup(object):
     def __init__(self, index_name, index_body):
         self.name = index_name
         self.consumers = {}
+        self.topics = {}  # configuration for each topic
         log.debug('Consumer Group started for index: %s' % index_name)
         self.intuit_sources(index_body)
 
@@ -298,14 +304,40 @@ class ESConsumerGroup(object):
             # There's only one type per mapping allowed in ES6
             log.debug('Adding processor for %s' % name)
             log.debug('instructions: %s' % instr)
-            topics = instr.get('_meta').get('aet_subscribed_topics')
-            if not topics:
+            self.topics = instr.get('_meta').get('aet_subscribed_topics')
+            if not self.topics:
                 raise ValueError('No topics in aet_subscribed_topics section in index %s' %
                                  self.name)
-            for topic in topics:
-                processor = ESItemProcessor(topic, instr)
-                self.consumers[topic] = ESConsumer(self.name, processor, doc_type=name)
-                self.consumers[topic].start()
+            for topic in self.topics:
+                self.start_topic(topic, instr)
+
+    def start_topic(self, topic_name, instr=None):
+        log.debug(f'Group: {self.name} is starting topic: {topic_name}')
+        if instr:
+            self.topics[topic_name] = instr
+        try:
+            instruction = self.topics[name]
+        except KeyError:
+            raise ValueError(f'Topic {topic} on group {self.name} has no instructions.')
+        processor = ESItemProcessor(topic, instr)
+        self.consumers[topic] = ESConsumer(self.name, processor, doc_type=name)
+        self.consumers[topic].start()
+
+    def is_alive(self, topic_name):
+        try:
+            return self.consumers[topic_name].is_alive()
+        except KeyError as ker:
+            log.error(f'Error getting liveness on {self.name}:{topic_name}: {ker}')
+            return False
+
+    def monitor_threads(self):
+        log.debug(f'Checking threads on group: {self.name}')
+        if topic in self.consumers.keys():
+            if not self.is_alive(topic):
+                log.error(f'Topic {topic} on group {self.name} died. Restarting.')
+                self.start_topic(topic)
+            else:
+                log.debug(f'Topic {topic} alive in {self.name}.')
 
     def stop(self):
         for name in self.consumers.keys():
