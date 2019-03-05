@@ -306,28 +306,28 @@ class ESConsumerGroup(object):
         self.intuit_sources(index_body)
 
     def intuit_sources(self, index_body):
-        for name, instr in index_body.get('mappings', {}).items():
+        for instr_name, instr in index_body.get('mappings', {}).items():
             # There's only one type per mapping allowed in ES6
-            log.debug('Adding processor for %s' % name)
+            log.debug('Adding processor for %s' % instr_name)
             log.debug('instructions: %s' % instr)
             self.topics = instr.get('_meta').get('aet_subscribed_topics')
             if not self.topics:
                 raise ValueError('No topics in aet_subscribed_topics section in index %s' %
                                  self.name)
             for topic in self.topics:
-                self.start_topic(topic, instr)
+                self.start_topic(topic, instr_name, instr)
 
-    def start_topic(self, topic_name, instr=None):
+    def start_topic(self, topic_name, instr_name=None, instr=None):
         log.debug(f'Group: {self.name} is starting topic: {topic_name}')
         if instr:
-            self.topics[topic_name] = instr
+            self.topics[topic_name] = (instr_name, instr)
         try:
-            instruction = self.topics[name]
+            name, instruction = self.topics[topic_name]
         except KeyError:
-            raise ValueError(f'Topic {topic} on group {self.name} has no instructions.')
-        processor = ESItemProcessor(topic, instr)
-        self.consumers[topic] = ESConsumer(self.name, processor, doc_type=name)
-        self.consumers[topic].start()
+            raise ValueError(f'Topic {topic_name} on group {self.name} has no instructions.')
+        processor = ESItemProcessor(topic_name, instruction)
+        self.consumers[topic_name] = ESConsumer(self.name, processor, doc_type=name)
+        self.consumers[topic_name].start()
 
     def is_alive(self, topic_name):
         try:
@@ -338,7 +338,7 @@ class ESConsumerGroup(object):
 
     def monitor_threads(self):
         log.debug(f'Checking threads on group: {self.name}')
-        if topic in self.consumers.keys():
+        for topic in self.consumers.keys():
             if not self.is_alive(topic):
                 log.error(f'Topic {topic} on group {self.name} died. Restarting.')
                 self.start_topic(topic)
