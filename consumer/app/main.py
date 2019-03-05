@@ -310,11 +310,11 @@ class ESConsumerGroup(object):
             # There's only one type per mapping allowed in ES6
             log.debug('Adding processor for %s' % instr_name)
             log.debug('instructions: %s' % instr)
-            self.topics = instr.get('_meta').get('aet_subscribed_topics')
-            if not self.topics:
+            topics = instr.get('_meta').get('aet_subscribed_topics')
+            if not topics:
                 raise ValueError('No topics in aet_subscribed_topics section in index %s' %
                                  self.name)
-            for topic in self.topics:
+            for topic in topics:
                 self.start_topic(topic, instr_name, instr)
 
     def start_topic(self, topic_name, instr_name=None, instr=None):
@@ -342,8 +342,6 @@ class ESConsumerGroup(object):
             if not self.is_alive(topic):
                 log.error(f'Topic {topic} on group {self.name} died. Restarting.')
                 self.start_topic(topic)
-            else:
-                log.debug(f'Topic {topic} alive in {self.name}.')
 
     def stop(self):
         for name in self.consumers.keys():
@@ -418,19 +416,21 @@ class ESConsumer(threading.Thread):
             for parition_key, packages in new_messages.items():
                 for package in packages:
                     schema = package.get('schema')
-                    log.debug('schema: %s' % schema)
                     messages = package.get('messages')
                     log.debug('messages #%s' % len(messages))
                     if schema != last_schema:
-                        log.debug('Schema change on type %s' % self.es_type)
+                        log.info('Schema change on type %s' % self.es_type)
+                        log.debug('schema: %s' % schema)
                         self.processor.load_avro(schema)
                         self.get_route = self.processor.create_route()
                     else:
                         log.debug('Schema unchanged.')
+                    count = 0
                     for x, msg in enumerate(messages):
                         doc = self.processor.process(msg)
-                        log.debug('processed doc in index %s' % self.es_type)
+                        count = x
                         self.submit(doc)
+                    log.info('processed %s docs in index %s' % ((count + 1) , self.es_type))
                     last_schema = schema
 
         log.info('Shutting down consumer %s | %s' % (self.index, self.topic))
@@ -442,7 +442,6 @@ class ESConsumer(threading.Thread):
         if parent:  # _parent field can only be in metadata apparently
             del doc['_parent']
         try:
-            log.debug('submitting on type %s' % self.es_type)
             if ES_VERSION > 5:
                 route = self.get_route(doc)
                 '''

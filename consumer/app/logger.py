@@ -30,6 +30,7 @@ def get_module_logger(mod_name):
     formatter = logging.Formatter(
         '%(asctime)s [%(name)-12s] %(levelname)-8s %(message)s')
     handler.setFormatter(formatter)
+    logger.handlers = []
     logger.addHandler(handler)
     level = logging.getLevelName(consumer_config.get('log_level'))
     logger.setLevel(level)
