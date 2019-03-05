@@ -141,9 +141,8 @@ class ESConsumerManager(object):
         self.es_version = self.get_es_version()
         self.consumer_groups = {}  # index_name : consumer group
         auto_conf = consumer_config.get('autoconfig_settings')
-        if auto_conf.get('enabled'):
-            self.autoconf_maintainer = AutoConfMaintainer(self, auto_conf)
-            self.autoconf_maintainer.start()
+        self.autoconf_maintainer = AutoConfMaintainer(self, auto_conf)
+        self.autoconf_maintainer.start()
         self.load_indices_from_file()
 
     def load_indices_from_file(self):
@@ -268,16 +267,23 @@ class ESConsumerManager(object):
 
 class AutoConfMaintainer(threading.Thread):
 
-    def __init__(self, parent, autoconf):
+    def __init__(self, parent, autoconf=None):
         self.parent = parent
         self.autoconf = autoconf
         super(AutoConfMaintainer, self).__init__()
 
     def run(self):
         while not self.parent.stopped:
-            auto_indexes = self.parent.get_indexes_for_auto_config(**self.autoconf)
-            for idx in auto_indexes:
-                self.parent.register_index(index=idx)
+            # Check autoconfig
+            if self.autoconf.get('enabled'):
+                auto_indexes = self.parent.get_indexes_for_auto_config(**self.autoconf)
+                for idx in auto_indexes:
+                    self.parent.register_index(index=idx)
+            # Check running threads
+            try:
+                self.check_running_groups()
+            except Exception as err:
+                log.error(f'Error watching running threads: {err}')
             for x in range(10):
                 if self.parent.stopped:
                     return
