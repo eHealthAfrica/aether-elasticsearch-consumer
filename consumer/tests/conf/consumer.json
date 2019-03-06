@@ -1,5 +1,6 @@
 {
 	"autoconfig_settings": {
+        "create_kibana_index": false,
 		"index_name_template": "test_auto_%s_1",
 		"enabled": true,
 		"ignored_topics": ["__confluent.support.metrics"],
@@ -20,5 +21,5 @@
 	"index_path": "/code/tests/test_index/es6",
 	"log_level": "ERROR",
 	"log_name": "ES_Consumer",
-    "kafka_topic_template": "elastic_{es_index_name}_{data_type}"
+    "kafka_topic_template": "elastic_test_{es_index_name}_{data_type}"
 }
