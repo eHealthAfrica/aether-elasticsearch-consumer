@@ -38,7 +38,7 @@ from app.main import consumer_config
 def test_consumer_manager__get_indexes_for_auto_config(MockConsumerManager, AutoConfigSettings):
     MockConsumerManager = MockConsumerManager()
     res = MockConsumerManager.get_indexes_for_auto_config(**AutoConfigSettings)
-    assert(len(res) == 4), 'There should be 4 available indexes in this set.'
+    assert(len(res) == 4), f'There should be 4 available indexes in this set: {res}'
 
 
 @pytest.mark.integration

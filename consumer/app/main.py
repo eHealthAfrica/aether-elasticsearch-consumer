@@ -18,12 +18,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import os
+from datetime import datetime
 import json
+import os
+import signal
 import sys
 import threading
-import signal
-from jsonpath_ng.ext import parse as jsonpath_ng_ext_parse
 from time import sleep
 from urllib3.exceptions import NewConnectionError
 
@@ -31,6 +31,7 @@ from aet.consumer import KafkaConsumer
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
+from jsonpath_ng.ext import parse as jsonpath_ng_ext_parse
 import requests
 import spavro
 
@@ -195,6 +196,7 @@ class ESConsumerManager(object):
             if autoconf.get('geo_point_creation', False)
             else None
         )
+        auto_ts = autoconf.get('auto_timestamp', None)
         indexes = []
         for topic_name in topics:
             self.autoconfigured_topics.append(topic_name)
@@ -203,7 +205,7 @@ class ESConsumerManager(object):
             indexes.append(
                 {
                     'name': index_name,
-                    'body': self.get_index_for_topic(topic_name, geo_point)
+                    'body': self.get_index_for_topic(topic_name, geo_point, auto_ts)
                 }
             )
         return indexes
@@ -218,11 +220,15 @@ class ESConsumerManager(object):
         pattern = f'{name}*'
         index_url = f'{host}/api/saved_objects/index-pattern/{pattern}'
         headers = {'kbn-xsrf': 'meaningless-but-required'}
+        kibana_ts = consumer_config.get('kibana_auto_timestamp', None)
         data = {
             'attributes': {
-                'title': pattern
+                'title': pattern,
+                'timeFieldName': kibana_ts
             }
         }
+        data['attributes']['timeFieldName'] = kibana_ts if kibana_ts else None
+        log.debug(f'registering default kibana index: {data}')
         # register the base index
         handle(requests.post(index_url, headers=headers, json=data))
         default_url = f'{host}/api/kibana/settings/defaultIndex'
@@ -237,7 +243,7 @@ class ESConsumerManager(object):
         self.healthcheck = healthcheck.HealthcheckServer()
         self.healthcheck.start()
 
-    def get_index_for_topic(self, name, geo_point=None):
+    def get_index_for_topic(self, name, geo_point=None, auto_ts=None):
         log.debug('Auto creating index for topic %s' % name)
         index = {
             name: {
@@ -249,6 +255,8 @@ class ESConsumerManager(object):
         if geo_point:
             index[name]['_meta']['aet_geopoint'] = geo_point
             index[name]['properties'] = {geo_point: {'type': 'geo_point'}}
+        if auto_ts:
+            index[name]['_meta']['aet_auto_ts'] = auto_ts
         log.debug('created index: %s' % index.get(name))
         return {'mappings': index}
 
@@ -300,7 +308,7 @@ class AutoConfMaintainer(threading.Thread):
 
     def run(self):
         # On start
-        if self.autoconf.get('create_kibana_index', True):
+        if self.autoconf.get('create_kibanak_index', True):
             kibana_index = self.autoconf.get('index_name_template')
             kibana_index = kibana_index.split('%s')[0]
             try:
@@ -341,27 +349,32 @@ class ESConsumerGroup(object):
         self.intuit_sources(index_body)
 
     def intuit_sources(self, index_body):
-        for instr_name, instr in index_body.get('mappings', {}).items():
+        for doc_type, instr in index_body.get('mappings', {}).items():
             # There's only one type per mapping allowed in ES6
-            log.debug('Adding processor for %s' % instr_name)
+            log.debug('Adding processor for %s' % doc_type)
             log.debug('instructions: %s' % instr)
             topics = instr.get('_meta').get('aet_subscribed_topics')
             if not topics:
                 raise ValueError('No topics in aet_subscribed_topics section in index %s' %
                                  self.name)
             for topic in topics:
-                self.start_topic(topic, instr_name, instr)
+                self.start_topic(topic, doc_type, instr)
 
-    def start_topic(self, topic_name, instr_name=None, instr=None):
+    def start_topic(self, topic_name, doc_type=None, instr=None, item_processor='V6'):
+        if item_processor == 'V5':
+            ItemProcessor = ESItemProcessorV5
+        else:
+            ItemProcessor = ESItemProcessor
         log.debug(f'Group: {self.name} is starting topic: {topic_name}')
-        if instr:
-            self.topics[topic_name] = (instr_name, instr)
+        if instr is not None:  # can be {}
+            self.topics[topic_name] = (topic_name, doc_type, instr)
         try:
-            name, instruction = self.topics[topic_name]
-        except KeyError:
+            topic_name, doc_type, instr = self.topics[topic_name]
+        except KeyError as ker:
+            log.error(ker)
             raise ValueError(f'Topic {topic_name} on group {self.name} has no instructions.')
-        processor = ESItemProcessor(topic_name, instruction)
-        self.consumers[topic_name] = ESConsumer(self.name, processor, doc_type=name)
+        processor = ItemProcessor(topic_name, instr)
+        self.consumers[topic_name] = ESConsumer(self.name, processor, doc_type=doc_type)
         self.consumers[topic_name].start()
 
     def is_alive(self, topic_name):
@@ -384,15 +397,15 @@ class ESConsumerGroup(object):
 
 
 class ESConsumerGroupV5(ESConsumerGroup):
-
+    # Same as Normal Group, just uses the V5 item processor
+    # and doc_type is None
     def intuit_sources(self, index_body):
         for name, instr in index_body.get('mappings', {}).items():
+            # There's only one type per mapping allowed in ES6.
+            # ES5 implementation is simpler.
             log.debug('Adding processor for %s' % name)
             log.debug('instructions: %s' % instr)
-            processor = ESItemProcessorV5(name, instr)
-            self.consumers[processor.topic_name] = ESConsumer(
-                self.name, processor)
-            self.consumers[processor.topic_name].start()
+            self.start_topic(name, None, instr, 'V5')
 
 
 class ESConsumer(threading.Thread):
@@ -501,8 +514,6 @@ class ESConsumer(threading.Thread):
                 )
         except (Exception, TransportError) as ese:
             log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
-            log.info(ese.info)
-            log.info(ese.with_traceback)
             try:
                 if ES_VERSION > 5:
                     route = self.get_route(doc)
@@ -580,6 +591,12 @@ class ESItemProcessor(object):
                     self.pipeline.append(cmd)
                 except ValueError as ver:
                     log.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
+            elif key == 'aet_auto_ts':
+                cmd = {
+                    'function': '_add_timestamp',
+                    'field_name': value
+                }
+                self.pipeline.append(cmd)
             elif key.startswith('aet'):
                 log.debug('aet _meta keyword %s in type %s generates no command'
                           % (key, self.es_type))
@@ -643,6 +660,10 @@ class ESItemProcessor(object):
         except Exception as e:
             log.debug('Could not add geo to doc type %s. Error: %s | %s' %
                       (self.es_type, e, (lat, lon),))
+        return doc
+
+    def _add_timestamp(self, doc, field_name=None, **kwargs):
+        doc[field_name] = str(datetime.now().isoformat())
         return doc
 
     def _get_doc_field(self, doc, name):
