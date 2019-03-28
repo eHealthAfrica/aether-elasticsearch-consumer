@@ -302,21 +302,33 @@ class ESConsumerManager(object):
 class AutoConfMaintainer(threading.Thread):
 
     def __init__(self, parent, autoconf=None):
+        log.debug('Started Autoconf Maintainer')
         self.parent = parent
         self.autoconf = autoconf
+        self.kibana_index = None
+        if self.autoconf.get('create_kibana_index', True):
+            kibana_index = self.autoconf.get('index_name_template')
+            self.kibana_index = kibana_index.split('%s')[0]
         super(AutoConfMaintainer, self).__init__()
 
     def run(self):
         # On start
-        if self.autoconf.get('create_kibanak_index', True):
-            kibana_index = self.autoconf.get('index_name_template')
-            kibana_index = kibana_index.split('%s')[0]
-            try:
-                self.parent.make_kibana_index(kibana_index)
-            except requests.exceptions.HTTPError as hter:
-                log.debug(f'Could not register default kibana index: {hter}')
-        # Every ten seconds
         while not self.parent.stopped:
+            # Check to see if the Kibana index needs to be created (once)
+            if self.kibana_index:
+                try:
+                    self.parent.make_kibana_index(self.kibana_index)
+                    self.kibana_index = None  # Null once we're done with it
+                except requests.exceptions.ConnectionError:
+                    # connection error, retry each round until determined.
+                    log.debug(f'Kibana not available at '
+                              + f'{consumer_config.get("kibana_url")}'
+                              + f':  Will retry.')
+                except requests.exceptions.HTTPError as hter:
+                    log.debug(f'Could not register default kibana index: {hter}')
+                    # index exists, don't try any more
+                    self.kibana_index = None
+
             # Check autoconfig
             if self.autoconf.get('enabled', False):
                 auto_indexes = self.parent.get_indexes_for_auto_config(**self.autoconf)
