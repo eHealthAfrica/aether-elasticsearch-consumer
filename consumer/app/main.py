@@ -507,13 +507,12 @@ class ESConsumer(threading.Thread):
                             f'[{self.index}:{self.group_name}]'
                             f' -> {doc.get("id")}')
                         self.submit(doc)
-
+                    log.debug(
+                        f'Kafka COMMIT [{self.thread_id}]'
+                        f'[{self.index}:{self.group_name}]')
+                    self.consumer.commit_async(callback=self.report_commit)
                     log.info('processed %s docs in index %s' % ((count + 1), self.es_type))
                     last_schema = schema
-            log.debug(
-                f'Kafka COMMIT [{self.thread_id}]'
-                f'[{self.index}:{self.group_name}]')
-            self.consumer.commit_async(callback=self.report_commit)
 
         log.info('Shutting down consumer %s | %s' % (self.index, self.topic))
         self.consumer.close(autocommit=True)
