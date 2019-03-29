@@ -451,6 +451,10 @@ class ESConsumer(threading.Thread):
         args = kafka_config.copy()
         args['group_id'] = self.group_name
         try:
+            log.debug(
+                f'Kafka CONFIG [{self.thread_id}]'
+                f'[{self.index}:{self.group_name}]')
+            log.debug(json.dumps(args, indent=2))
             self.consumer = KafkaConsumer(**args)
             self.consumer.subscribe([self.topic])
             log.debug('Consumer %s subscribed on topic: %s @ group %s' %
