@@ -510,10 +510,14 @@ class ESConsumer(threading.Thread):
 
                     log.info('processed %s docs in index %s' % ((count + 1), self.es_type))
                     last_schema = schema
+            self.consumer.commit_async(callback=self.report_commit)
 
         log.info('Shutting down consumer %s | %s' % (self.index, self.topic))
-        self.consumer.close()
+        self.consumer.close(autocommit=True)
         return
+
+    def report_commit(self, offsets, response):
+        log.info(f'Kafka OFFSET CMT {offsets} -> {response}')
 
     def submit(self, doc, route=None):
         parent = doc.get('_parent', None)
