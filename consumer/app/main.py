@@ -443,6 +443,7 @@ class ESConsumer(threading.Thread):
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
+        self.thread_id = 0
         super(ESConsumer, self).__init__()
 
     def connect(self, kafka_config):
@@ -461,7 +462,8 @@ class ESConsumer(threading.Thread):
             return False
 
     def run(self):
-        log.debug('Consumer running on %s : %s' % (self.index, self.es_type))
+        self.thread_id = threading.get_ident()
+        log.debug(f'Consumer [{self.thread_id}] running on {self.index} : {self.es_type}')
         while True:
             if self.connect(kafka_config):
                 break
@@ -489,7 +491,12 @@ class ESConsumer(threading.Thread):
                     for x, msg in enumerate(messages):
                         doc = self.processor.process(msg)
                         count = x
+                        log.debug(
+                            f'Kafka READ [{self.thread_id}]'
+                            f'[{self.index}:{self.group_name}]'
+                            f' -> {doc.get("id")}')
                         self.submit(doc)
+
                     log.info('processed %s docs in index %s' % ((count + 1), self.es_type))
                     last_schema = schema
 
@@ -524,6 +531,11 @@ class ESConsumer(threading.Thread):
                     parent=parent,
                     body=doc
                 )
+            log.debug(
+                f'ES CREATE-OK [{self.thread_id}]'
+                f'[{self.index}:{self.group_name}]'
+                f' -> {doc.get("id")}')
+
         except (Exception, TransportError) as ese:
             log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
@@ -544,7 +556,10 @@ class ESConsumer(threading.Thread):
                         parent=parent,
                         body=doc
                     )
-                log.debug('Success!')
+                log.debug(
+                    f'ES UPDATE-OK [{self.thread_id}]'
+                    f'[{self.index}:{self.group_name}]'
+                    f' -> {doc.get("id")}')
             except TransportError as te:
                 log.debug('conflict exists, ignoring document with id %s' %
                           doc.get('id', 'unknown'))
