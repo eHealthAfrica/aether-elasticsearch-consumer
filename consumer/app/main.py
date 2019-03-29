@@ -449,6 +449,7 @@ class ESConsumer(threading.Thread):
     def connect(self, kafka_config):
         # have to get to force env lookups
         args = kafka_config.copy()
+        args['client_id'] = self.group_name 
         args['group_id'] = self.group_name
         try:
             log.debug(
