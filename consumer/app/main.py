@@ -475,6 +475,12 @@ class ESConsumer(threading.Thread):
             new_messages = self.consumer.poll_and_deserialize(
                 timeout_ms=self.consumer_timeout,
                 max_records=self.consumer_max_records)
+            if not new_messages:
+                log.info(
+                    f'Kafka IDLE [{self.thread_id}]'
+                    f'[{self.index}:{self.group_name}]')
+                sleep(5)
+                continue
             for parition_key, packages in new_messages.items():
                 for package in packages:
                     schema = package.get('schema')

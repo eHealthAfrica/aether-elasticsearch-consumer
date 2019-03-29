@@ -19,7 +19,7 @@
     "latitude_fields": ["lat", "latitude"],
 	"longitude_fields": ["lon", "lng", "long", "longitude"],
 	"index_path": "/code/tests/test_index/es6",
-	"log_level": "ERROR",
+	"log_level": "debug",
 	"log_name": "ES_Consumer",
     "kafka_topic_template": "elastic_test_{es_index_name}_{data_type}"
 }
