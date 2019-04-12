@@ -443,13 +443,19 @@ class ESConsumer(threading.Thread):
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
+        self.thread_id = 0
         super(ESConsumer, self).__init__()
 
     def connect(self, kafka_config):
         # have to get to force env lookups
         args = kafka_config.copy()
+        args['client_id'] = self.group_name
         args['group_id'] = self.group_name
         try:
+            log.debug(
+                f'Kafka CONFIG [{self.thread_id}]'
+                f'[{self.index}:{self.group_name}]')
+            log.debug(json.dumps(args, indent=2))
             self.consumer = KafkaConsumer(**args)
             self.consumer.subscribe([self.topic])
             log.debug('Consumer %s subscribed on topic: %s @ group %s' %
@@ -461,7 +467,8 @@ class ESConsumer(threading.Thread):
             return False
 
     def run(self):
-        log.debug('Consumer running on %s : %s' % (self.index, self.es_type))
+        self.thread_id = threading.get_ident()
+        log.debug(f'Consumer [{self.thread_id}] running on {self.index} : {self.es_type}')
         while True:
             if self.connect(kafka_config):
                 break
@@ -473,6 +480,12 @@ class ESConsumer(threading.Thread):
             new_messages = self.consumer.poll_and_deserialize(
                 timeout_ms=self.consumer_timeout,
                 max_records=self.consumer_max_records)
+            if not new_messages:
+                log.info(
+                    f'Kafka IDLE [{self.thread_id}]'
+                    f'[{self.index}:{self.group_name}]')
+                sleep(5)
+                continue
             for parition_key, packages in new_messages.items():
                 for package in packages:
                     schema = package.get('schema')
@@ -489,13 +502,24 @@ class ESConsumer(threading.Thread):
                     for x, msg in enumerate(messages):
                         doc = self.processor.process(msg)
                         count = x
+                        log.debug(
+                            f'Kafka READ [{self.thread_id}]'
+                            f'[{self.index}:{self.group_name}]'
+                            f' -> {doc.get("id")}')
                         self.submit(doc)
+                    log.debug(
+                        f'Kafka COMMIT [{self.thread_id}]'
+                        f'[{self.index}:{self.group_name}]')
+                    self.consumer.commit_async(callback=self.report_commit)
                     log.info('processed %s docs in index %s' % ((count + 1), self.es_type))
                     last_schema = schema
 
         log.info('Shutting down consumer %s | %s' % (self.index, self.topic))
-        self.consumer.close()
+        self.consumer.close(autocommit=True)
         return
+
+    def report_commit(self, offsets, response):
+        log.info(f'Kafka OFFSET CMT {offsets} -> {response}')
 
     def submit(self, doc, route=None):
         parent = doc.get('_parent', None)
@@ -524,6 +548,11 @@ class ESConsumer(threading.Thread):
                     parent=parent,
                     body=doc
                 )
+            log.debug(
+                f'ES CREATE-OK [{self.thread_id}]'
+                f'[{self.index}:{self.group_name}]'
+                f' -> {doc.get("id")}')
+
         except (Exception, TransportError) as ese:
             log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
@@ -544,7 +573,10 @@ class ESConsumer(threading.Thread):
                         parent=parent,
                         body=doc
                     )
-                log.debug('Success!')
+                log.debug(
+                    f'ES UPDATE-OK [{self.thread_id}]'
+                    f'[{self.index}:{self.group_name}]'
+                    f' -> {doc.get("id")}')
             except TransportError as te:
                 log.debug('conflict exists, ignoring document with id %s' %
                           doc.get('id', 'unknown'))
