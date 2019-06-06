@@ -3,14 +3,14 @@ version: "2.1"
 networks:
   aether:
     external:
-      name: aether_internal
+      name: aether_bootstrap_net
 
 services:
 
   elasticsearch:
     extends:
       file: docker-compose-base.yml
-      service: elasticsearch-base-6
+      service: elasticsearch-base-7
     networks:
       - aether
 
