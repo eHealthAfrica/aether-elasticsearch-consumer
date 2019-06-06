@@ -130,7 +130,7 @@ def connect_kafka():
 
 class ESConsumerManager(object):
 
-    SUPPORTED_ES_SERIES = [5, 6]
+    SUPPORTED_ES_SERIES = [5, 6, 7]
 
     def __init__(self, es_instance):
         self.es = es_instance
@@ -246,17 +246,22 @@ class ESConsumerManager(object):
     def get_index_for_topic(self, name, geo_point=None, auto_ts=None):
         log.debug('Auto creating index for topic %s' % name)
         index = {
-            name: {
+            # name: {
+            #     '_meta': {
+            #         'aet_subscribed_topics': [name]
+            #     }
+            # }
+            '_doc': {  # 7.x has made names illegal here...
                 '_meta': {
                     'aet_subscribed_topics': [name]
                 }
             }
         }
         if geo_point:
-            index[name]['_meta']['aet_geopoint'] = geo_point
-            index[name]['properties'] = {geo_point: {'type': 'geo_point'}}
+            index['_doc']['_meta']['aet_geopoint'] = geo_point
+            index['_doc']['properties'] = {geo_point: {'type': 'geo_point'}}
         if auto_ts:
-            index[name]['_meta']['aet_auto_ts'] = auto_ts
+            index['_doc']['_meta']['aet_auto_ts'] = auto_ts
         log.debug('created index: %s' % index.get(name))
         return {'mappings': index}
 
@@ -272,7 +277,11 @@ class ESConsumerManager(object):
                 log.debug('Index %s already exists, skipping creation.' % index_name)
             else:
                 log.info('Creating Index %s' % index.get('name'))
-                self.es.indices.create(index=index_name, body=index.get('body'))
+                self.es.indices.create(
+                    index=index_name,
+                    body=index.get('body'),
+                    params={'include_type_name': 'true'}  # json true...
+                )
             self.start_consumer_group(index_name, index.get('body'))
         except Exception as ese:
             log.error('Error creating index in elasticsearch %s' %
@@ -577,7 +586,7 @@ class ESConsumer(threading.Thread):
                     f'ES UPDATE-OK [{self.thread_id}]'
                     f'[{self.index}:{self.group_name}]'
                     f' -> {doc.get("id")}')
-            except TransportError as te:
+            except TransportError:
                 log.debug('conflict exists, ignoring document with id %s' %
                           doc.get('id', 'unknown'))
 
@@ -845,7 +854,7 @@ class ElasticSearchConsumer(object):
                 else:
                     log.info('Manager caught SIGTERM, exiting')
                     break
-            except KeyboardInterrupt as e:
+            except KeyboardInterrupt:
                 log.info('\nTrying to stop gracefully')
                 manager.stop()
                 break

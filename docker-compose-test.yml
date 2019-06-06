@@ -3,6 +3,13 @@ services:
 
   # Elasticsearch Containers
 
+  elasticsearch-test-7:
+    extends:
+      file: docker-compose-base.yml
+      service: elasticsearch-base-7
+    networks:
+      - test_net
+
   elasticsearch-test-6:
     extends:
       file: docker-compose-base.yml
@@ -62,6 +69,19 @@ services:
       INDEX_PATH: "/code/tests/test_index/es6"
       LOG_NAME: "ES_6-Consumer"
       KAFKA_TOPIC_TEMPLATE: "elastic6_{es_index_name}_{data_type}"
+
+  # ES 6
+
+  elasticsearch-consumer-test-7:
+    extends:
+      service: elasticsearch-consumer-test
+    links:
+      - elasticsearch-test-7
+    environment:
+      ELASTICSEARCH_URL: "elasticsearch-test-7"
+      INDEX_PATH: "/code/tests/test_index/es6"
+      LOG_NAME: "ES_7-Consumer"
+      KAFKA_TOPIC_TEMPLATE: "elastic7_{es_index_name}_{data_type}"
 
 
   # ---------------------------------
