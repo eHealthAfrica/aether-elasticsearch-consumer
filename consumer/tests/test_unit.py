@@ -51,9 +51,9 @@ def test__get_index_for_topic(MockConsumerManager, AutoConfigSettings):
     index = MockConsumerManager.get_index_for_topic(name, geo_name)
     index = index.get('mappings', None)
     assert(len(index) is 1)
-    assert(index.get(name) is not None)
-    assert(index.get(name).get('properties').get(geo_name) is not None)
-    assert(index.get(name).get('properties').get(geo_name).get('type') is 'geo_point')
+    assert(index.get('_doc') is not None)
+    assert(index.get('_doc').get('properties').get(geo_name) is not None)
+    assert(index.get('_doc').get('properties').get(geo_name).get('type') is 'geo_point')
 
 
 @pytest.mark.unit
