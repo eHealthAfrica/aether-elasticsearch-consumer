@@ -47,6 +47,7 @@ log = logger.get_module_logger(consumer_config.get('log_name'))
 # Global Elasticsearch Connection
 es = None
 ES_VERSION = 0
+MT = True  # turn on the magic multi-tenant switch
 
 
 class CachedParser(object):
@@ -435,20 +436,30 @@ class ESConsumer(threading.Thread):
     def __init__(self, index, processor, has_group=True, doc_type=None):
         # has_group = False only used for testing
         self.processor = processor
-        self.index = index
         self.doc_type = doc_type
         self.es_type = processor.es_type
         self.topic = processor.topic_name
+        if MT:
+            self.tenant = self.topic.split('.')[0]
+            self.index = f'{self.tenant}.{index}'
+        else:
+            self.index = index
         self.consumer_timeout = 1000  # MS
         self.consumer_max_records = 1000
         kafka_topic_template = consumer_config.get(
             'kafka_topic_template',
             'elastic_{es_index_name}_{data_type}'
         )
-        self.group_name = kafka_topic_template.format(
-            es_index_name=self.index,
-            data_type=self.es_type)\
-            if has_group else None
+        if MT:
+            idx_comp = kafka_topic_template.format(
+                es_index_name=self.index,
+                data_type=self.es_type)
+            self.group_name = f'{self.tenant}.{idx_comp}'
+        else:
+            self.group_name = kafka_topic_template.format(
+                es_index_name=self.index,
+                data_type=self.es_type)\
+                if has_group else None
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
