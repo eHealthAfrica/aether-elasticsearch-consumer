@@ -201,7 +201,15 @@ class ESConsumerManager(object):
         indexes = []
         for topic_name in topics:
             self.autoconfigured_topics.append(topic_name)
-            index_name = (autoconf.get('index_name_template') % topic_name).lower()
+            if MT:
+                tenant = topic_name.split('.')[0]
+                _name = '.'.join(topic_name.split('.')[1:])
+                index_name = (
+                    tenant +
+                    '.' +
+                    autoconf.get('index_name_template') % _name).lower()
+            else:
+                index_name = (autoconf.get('index_name_template') % topic_name).lower()
             log.debug('Index name => %s' % index_name)
             indexes.append(
                 {
@@ -441,9 +449,9 @@ class ESConsumer(threading.Thread):
         self.topic = processor.topic_name
         if MT:
             self.tenant = self.topic.split('.')[0]
-            self.index = f'{self.tenant}.{index}'
-        else:
-            self.index = index
+        #     self.index = f'{self.tenant}.{index}'
+        # else:
+        self.index = index
         self.consumer_timeout = 1000  # MS
         self.consumer_max_records = 1000
         kafka_topic_template = consumer_config.get(

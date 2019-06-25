@@ -31,8 +31,9 @@ set -Eeuo pipefail
 IMAGE_REPO='ehealthafrica'
 CORE_APPS=( elasticsearch-consumer )
 CORE_COMPOSE='docker-compose.yml'
-VERSION=`cat VERSION`
-TRAVIS_COMMIT=`git rev-parse HEAD`
+# VERSION=`cat VERSION`
+VERSION='alpha-20190625-01'
+# TRAVIS_COMMIT=`git rev-parse HEAD`
 
 release_app () {
   APP_NAME=$1
@@ -40,7 +41,7 @@ release_app () {
   AETHER_APP="aether-${1}"
   echo "$AETHER_APP"
   echo "version: $VERSION"
-  echo "TRAVIS_COMMIT: $TRAVIS_COMMIT"
+  # echo "TRAVIS_COMMIT: $TRAVIS_COMMIT"
   echo "Building Docker image ${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
   docker-compose -f $COMPOSE_PATH build --build-arg VERSION=$VERSION $APP_NAME
 
@@ -50,10 +51,10 @@ release_app () {
 
 }
 
-if [ -z "$TRAVIS_TAG" ];
-then
-  VERSION=${VERSION}-rc
-fi
+# if [ -z "$TRAVIS_TAG" ];
+# then
+#   VERSION=${VERSION}-rc
+# fi
 
 for APP in "${CORE_APPS[@]}"
 do
