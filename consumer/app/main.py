@@ -35,7 +35,6 @@ from jsonpath_ng.ext import parse as jsonpath_ng_ext_parse
 import requests
 import spavro
 
-from .timeout import timeout
 from . import config, logger, healthcheck
 
 consumer_config = config.get_consumer_config()
@@ -342,44 +341,39 @@ class AutoConfMaintainer(threading.Thread):
     def run(self):
         # On start
         while not self.parent.stopped:
-            try:
-                # Check to see if the Kibana index needs to be created (once)
-                if self.kibana_index:
-                    try:
-                        self.parent.make_kibana_index(self.kibana_index)
-                        self.kibana_index = None  # Null once we're done with it
-                    except requests.exceptions.ConnectionError:
-                        # connection error, retry each round until determined.
-                        log.debug(f'Kibana not available at '
-                                  + f'{consumer_config.get("kibana_url")}'
-                                  + f':  Will retry.')
-                    except requests.exceptions.HTTPError as hter:
-                        log.debug(f'Could not register default kibana index: {hter}')
-                        # index exists, don't try any more
-                        self.kibana_index = None
-
-                # Check autoconfig
-                if self.autoconf.get('enabled', False):
-                    log.info('Autoconfig checking for new indices.')
-                    auto_indexes =  \
-                        self.parent.get_indexes_for_auto_config(**self.autoconf)
-                    for idx in auto_indexes:
-                        self.parent.register_index(index=idx)
-                # Check running threads
+            # Check to see if the Kibana index needs to be created (once)
+            if self.kibana_index:
                 try:
-                    self.check_running_groups()
-                except Exception as err:
-                    log.error(f'Error watching running threads: {err}')
-                for x in range(10):
-                    if self.parent.stopped:
-                        return
-                    sleep(1)
+                    self.parent.make_kibana_index(self.kibana_index)
+                    self.kibana_index = None  # Null once we're done with it
+                except requests.exceptions.ConnectionError:
+                    # connection error, retry each round until determined.
+                    log.debug(f'Kibana not available at '
+                              + f'{consumer_config.get("kibana_url")}'
+                              + f':  Will retry.')
+                except requests.exceptions.HTTPError as hter:
+                    log.debug(f'Could not register default kibana index: {hter}')
+                    # index exists, don't try any more
+                    self.kibana_index = None
+
+            # Check autoconfig
+            if self.autoconf.get('enabled', False):
+                log.debug('Autoconfig checking for new indices')
+                auto_indexes = self.parent.get_indexes_for_auto_config(**self.autoconf)
+                for idx in auto_indexes:
+                    self.parent.register_index(index=idx)
+            # Check running threads
+            try:
+                self.check_running_groups()
             except Exception as err:
-                log.error(f'Auto conf encountered unexpected err: {err}')
+                log.error(f'Error watching running threads: {err}')
+            for x in range(10):
+                if self.parent.stopped:
+                    return
+                sleep(1)
 
     def check_running_groups(self):
         groups = self.parent.consumer_groups
-        log.debug(f'Autoconf monitoring groups {groups}')
         for k, group in groups.items():
             group.monitor_threads()
 
@@ -466,7 +460,7 @@ class ESConsumer(threading.Thread):
         if MT:
             self.tenant = self.topic.split('.')[0]
         self.index = index
-        self.consumer_timeout = 1000  # MS
+        self.consumer_timeout = 8000  # MS
         self.consumer_max_records = 1000
         kafka_topic_template = consumer_config.get(
             'kafka_topic_template',
@@ -519,14 +513,9 @@ class ESConsumer(threading.Thread):
             sleep(2)
         last_schema = None
         while not self.stopped:
-            log.debug(f'LIVE: {self.group_name}')
-            try:
-                with timeout(1):
-                    new_messages = self.consumer.poll_and_deserialize(
-                        timeout_ms=self.consumer_timeout,
-                        max_records=self.consumer_max_records)
-            except TimeoutError:
-                log.debug('Kafka get timed-out')
+            new_messages = self.consumer.poll_and_deserialize(
+                timeout_ms=self.consumer_timeout,
+                max_records=self.consumer_max_records)
             if not new_messages:
                 log.info(
                     f'Kafka IDLE [{self.thread_id}]'
