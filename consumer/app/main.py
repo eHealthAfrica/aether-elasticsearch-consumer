@@ -89,7 +89,7 @@ def connect_es():
         try:
             global es
             # default connection on localhost
-            es_urls = consumer_config.get('elasticsearch_url')
+            es_urls = [consumer_config.get('elasticsearch_url')]
             log.debug('Connecting to ES on %s' % (es_urls,))
 
             if consumer_config.get('elasticsearch_user'):
@@ -341,35 +341,40 @@ class AutoConfMaintainer(threading.Thread):
     def run(self):
         # On start
         while not self.parent.stopped:
-            # Check to see if the Kibana index needs to be created (once)
-            if self.kibana_index:
-                try:
-                    self.parent.make_kibana_index(self.kibana_index)
-                    self.kibana_index = None  # Null once we're done with it
-                except requests.exceptions.ConnectionError:
-                    # connection error, retry each round until determined.
-                    log.debug(f'Kibana not available at '
-                              + f'{consumer_config.get("kibana_url")}'
-                              + f':  Will retry.')
-                except requests.exceptions.HTTPError as hter:
-                    log.debug(f'Could not register default kibana index: {hter}')
-                    # index exists, don't try any more
-                    self.kibana_index = None
-
-            # Check autoconfig
-            if self.autoconf.get('enabled', False):
-                auto_indexes = self.parent.get_indexes_for_auto_config(**self.autoconf)
-                for idx in auto_indexes:
-                    self.parent.register_index(index=idx)
-            # Check running threads
             try:
-                self.check_running_groups()
+                # Check to see if the Kibana index needs to be created (once)
+                if self.kibana_index:
+                    try:
+                        self.parent.make_kibana_index(self.kibana_index)
+                        self.kibana_index = None  # Null once we're done with it
+                    except requests.exceptions.ConnectionError:
+                        # connection error, retry each round until determined.
+                        log.debug(f'Kibana not available at '
+                                  + f'{consumer_config.get("kibana_url")}'
+                                  + f':  Will retry.')
+                    except requests.exceptions.HTTPError as hter:
+                        log.debug(f'Could not register default kibana index: {hter}')
+                        # index exists, don't try any more
+                        self.kibana_index = None
+
+                # Check autoconfig
+                if self.autoconf.get('enabled', False):
+                    log.debug('Autoconfig checking for new indices.')
+                    auto_indexes =  \
+                        self.parent.get_indexes_for_auto_config(**self.autoconf)
+                    for idx in auto_indexes:
+                        self.parent.register_index(index=idx)
+                # Check running threads
+                try:
+                    self.check_running_groups()
+                except Exception as err:
+                    log.error(f'Error watching running threads: {err}')
+                for x in range(10):
+                    if self.parent.stopped:
+                        return
+                    sleep(1)
             except Exception as err:
-                log.error(f'Error watching running threads: {err}')
-            for x in range(10):
-                if self.parent.stopped:
-                    return
-                sleep(1)
+                log.error(f'Auto conf encountered unexpected err: {err}')
 
     def check_running_groups(self):
         groups = self.parent.consumer_groups
@@ -458,8 +463,6 @@ class ESConsumer(threading.Thread):
         self.topic = processor.topic_name
         if MT:
             self.tenant = self.topic.split('.')[0]
-        #     self.index = f'{self.tenant}.{index}'
-        # else:
         self.index = index
         self.consumer_timeout = 1000  # MS
         self.consumer_max_records = 1000
