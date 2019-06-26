@@ -35,6 +35,7 @@ from jsonpath_ng.ext import parse as jsonpath_ng_ext_parse
 import requests
 import spavro
 
+from .timeout import timeout
 from . import config, logger, healthcheck
 
 consumer_config = config.get_consumer_config()
@@ -359,7 +360,7 @@ class AutoConfMaintainer(threading.Thread):
 
                 # Check autoconfig
                 if self.autoconf.get('enabled', False):
-                    log.debug('Autoconfig checking for new indices.')
+                    log.info('Autoconfig checking for new indices.')
                     auto_indexes =  \
                         self.parent.get_indexes_for_auto_config(**self.autoconf)
                     for idx in auto_indexes:
@@ -378,6 +379,7 @@ class AutoConfMaintainer(threading.Thread):
 
     def check_running_groups(self):
         groups = self.parent.consumer_groups
+        log.debug(f'Autoconf monitoring groups {groups}')
         for k, group in groups.items():
             group.monitor_threads()
 
@@ -517,9 +519,14 @@ class ESConsumer(threading.Thread):
             sleep(2)
         last_schema = None
         while not self.stopped:
-            new_messages = self.consumer.poll_and_deserialize(
-                timeout_ms=self.consumer_timeout,
-                max_records=self.consumer_max_records)
+            log.debug(f'LIVE: {self.group_name}')
+            try:
+                with timeout(1):
+                    new_messages = self.consumer.poll_and_deserialize(
+                        timeout_ms=self.consumer_timeout,
+                        max_records=self.consumer_max_records)
+            except TimeoutError:
+                log.debug('Kafka get timed-out')
             if not new_messages:
                 log.info(
                     f'Kafka IDLE [{self.thread_id}]'
