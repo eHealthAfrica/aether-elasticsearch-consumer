@@ -91,9 +91,18 @@ def connect_es():
             # default connection on localhost
             es_urls = consumer_config.get('elasticsearch_url')
             log.debug('Connecting to ES on %s' % (es_urls,))
+
+            if consumer_config.get('elasticsearch_user'):
+                http_auth = [
+                    consumer_config.get('elasticsearch_user'),
+                    consumer_config.get('elasticsearch_password')
+                ]
+            else:
+                http_auth = None
+
             es_connection_info = {
                 'port': int(consumer_config.get('elasticsearch_port', 0)),
-                'http_auth': consumer_config.get('elasticsearch_http_auth')
+                'http_auth': http_auth
             }
             es_connection_info = {k: v for k, v in es_connection_info.items() if v}
             es_connection_info['sniff_on_start'] = False
