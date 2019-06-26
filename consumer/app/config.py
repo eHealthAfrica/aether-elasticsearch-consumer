@@ -79,6 +79,16 @@ def load_config():
 
 
 def get_kafka_config():
+    # load security settings in from environment
+    # if the security protocol is set
+    if kafka_config.get('security_protocol'):
+        for i in [
+            'security_protocol',
+            'sasl_mechanism',
+            'sasl_plain_username',
+            'sasl_plain_password'
+        ]:
+            kafka_config[i] = kafka_config.get(i)
     return kafka_config
 
 
