@@ -1,4 +1,4 @@
-FROM python:3.6
+FROM python:3.7-slim-stretch
 
 ################################################################################
 ## setup container
@@ -8,6 +8,15 @@ FROM python:3.6
 ## install app
 ## copy files one by one and split commands to use docker cache
 ################################################################################
+
+RUN apt-get update -qq && \
+    apt-get -qq \
+        --yes \
+        --allow-downgrades \
+        --allow-remove-essential \
+        --allow-change-held-packages \
+        install gcc && \
+    pip install -q --upgrade pip
 
 WORKDIR /code
 

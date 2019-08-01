@@ -157,6 +157,10 @@ class ESConsumerManager(object):
         self.autoconf_maintainer.start()
         self.load_indices_from_file()
 
+    def serve_healthcheck(self):
+        self.healthcheck = healthcheck.HealthcheckServer()
+        self.healthcheck.start()
+
     def load_indices_from_file(self):
         index_path = CONSUMER_CONFIG.get('index_path')
         if not index_path:
@@ -219,7 +223,7 @@ class AutoConfMaintainer(threading.Thread):
         self.autoconf = autoconf
         self.configured_topics = []
         self.kibana_index = None
-        self.consumer = KafkaConsumer(**KAFKA_CONFIG)
+        self.consumer = KafkaConsumer(**KAFKA_CONFIG.copy())
         if self.autoconf.get('create_kibana_index', True):
             kibana_index = self.autoconf.get('index_name_template')
             self.kibana_index = kibana_index.split('%s')[0]
@@ -229,6 +233,8 @@ class AutoConfMaintainer(threading.Thread):
         # On start
         while not self.parent.stopped:
             # Check autoconfig
+            if not self.autoconf.get('enabled', False):
+                LOG.debug('Autoconf disabled.')
             if self.autoconf.get('enabled', False):
                 LOG.debug('Autoconfig checking for new indices')
                 LOG.debug(
@@ -421,6 +427,7 @@ class ESConsumer(threading.Thread):
                 sleep(5)
                 continue
             for parition_key, packages in new_messages.items():
+                LOG.debug(f'read PK: {parition_key}')
                 for package in packages:
                     schema = package.get('schema')
                     messages = package.get('messages')
@@ -767,7 +774,7 @@ class ElasticSearchConsumer(object):
         signal.signal(signal.SIGINT, self.kill)
         signal.signal(signal.SIGTERM, self.kill)
         LOG.info('Connecting to Kafka and ES in 5 seconds')
-        sleep(5)
+        # sleep(5)
         connect()
         manager = ESConsumerManager(es)
         LOG.info('Started ES Consumer')
