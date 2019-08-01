@@ -1,0 +1,9 @@
+{
+  "${name}": {
+    "id": "static_lookup",
+    "params": {
+      "lookupEntries": [],
+      "unknownKeyValue": "${default}"
+    }
+  }
+}

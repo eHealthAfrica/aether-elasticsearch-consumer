@@ -32,17 +32,17 @@ from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 from jsonpath_ng.ext import parse as jsonpath_ng_ext_parse
-import requests
 import spavro
 
-from . import config, logger, healthcheck
+from . import config, healthcheck, index_handler
+from .logger import LOG
 
-consumer_config = config.get_consumer_config()
-kafka_config = config.get_kafka_config()
 
-CONN_RETRY = int(consumer_config.get('startup_connection_retry'))
-CONN_RETRY_WAIT_TIME = int(consumer_config.get('connect_retry_wait'))
-log = logger.get_module_logger(consumer_config.get('log_name'))
+CONSUMER_CONFIG = config.get_consumer_config()
+KAFKA_CONFIG = config.get_kafka_config()
+
+CONN_RETRY = int(CONSUMER_CONFIG.get('startup_connection_retry'))
+CONN_RETRY_WAIT_TIME = int(CONSUMER_CONFIG.get('connect_retry_wait'))
 
 # Global Elasticsearch Connection
 es = None
@@ -67,7 +67,7 @@ class CachedParser(object):
                 new_err = 'exception parsing path {path} : {error} '.format(
                     path=path, error=err
                 )
-                log.error(new_err)
+                LOG.error(new_err)
                 raise err
 
         return CachedParser.cache[path]
@@ -89,19 +89,19 @@ def connect_es():
         try:
             global es
             # default connection on localhost
-            es_urls = [consumer_config.get('elasticsearch_url')]
-            log.debug('Connecting to ES on %s' % (es_urls,))
+            es_urls = [CONSUMER_CONFIG.get('elasticsearch_url')]
+            LOG.debug('Connecting to ES on %s' % (es_urls,))
 
-            if consumer_config.get('elasticsearch_user'):
+            if CONSUMER_CONFIG.get('elasticsearch_user'):
                 http_auth = [
-                    consumer_config.get('elasticsearch_user'),
-                    consumer_config.get('elasticsearch_password')
+                    CONSUMER_CONFIG.get('elasticsearch_user'),
+                    CONSUMER_CONFIG.get('elasticsearch_password')
                 ]
             else:
                 http_auth = None
 
             es_connection_info = {
-                'port': int(consumer_config.get('elasticsearch_port', 0)),
+                'port': int(CONSUMER_CONFIG.get('elasticsearch_port', 0)),
                 'http_auth': http_auth
             }
             es_connection_info = {k: v for k, v in es_connection_info.items() if v}
@@ -110,15 +110,15 @@ def connect_es():
             es = Elasticsearch(
                 es_urls, **es_connection_info)
             es_info = es.info()
-            log.debug('ES Instance info: %s' % (es_info,))
-            log.debug(es_info.get('version').get('number'))
+            LOG.debug('ES Instance info: %s' % (es_info,))
+            LOG.debug(es_info.get('version').get('number'))
             return es
         except (NewConnectionError, ConnectionRefusedError, ESConnectionError) as nce:
-            log.debug('Could not connect to Elasticsearch Instance: nce')
-            log.debug(nce)
+            LOG.debug('Could not connect to Elasticsearch Instance: nce')
+            LOG.debug(nce)
             sleep(CONN_RETRY_WAIT_TIME)
 
-    log.critical('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
+    LOG.critical('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
 
 
@@ -126,15 +126,15 @@ def connect_kafka():
     for x in range(CONN_RETRY):
         try:
             # have to get to force env lookups
-            args = kafka_config.copy()
+            args = KAFKA_CONFIG.copy()
             consumer = KafkaConsumer(**args)
             consumer.topics()
-            log.debug('Connected to Kafka...')
+            LOG.debug('Connected to Kafka...')
             return
         except Exception as ke:
-            log.debug('Could not connect to Kafka: %s' % (ke))
+            LOG.debug('Could not connect to Kafka: %s' % (ke))
             sleep(CONN_RETRY_WAIT_TIME)
-    log.critical('Failed to connect to Kafka after %s retries' % CONN_RETRY)
+    LOG.critical('Failed to connect to Kafka after %s retries' % CONN_RETRY)
     sys.exit(1)  # Kill consumer with error
 
 
@@ -152,15 +152,15 @@ class ESConsumerManager(object):
         self.serve_healthcheck()
         self.es_version = self.get_es_version()
         self.consumer_groups = {}  # index_name : consumer group
-        auto_conf = consumer_config.get('autoconfig_settings', {})
+        auto_conf = CONSUMER_CONFIG.get('autoconfig_settings', {})
         self.autoconf_maintainer = AutoConfMaintainer(self, auto_conf)
         self.autoconf_maintainer.start()
         self.load_indices_from_file()
 
     def load_indices_from_file(self):
-        index_path = consumer_config.get('index_path')
+        index_path = CONSUMER_CONFIG.get('index_path')
         if not index_path:
-            log.debug('No valid path for directory of index files')
+            LOG.debug('No valid path for directory of index files')
             return
         if os.path.isdir(index_path):
             index_files = os.listdir(index_path)
@@ -177,135 +177,20 @@ class ESConsumerManager(object):
         ES_VERSION = series
         return series
 
-    def index_from_file(self, index_path, index_file):
-        index_name = index_file.split('.')[0]
-        path = '%s/%s' % (index_path, index_file)
-        with open(path) as f:
-            return {
-                'name': index_name,
-                'body': json.load(f)
-            }
-
-    def get_indexes_for_auto_config(self, **autoconf):
-        log.debug('Attempting to autoconfigure ES indices')
-        ignored_topics = set(autoconf.get('ignored_topics', []))
-        log.debug('Ignoring topics: %s' % (ignored_topics,))
-        log.debug('Previously Configured topics: %s' % (self.autoconfigured_topics,))
-        # have to get to force env lookups
-        args = kafka_config.copy()
-        try:
-            consumer = KafkaConsumer(**args)
-            topics = [i for i in consumer.topics()
-                      if i not in ignored_topics and
-                      i not in self.autoconfigured_topics]
-        except Exception as ke:
-            log.error('Autoconfig failed to get available topics \n%s' % (ke))
-            return []  # Can't auto-configure if Kafka isn't available
-        geo_point = (
-            autoconf.get('geo_point_name', None)
-            if autoconf.get('geo_point_creation', False)
-            else None
-        )
-        auto_ts = autoconf.get('auto_timestamp', None)
-        indexes = []
-        for topic_name in topics:
-            self.autoconfigured_topics.append(topic_name)
-            if MT:
-                tenant = topic_name.split('.')[0]
-                _name = '.'.join(topic_name.split('.')[1:])
-                index_name = (
-                    tenant +
-                    '.' +
-                    autoconf.get('index_name_template') % _name).lower()
-            else:
-                index_name = (autoconf.get('index_name_template') % topic_name).lower()
-            log.debug('Index name => %s' % index_name)
-            indexes.append(
-                {
-                    'name': index_name,
-                    'body': self.get_index_for_topic(topic_name, geo_point, auto_ts)
-                }
-            )
-        return indexes
-
-    def make_kibana_index(self, name):
-        # throws HTTPError on failure
-        handle = lambda x: x.raise_for_status()
-        host = consumer_config.get('kibana_url', None)
-        if not host:
-            log.debug('No kibana_url in config for default index creation.')
-            return
-        pattern = f'{name}*'
-        index_url = f'{host}/api/saved_objects/index-pattern/{pattern}'
-        headers = {'kbn-xsrf': 'meaningless-but-required'}
-        kibana_ts = consumer_config.get('kibana_auto_timestamp', None)
-        data = {
-            'attributes': {
-                'title': pattern,
-                'timeFieldName': kibana_ts
-            }
-        }
-        data['attributes']['timeFieldName'] = kibana_ts if kibana_ts else None
-        log.debug(f'registering default kibana index: {data}')
-        # register the base index
-        handle(requests.post(index_url, headers=headers, json=data))
-        default_url = f'{host}/api/kibana/settings/defaultIndex'
-        data = {
-            'value': pattern
-        }
-        # make this index the default
-        handle(requests.post(default_url, headers=headers, json=data))
-        log.debug(f'Created default index {pattern} on host {host}')
-
-    def serve_healthcheck(self):
-        self.healthcheck = healthcheck.HealthcheckServer()
-        self.healthcheck.start()
-
-    def get_index_for_topic(self, name, geo_point=None, auto_ts=None):
-        log.debug('Auto creating index for topic %s' % name)
-        index = {
-            # name: {
-            #     '_meta': {
-            #         'aet_subscribed_topics': [name]
-            #     }
-            # }
-            '_doc': {  # 7.x has made names illegal here...
-                '_meta': {
-                    'aet_subscribed_topics': [name]
-                }
-            }
-        }
-        if geo_point:
-            index['_doc']['_meta']['aet_geopoint'] = geo_point
-            index['_doc']['properties'] = {geo_point: {'type': 'geo_point'}}
-        if auto_ts:
-            index['_doc']['_meta']['aet_auto_ts'] = auto_ts
-        log.debug('created index: %s' % index.get(name))
-        return {'mappings': index}
-
     def register_index(self, index_path=None, index_file=None, index=None):
-        if not any([index_path, index_file, index]):
-            raise ValueError('Index cannot be created without an artifact')
         try:
-            if index_path and index_file:
-                log.debug('Loading index %s from file: %s' % (index_file, index_path))
-                index = self.index_from_file(index_path, index_file)
-            index_name = index.get('name')
-            if self.es.indices.exists(index=index.get('name')):
-                log.debug('Index %s already exists, skipping creation.' % index_name)
-            else:
-                log.info('Creating Index %s' % index.get('name'))
-                self.es.indices.create(
-                    index=index_name,
-                    body=index.get('body'),
-                    params={'include_type_name': 'true'}  # json true...
-                )
-            self.start_consumer_group(index_name, index.get('body'))
+            index_handler.register_es_index(
+                self.es, index_path, index_file, index
+            )
+            self.start_consumer_group(
+                index.get('name'),
+                index.get('body')
+            )
         except Exception as ese:
-            log.error('Error creating index in elasticsearch %s' %
+            LOG.error('Error creating index in elasticsearch %s' %
                       ([index_path, index_file, index],))
-            log.error(ese)
-            log.critical('Index not created: path:%s file:%s name:%s' %
+            LOG.error(ese)
+            LOG.critical('Index not created: path:%s file:%s name:%s' %
                          (index_path, index_file, index.get('name')))
 
     def start_consumer_group(self, index_name, index_body):
@@ -329,10 +214,12 @@ class ESConsumerManager(object):
 class AutoConfMaintainer(threading.Thread):
 
     def __init__(self, parent, autoconf=None):
-        log.debug('Started Autoconf Maintainer')
+        LOG.debug('Started Autoconf Maintainer')
         self.parent = parent
         self.autoconf = autoconf
+        self.configured_topics = []
         self.kibana_index = None
+        self.consumer = KafkaConsumer(**KAFKA_CONFIG)
         if self.autoconf.get('create_kibana_index', True):
             kibana_index = self.autoconf.get('index_name_template')
             self.kibana_index = kibana_index.split('%s')[0]
@@ -341,36 +228,47 @@ class AutoConfMaintainer(threading.Thread):
     def run(self):
         # On start
         while not self.parent.stopped:
-            # Check to see if the Kibana index needs to be created (once)
-            if self.kibana_index:
-                try:
-                    self.parent.make_kibana_index(self.kibana_index)
-                    self.kibana_index = None  # Null once we're done with it
-                except requests.exceptions.ConnectionError:
-                    # connection error, retry each round until determined.
-                    log.debug(f'Kibana not available at '
-                              + f'{consumer_config.get("kibana_url")}'
-                              + f':  Will retry.')
-                except requests.exceptions.HTTPError as hter:
-                    log.debug(f'Could not register default kibana index: {hter}')
-                    # index exists, don't try any more
-                    self.kibana_index = None
-
             # Check autoconfig
             if self.autoconf.get('enabled', False):
-                log.debug('Autoconfig checking for new indices')
-                auto_indexes = self.parent.get_indexes_for_auto_config(**self.autoconf)
-                for idx in auto_indexes:
-                    self.parent.register_index(index=idx)
+                LOG.debug('Autoconfig checking for new indices')
+                LOG.debug(
+                    f'Previously Configured topics: {self.configured_topics}'
+                )
+                new_topics = self.find_new_topics()
+                if not new_topics:
+                    LOG.debug('No new topics')
+                for topic in new_topics:
+                    LOG.debug(
+                        f'New topic: {topic}'
+                    )
+                    index = index_handler.get_es_index_from_autoconfig(
+                        self.autoconf,
+                        topic,
+                        MT
+                    )
+                    self.parent.register_index(index=index)
+                    self.configured_topics.append(topic)
+
             # Check running threads
             try:
                 self.check_running_groups()
             except Exception as err:
-                log.error(f'Error watching running threads: {err}')
+                LOG.error(f'Error watching running threads: {err}')
             for x in range(10):
                 if self.parent.stopped:
                     return
                 sleep(1)
+
+    def find_new_topics(self):
+        ignored_topics = set(self.autoconf.get('ignored_topics', []))
+        try:
+            topics = [i for i in self.consumer.topics()
+                      if i not in ignored_topics and
+                      i not in self.configured_topics]
+            return topics
+        except Exception as ke:
+            LOG.error('Autoconfig failed to get available topics \n%s' % (ke))
+            return []  # Can't auto-configure if Kafka isn't available
 
     def check_running_groups(self):
         groups = self.parent.consumer_groups
@@ -385,14 +283,14 @@ class ESConsumerGroup(object):
         self.name = index_name
         self.consumers = {}
         self.topics = {}  # configuration for each topic
-        log.debug('Consumer Group started for index: %s' % index_name)
+        LOG.debug('Consumer Group started for index: %s' % index_name)
         self.intuit_sources(index_body)
 
     def intuit_sources(self, index_body):
         for doc_type, instr in index_body.get('mappings', {}).items():
             # There's only one type per mapping allowed in ES6
-            log.debug('Adding processor for %s' % doc_type)
-            log.debug('instructions: %s' % instr)
+            LOG.debug('Adding processor for %s' % doc_type)
+            LOG.debug('instructions: %s' % instr)
             topics = instr.get('_meta').get('aet_subscribed_topics')
             if not topics:
                 raise ValueError('No topics in aet_subscribed_topics section in index %s' %
@@ -405,13 +303,13 @@ class ESConsumerGroup(object):
             ItemProcessor = ESItemProcessorV5
         else:
             ItemProcessor = ESItemProcessor
-        log.debug(f'Group: {self.name} is starting topic: {topic_name}')
+        LOG.debug(f'Group: {self.name} is starting topic: {topic_name}')
         if instr is not None:  # can be {}
             self.topics[topic_name] = (topic_name, doc_type, instr)
         try:
             topic_name, doc_type, instr = self.topics[topic_name]
         except KeyError as ker:
-            log.error(ker)
+            LOG.error(ker)
             raise ValueError(f'Topic {topic_name} on group {self.name} has no instructions.')
         processor = ItemProcessor(topic_name, instr)
         self.consumers[topic_name] = ESConsumer(self.name, processor, doc_type=doc_type)
@@ -421,14 +319,14 @@ class ESConsumerGroup(object):
         try:
             return self.consumers[topic_name].is_alive()
         except KeyError as ker:
-            log.error(f'Error getting liveness on {self.name}:{topic_name}: {ker}')
+            LOG.error(f'Error getting liveness on {self.name}:{topic_name}: {ker}')
             return False
 
     def monitor_threads(self):
-        log.debug(f'Checking threads on group: {self.name}')
+        LOG.debug(f'Checking threads on group: {self.name}')
         for topic in self.consumers.keys():
             if not self.is_alive(topic):
-                log.error(f'Topic {topic} on group {self.name} died. Restarting.')
+                LOG.error(f'Topic {topic} on group {self.name} died. Restarting.')
                 self.start_topic(topic)
 
     def stop(self):
@@ -443,8 +341,8 @@ class ESConsumerGroupV5(ESConsumerGroup):
         for name, instr in index_body.get('mappings', {}).items():
             # There's only one type per mapping allowed in ES6.
             # ES5 implementation is simpler.
-            log.debug('Adding processor for %s' % name)
-            log.debug('instructions: %s' % instr)
+            LOG.debug('Adding processor for %s' % name)
+            LOG.debug('instructions: %s' % instr)
             self.start_topic(name, None, instr, 'V5')
 
 
@@ -462,7 +360,7 @@ class ESConsumer(threading.Thread):
         self.index = index
         self.consumer_timeout = 8000  # MS
         self.consumer_max_records = 1000
-        kafka_topic_template = consumer_config.get(
+        kafka_topic_template = CONSUMER_CONFIG.get(
             'kafka_topic_template',
             'elastic_{es_index_name}_{data_type}'
         )
@@ -482,31 +380,31 @@ class ESConsumer(threading.Thread):
         self.thread_id = 0
         super(ESConsumer, self).__init__()
 
-    def connect(self, kafka_config):
+    def connect(self):
         # have to get to force env lookups
-        args = kafka_config.copy()
+        args = KAFKA_CONFIG.copy()
         args['client_id'] = self.group_name
         args['group_id'] = self.group_name
         try:
-            log.debug(
+            LOG.debug(
                 f'Kafka CONFIG [{self.thread_id}]'
                 f'[{self.index}:{self.group_name}]')
-            log.debug(json.dumps(args, indent=2))
+            LOG.debug(json.dumps(args, indent=2))
             self.consumer = KafkaConsumer(**args)
             self.consumer.subscribe([self.topic])
-            log.debug('Consumer %s subscribed on topic: %s @ group %s' %
+            LOG.debug('Consumer %s subscribed on topic: %s @ group %s' %
                       (self.index, self.topic, self.group_name))
             return True
         except Exception as ke:
-            log.error('%s failed to subscibe to topic %s with error \n%s' %
+            LOG.error('%s failed to subscibe to topic %s with error \n%s' %
                       (self.index, self.topic, ke))
             return False
 
     def run(self):
         self.thread_id = threading.get_ident()
-        log.debug(f'Consumer [{self.thread_id}] running on {self.index} : {self.es_type}')
+        LOG.debug(f'Consumer [{self.thread_id}] running on {self.index} : {self.es_type}')
         while True:
-            if self.connect(kafka_config):
+            if self.connect():
                 break
             elif self.stopped:
                 return
@@ -517,7 +415,7 @@ class ESConsumer(threading.Thread):
                 timeout_ms=self.consumer_timeout,
                 max_records=self.consumer_max_records)
             if not new_messages:
-                log.info(
+                LOG.info(
                     f'Kafka IDLE [{self.thread_id}]'
                     f'[{self.index}:{self.group_name}]')
                 sleep(5)
@@ -526,36 +424,36 @@ class ESConsumer(threading.Thread):
                 for package in packages:
                     schema = package.get('schema')
                     messages = package.get('messages')
-                    log.debug('messages #%s' % len(messages))
+                    LOG.debug('messages #%s' % len(messages))
                     if schema != last_schema:
-                        log.info('Schema change on type %s' % self.es_type)
-                        log.debug('schema: %s' % schema)
+                        LOG.info('Schema change on type %s' % self.es_type)
+                        LOG.debug('schema: %s' % schema)
                         self.processor.load_avro(schema)
                         self.get_route = self.processor.create_route()
                     else:
-                        log.debug('Schema unchanged.')
+                        LOG.debug('Schema unchanged.')
                     count = 0
                     for x, msg in enumerate(messages):
                         doc = self.processor.process(msg)
                         count = x
-                        log.debug(
+                        LOG.debug(
                             f'Kafka READ [{self.thread_id}]'
                             f'[{self.index}:{self.group_name}]'
                             f' -> {doc.get("id")}')
                         self.submit(doc)
-                    log.debug(
+                    LOG.debug(
                         f'Kafka COMMIT [{self.thread_id}]'
                         f'[{self.index}:{self.group_name}]')
                     self.consumer.commit_async(callback=self.report_commit)
-                    log.info('processed %s docs in index %s' % ((count + 1), self.es_type))
+                    LOG.info('processed %s docs in index %s' % ((count + 1), self.es_type))
                     last_schema = schema
 
-        log.info('Shutting down consumer %s | %s' % (self.index, self.topic))
+        LOG.info('Shutting down consumer %s | %s' % (self.index, self.topic))
         self.consumer.close(autocommit=True)
         return
 
     def report_commit(self, offsets, response):
-        log.info(f'Kafka OFFSET CMT {offsets} -> {response}')
+        LOG.info(f'Kafka OFFSET CMT {offsets} -> {response}')
 
     def submit(self, doc, route=None):
         parent = doc.get('_parent', None)
@@ -566,8 +464,8 @@ class ESConsumer(threading.Thread):
                 route = self.get_route(doc)
                 '''
                 if route:
-                    log.debug(doc)
-                    log.debug(route)
+                    LOG.debug(doc)
+                    LOG.debug(route)
                 '''
                 es.create(
                     index=self.index,
@@ -584,13 +482,13 @@ class ESConsumer(threading.Thread):
                     parent=parent,
                     body=doc
                 )
-            log.debug(
+            LOG.debug(
                 f'ES CREATE-OK [{self.thread_id}]'
                 f'[{self.index}:{self.group_name}]'
                 f' -> {doc.get("id")}')
 
         except (Exception, TransportError) as ese:
-            log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
+            LOG.info('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
                 if ES_VERSION > 5:
                     route = self.get_route(doc)
@@ -609,16 +507,16 @@ class ESConsumer(threading.Thread):
                         parent=parent,
                         body=doc
                     )
-                log.debug(
+                LOG.debug(
                     f'ES UPDATE-OK [{self.thread_id}]'
                     f'[{self.index}:{self.group_name}]'
                     f' -> {doc.get("id")}')
             except TransportError:
-                log.debug('conflict exists, ignoring document with id %s' %
+                LOG.debug('conflict exists, ignoring document with id %s' %
                           doc.get('id', 'unknown'))
 
     def stop(self):
-        log.info('%s caught stop signal' % (self.group_name))
+        LOG.info('%s caught stop signal' % (self.group_name))
         self.stopped = True
 
 
@@ -643,10 +541,10 @@ class ESItemProcessor(object):
         self.has_parent = False
         meta = self.type_instructions.get('_meta')
         if not meta:
-            log.debug('type: %s has no meta arguments' % (self.es_type))
+            LOG.debug('type: %s has no meta arguments' % (self.es_type))
             return
         for key, value in meta.items():
-            log.debug('Type %s has meta type: %s' % (self.es_type, key))
+            LOG.debug('Type %s has meta type: %s' % (self.es_type, key))
             if key == 'aet_parent_field':
                 join_field = meta.get('aet_join_field', None)
                 if join_field:  # ES 6
@@ -670,7 +568,7 @@ class ESItemProcessor(object):
                     cmd.update(self._find_geopoints())
                     self.pipeline.append(cmd)
                 except ValueError as ver:
-                    log.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
+                    LOG.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
             elif key == 'aet_auto_ts':
                 cmd = {
                     'function': '_add_timestamp',
@@ -678,22 +576,22 @@ class ESItemProcessor(object):
                 }
                 self.pipeline.append(cmd)
             elif key.startswith('aet'):
-                log.debug('aet _meta keyword %s in type %s generates no command'
+                LOG.debug('aet _meta keyword %s in type %s generates no command'
                           % (key, self.es_type))
             else:
-                log.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
-        log.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
+                LOG.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
+        LOG.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
 
     def create_route(self):
         meta = self.type_instructions.get('_meta', {})
         join_field = meta.get('aet_join_field', None)
         if not self.has_parent or not join_field:
-            log.debug('NO Routing created for type %s' % self.es_type)
+            LOG.debug('NO Routing created for type %s' % self.es_type)
             return lambda *args: None
 
         def route(doc):
             return doc.get(join_field).get('parent')
-        log.debug('Routing created for child type %s' % self.es_type)
+        LOG.debug('Routing created for child type %s' % self.es_type)
         return route
 
     def rename_reserved_fields(self, doc):
@@ -727,7 +625,7 @@ class ESItemProcessor(object):
             }
             doc[join_field] = payload
         except Exception as e:
-            log.error('Could not add parent to doc type %s. Error: %s' %
+            LOG.error('Could not add parent to doc type %s. Error: %s' %
                       (self.es_type, e))
         return doc
 
@@ -738,7 +636,7 @@ class ESItemProcessor(object):
             geo['lon'] = float(self._get_doc_field(doc, lon))
             doc[field_name] = geo
         except Exception as e:
-            log.debug('Could not add geo to doc type %s. Error: %s | %s' %
+            LOG.debug('Could not add geo to doc type %s. Error: %s | %s' %
                       (self.es_type, e, (lat, lon),))
         return doc
 
@@ -755,20 +653,20 @@ class ESItemProcessor(object):
             if not matches:
                 raise ValueError(name, doc)
             if len(matches) > 1:
-                log.warn('More than one value for %s in doc type %s, using first' %
+                LOG.warn('More than one value for %s in doc type %s, using first' %
                          (name, self.es_type))
             return matches[0].value
         except ValueError as ve:
-            log.debug('Error getting field %s from doc type %s' %
+            LOG.debug('Error getting field %s from doc type %s' %
                       (name, self.es_type))
-            log.debug(doc)
+            LOG.debug(doc)
             raise ve
 
     def _find_geopoints(self):
         res = {}
-        latitude_fields = consumer_config.get('latitude_fields')
-        longitude_fields = consumer_config.get('longitude_fields')
-        log.debug(f'looking for matches in {latitude_fields} & {longitude_fields}')
+        latitude_fields = CONSUMER_CONFIG.get('latitude_fields')
+        longitude_fields = CONSUMER_CONFIG.get('longitude_fields')
+        LOG.debug(f'looking for matches in {latitude_fields} & {longitude_fields}')
         for lat in latitude_fields:
             path = self.find_path_in_schema(self.schema_obj, lat)
             if path:
@@ -787,7 +685,7 @@ class ESItemProcessor(object):
     def find_path_in_schema(self, schema, test, previous_path='$'):
         # Searches a schema document for matching instances of an element.
         # Will look in nested objects. Aggregates matching paths.
-        log.debug(f'search: {test}:{previous_path}')
+        LOG.debug(f'search: {test}:{previous_path}')
         matches = []
         if isinstance(schema, list):
             for _dict in schema:
@@ -824,17 +722,17 @@ class ESItemProcessorV5(ESItemProcessor):
         self.pipeline = []
         meta = self.type_instructions.get('_meta')
         if not meta:
-            log.debug('type: %s has no meta arguments' % (self.es_type))
+            LOG.debug('type: %s has no meta arguments' % (self.es_type))
             return
         for key, value in meta.items():
-            log.debug('Type %s has meta type: %s' % (self.es_type, key))
+            LOG.debug('Type %s has meta type: %s' % (self.es_type, key))
             if key == 'aet_parent_field':
                 cmd = {
                     'function': '_add_parent',
                     'field_name': value
                 }
                 self.pipeline.append(cmd)
-                log.debug('Added %s to pipeline' % cmd)
+                LOG.debug('Added %s to pipeline' % cmd)
             elif key == 'aet_geopoint':
                 cmd = {
                     'function': '_add_geopoint',
@@ -843,21 +741,21 @@ class ESItemProcessorV5(ESItemProcessor):
                 try:
                     cmd.update(self._find_geopoints())
                     self.pipeline.append(cmd)
-                    log.debug('Added %s to pipeline' % cmd)
+                    LOG.debug('Added %s to pipeline' % cmd)
                 except ValueError as ver:
-                    log.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
+                    LOG.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
             elif key.startswith('aet'):
-                log.debug('aet _meta keyword %s in type %s generates no command'
+                LOG.debug('aet _meta keyword %s in type %s generates no command'
                           % (key, self.es_type))
             else:
-                log.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
-        log.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
+                LOG.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
+        LOG.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
 
     def _add_parent(self, doc, field_name=None, **kwargs):
         try:
             doc['_parent'] = self._get_doc_field(doc, field_name)
         except Exception as e:
-            log.error('Could not add parent to doc type %s. Error: %s' %
+            LOG.error('Could not add parent to doc type %s. Error: %s' %
                       (self.es_type, e))
         return doc
 
@@ -868,21 +766,21 @@ class ElasticSearchConsumer(object):
         self.killed = False
         signal.signal(signal.SIGINT, self.kill)
         signal.signal(signal.SIGTERM, self.kill)
-        log.info('Connecting to Kafka and ES in 5 seconds')
+        LOG.info('Connecting to Kafka and ES in 5 seconds')
         sleep(5)
         connect()
         manager = ESConsumerManager(es)
-        log.info('Started ES Consumer')
+        LOG.info('Started ES Consumer')
         while True:
             try:
                 if not manager.stopped:
                     for x in range(10):
                         sleep(1)
                 else:
-                    log.info('Manager caught SIGTERM, exiting')
+                    LOG.info('Manager caught SIGTERM, exiting')
                     break
             except KeyboardInterrupt:
-                log.info('\nTrying to stop gracefully')
+                LOG.info('\nTrying to stop gracefully')
                 manager.stop()
                 break
 

@@ -23,15 +23,10 @@ from . import config
 
 consumer_config = config.get_consumer_config()
 
-
-def get_module_logger(mod_name):
-    logger = logging.getLogger(mod_name)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s [%(name)-12s] %(levelname)-8s %(message)s')
-    handler.setFormatter(formatter)
-    logger.handlers = []
-    logger.addHandler(handler)
-    level = logging.getLevelName(consumer_config.get('log_level'))
-    logger.setLevel(level)
-    return logger
+LOG = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter(
+    '%(asctime)s [ES] %(levelname)-8s %(message)s'))
+LOG.addHandler(handler)
+level = logging.getLevelName(consumer_config.get('log_level', 'DEBUG'))
+LOG.setLevel(level)

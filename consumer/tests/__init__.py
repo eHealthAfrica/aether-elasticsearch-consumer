@@ -74,6 +74,29 @@ def AutoConfigSettings():
         return obj.get('autoconfig_settings')
 
 
+SAMPLE_FIELD_LOOKUP = {
+    'occupant_gender': {
+        'id': 'static_lookup',
+        'params': {
+            'lookupEntries': [
+                {
+                    'value': 'Operational',
+                    'key': 'operational'
+                },
+                {
+                    'value': 'Non Operational',
+                    'key': 'non_operational'
+                },
+                {
+                    'value': 'Unknown',
+                    'key': 'unknown'
+                }
+            ],
+            'unknownKeyValue': 'N/A'
+        }
+    }
+}
+
 SAMPLE_DOC = {
     'start': '2018-08-14T13:50:04.064000+01:00',
     'end': '2018-08-14T13:52:51.024000+01:00',
@@ -113,26 +136,26 @@ SAMPLE_DOC = {
 }
 
 SAMPLE_DOC2 = {
-        'Encounter_Date_Time': None,
-        'Location': {
-            'accuracy': 26.0,
-            'altitude': 486.0,
-            'latitude': 9.070648346096277,
-            'longitude': 7.413686318323016
-        },
-        'Patient_Age': 29,
-        'Patient_Name': 'Jane Smith ',
-        'QR_Code': '0626b3a2-401c-4012-8b81-1f5b14df8c7b',
-        'Test_Name': 'TEST_1',
-        '_id': 'rapidtest_start',
-        '_version': '0',
-        'end': '2019-01-28T09:05:51.154000+01:00',
-        'id': '75dc93fa-647a-4c53-bc5a-18aa5394fd40',
-        'meta': {
-            'instanceID': 'uuid:adda71c0-2099-4123-87d1-c210838e0565'
-        },
-        'start': '2019-01-28T09:05:18.680000+01:00'
-    }
+    'Encounter_Date_Time': None,
+    'Location': {
+        'accuracy': 26.0,
+        'altitude': 486.0,
+        'latitude': 9.070648346096277,
+        'longitude': 7.413686318323016
+    },
+    'Patient_Age': 29,
+    'Patient_Name': 'Jane Smith ',
+    'QR_Code': '0626b3a2-401c-4012-8b81-1f5b14df8c7b',
+    'Test_Name': 'TEST_1',
+    '_id': 'rapidtest_start',
+    '_version': '0',
+    'end': '2019-01-28T09:05:51.154000+01:00',
+    'id': '75dc93fa-647a-4c53-bc5a-18aa5394fd40',
+    'meta': {
+        'instanceID': 'uuid:adda71c0-2099-4123-87d1-c210838e0565'
+    },
+    'start': '2019-01-28T09:05:18.680000+01:00'
+}
 
 TYPE_INSTRUCTIONS = {
     '_meta': {
@@ -457,4 +480,884 @@ DOC_SCHEMA2 = {
             'type': 'string'
         }
     ]
+}
+
+
+ANNOTATED_SCHEMA = {
+    'doc': 'HS OSM Gather Test (id: gth_hs_test, version: 2)',
+    'name': 'Gth_Hs_Test_2',
+    'type': 'record',
+    'fields': [
+        {
+            'doc': 'xForm ID',
+            'name': '_id',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2'
+        },
+        {
+            'doc': 'xForm version',
+            'name': '_version',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2'
+        },
+        {
+            'name': '_start',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'dateTime'
+        },
+        {
+            'name': 'timestamp',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'dateTime'
+        },
+        {
+            'name': 'username',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'name': 'source',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'name': 'osm_id',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'Name of Facility',
+            'name': 'name',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'Address',
+            'name': 'addr_full',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'Phone Number',
+            'name': 'contact_number',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'Facility Operator Name',
+            'name': 'operator',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'Operator Type',
+            'name': 'operator_type',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Public',
+                    'value': 'public'
+                },
+                {
+                    'label': 'Private',
+                    'value': 'private'
+                },
+                {
+                    'label': 'Community',
+                    'value': 'community'
+                },
+                {
+                    'label': 'Religious',
+                    'value': 'religious'
+                },
+                {
+                    'label': 'Government',
+                    'value': 'government'
+                },
+                {
+                    'label': 'NGO',
+                    'value': 'ngo'
+                },
+                {
+                    'label': 'Combination',
+                    'value': 'combination'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'Facility Location',
+            'name': 'geometry',
+            'type': [
+                'null',
+                {
+                    'doc': 'Facility Location',
+                    'name': 'geometry',
+                    'type': 'record',
+                    'fields': [
+                        {
+                            'doc': 'latitude',
+                            'name': 'latitude',
+                            'type': [
+                                'null',
+                                'float'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2.geometry'
+                        },
+                        {
+                            'doc': 'longitude',
+                            'name': 'longitude',
+                            'type': [
+                                'null',
+                                'float'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2.geometry'
+                        },
+                        {
+                            'doc': 'altitude',
+                            'name': 'altitude',
+                            'type': [
+                                'null',
+                                'float'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2.geometry'
+                        },
+                        {
+                            'doc': 'accuracy',
+                            'name': 'accuracy',
+                            'type': [
+                                'null',
+                                'float'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2.geometry'
+                        }
+                    ],
+                    'namespace': 'Gth_Hs_Test_2',
+                    '@aether_extended_type': 'geopoint'
+                }
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'geopoint'
+        },
+        {
+            'doc': 'Operational Status',
+            'name': 'operational_status',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Operational',
+                    'value': 'operational'
+                },
+                {
+                    'label': 'Non Operational',
+                    'value': 'non_operational'
+                },
+                {
+                    'label': 'Unknown',
+                    'value': 'unknown'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'When is the facility open?',
+            'name': '_opening_hours_type',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Pick the days of the week open and enter hours for each day',
+                    'value': 'oh_select'
+                },
+                {
+                    'label': 'Only open on weekdays with the same hours every day.',
+                    'value': 'oh_weekday'
+                },
+                {
+                    'label': '24/7 - All day, every day',
+                    'value': 'oh_24_7'
+                },
+                {
+                    'label': 'Type in OSM String by hand (Advanced Option)',
+                    'value': 'oh_advanced'
+                },
+                {
+                    'label': '''I don't know the operating hours''',
+                    'value': 'oh_unknown'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'Which days is this facility open?',
+            'name': '_open_days',
+            'type': [
+                'null',
+                {
+                    'type': 'array',
+                    'items': 'string'
+                }
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Monday',
+                    'value': 'Mo'
+                },
+                {
+                    'label': 'Tuesday',
+                    'value': 'Tu'
+                },
+                {
+                    'label': 'Wednesday',
+                    'value': 'We'
+                },
+                {
+                    'label': 'Thursday',
+                    'value': 'Th'
+                },
+                {
+                    'label': 'Friday',
+                    'value': 'Fr'
+                },
+                {
+                    'label': 'Saturday',
+                    'value': 'Sa'
+                },
+                {
+                    'label': 'Sunday',
+                    'value': 'Su'
+                },
+                {
+                    'label': 'Public Holidays',
+                    'value': 'PH'
+                }
+            ],
+            '@aether_extended_type': 'select'
+        },
+        {
+            'doc': 'Open hours by day of the week',
+            'name': '_dow_group',
+            'type': [
+                'null',
+                {
+                    'doc': 'Open hours by day of the week',
+                    'name': '_dow_group',
+                    'type': 'record',
+                    'fields': [
+                        {
+                            'doc': 'Enter open hours for each day:',
+                            'name': '_hours_note',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'doc': 'Monday open hours',
+                            'name': '_mon_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'doc': 'Tuesday open hours',
+                            'name': '_tue_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'doc': 'Wednesday open hours',
+                            'name': '_wed_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'doc': 'Thursday open hours',
+                            'name': '_thu_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'doc': 'Friday open hours',
+                            'name': '_fri_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'doc': 'Saturday open hours',
+                            'name': '_sat_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'doc': 'Sunday open hours',
+                            'name': '_sun_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'doc': 'Public Holiday open hours',
+                            'name': '_ph_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        },
+                        {
+                            'name': '_select_hours',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            '@aether_extended_type': 'string'
+                        }
+                    ],
+                    'namespace': 'Gth_Hs_Test_2',
+                    '@aether_extended_type': 'group'
+                }
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'group'
+        },
+        {
+            'doc': 'Enter weekday hours',
+            'name': '_weekday_hours',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': '''OSM 'opening_hours ''',
+            'name': '_advanced_hours',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'name': 'opening_hours',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'Verify the open hours are correct or go back and fix:',
+            'name': '_disp_hours',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'Facility Category',
+            'name': 'amenity',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Clinic',
+                    'value': 'clinic'
+                },
+                {
+                    'label': 'Doctors',
+                    'value': 'doctors'
+                },
+                {
+                    'label': 'Hospital',
+                    'value': 'hospital'
+                },
+                {
+                    'label': 'Dentist',
+                    'value': 'dentist'
+                },
+                {
+                    'label': 'Pharmacy',
+                    'value': 'pharmacy'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'Available Services',
+            'name': 'healthcare',
+            'type': [
+                'null',
+                {
+                    'type': 'array',
+                    'items': 'string'
+                }
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Doctor',
+                    'value': 'doctor'
+                },
+                {
+                    'label': 'Pharmacy',
+                    'value': 'pharmacy'
+                },
+                {
+                    'label': 'Hospital',
+                    'value': 'hospital'
+                },
+                {
+                    'label': 'Clinic',
+                    'value': 'clinic'
+                },
+                {
+                    'label': 'Dentist',
+                    'value': 'dentist'
+                },
+                {
+                    'label': 'Physiotherapist',
+                    'value': 'physiotherapist'
+                },
+                {
+                    'label': 'Alternative',
+                    'value': 'alternative'
+                },
+                {
+                    'label': 'Laboratory',
+                    'value': 'laboratory'
+                },
+                {
+                    'label': 'Optometrist',
+                    'value': 'optometrist'
+                },
+                {
+                    'label': 'Rehabilitation',
+                    'value': 'rehabilitation'
+                },
+                {
+                    'label': 'Blood donation',
+                    'value': 'blood_donation'
+                },
+                {
+                    'label': 'Birthing center',
+                    'value': 'birthing_center'
+                }
+            ],
+            '@aether_extended_type': 'select'
+        },
+        {
+            'doc': 'Specialities',
+            'name': 'speciality',
+            'type': [
+                'null',
+                {
+                    'type': 'array',
+                    'items': 'string'
+                }
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'xx',
+                    'value': 'xx'
+                }
+            ],
+            '@aether_extended_type': 'select'
+        },
+        {
+            'doc': 'Speciality medical equipment available',
+            'name': 'health_amenity_type',
+            'type': [
+                'null',
+                {
+                    'type': 'array',
+                    'items': 'string'
+                }
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Ultrasound',
+                    'value': 'ultrasound'
+                },
+                {
+                    'label': 'MRI',
+                    'value': 'mri'
+                },
+                {
+                    'label': 'X-Ray',
+                    'value': 'x_ray'
+                },
+                {
+                    'label': 'Dialysis',
+                    'value': 'dialysis'
+                },
+                {
+                    'label': 'Operating Theater',
+                    'value': 'operating_theater'
+                },
+                {
+                    'label': 'Laboratory',
+                    'value': 'laboratory'
+                },
+                {
+                    'label': 'Imaging Equipment',
+                    'value': 'imaging_equipment'
+                },
+                {
+                    'label': 'Intensive Care Unit',
+                    'value': 'intensive_care_unit'
+                },
+                {
+                    'label': 'Emergency Department',
+                    'value': 'emergency_department'
+                }
+            ],
+            '@aether_extended_type': 'select'
+        },
+        {
+            'doc': 'Does this facility provide Emergency Services?',
+            'name': 'emergency',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Yes',
+                    'value': 'yes'
+                },
+                {
+                    'label': 'No',
+                    'value': 'no'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'Does the pharmacy dispense prescription medication?',
+            'name': 'dispensing',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Yes',
+                    'value': 'yes'
+                },
+                {
+                    'label': 'No',
+                    'value': 'no'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'Number of Beds',
+            'name': 'beds',
+            'type': [
+                'null',
+                'int'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'int'
+        },
+        {
+            'doc': 'Number of Doctors',
+            'name': 'staff_doctors',
+            'type': [
+                'null',
+                'int'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'int'
+        },
+        {
+            'doc': 'Number of Nurses',
+            'name': 'staff_nurses',
+            'type': [
+                'null',
+                'int'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'int'
+        },
+        {
+            'doc': 'Types of insurance accepted?',
+            'name': 'insurance',
+            'type': [
+                'null',
+                {
+                    'type': 'array',
+                    'items': 'string'
+                }
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Public',
+                    'value': 'public'
+                },
+                {
+                    'label': 'Private',
+                    'value': 'private'
+                },
+                {
+                    'label': 'None',
+                    'value': 'no'
+                },
+                {
+                    'label': 'Unknown',
+                    'value': 'unknown'
+                }
+            ],
+            '@aether_extended_type': 'select'
+        },
+        {
+            'doc': 'Is this facility wheelchair accessible?',
+            'name': 'wheelchair',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Yes',
+                    'value': 'yes'
+                },
+                {
+                    'label': 'No',
+                    'value': 'no'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'What is the source of water for this facility?',
+            'name': 'water_source',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Well',
+                    'value': 'well'
+                },
+                {
+                    'label': 'Water works',
+                    'value': 'water_works'
+                },
+                {
+                    'label': 'Manual pump',
+                    'value': 'manual_pump'
+                },
+                {
+                    'label': 'Powered pump',
+                    'value': 'powered_pump'
+                },
+                {
+                    'label': 'Groundwater',
+                    'value': 'groundwater'
+                },
+                {
+                    'label': 'Rain',
+                    'value': 'rain'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'What is the source of power for this facility?',
+            'name': 'electricity',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_lookup': [
+                {
+                    'label': 'Power grid',
+                    'value': 'grid'
+                },
+                {
+                    'label': 'Generator',
+                    'value': 'generator'
+                },
+                {
+                    'label': 'Solar',
+                    'value': 'solar'
+                },
+                {
+                    'label': 'Other Power',
+                    'value': 'other'
+                },
+                {
+                    'label': 'No Power',
+                    'value': 'none'
+                }
+            ],
+            '@aether_extended_type': 'select1'
+        },
+        {
+            'doc': 'URL for this location (if available)',
+            'name': 'url',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'In which health are is the facility located?',
+            'name': 'is_in_health_area',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'doc': 'In which health zone is the facility located?',
+            'name': 'is_in_health_zone',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'string'
+        },
+        {
+            'name': 'meta',
+            'type': [
+                'null',
+                {
+                    'name': 'meta',
+                    'type': 'record',
+                    'fields': [
+                        {
+                            'name': 'instanceID',
+                            'type': [
+                                'null',
+                                'string'
+                            ],
+                            'namespace': 'Gth_Hs_Test_2.meta',
+                            '@aether_extended_type': 'string'
+                        }
+                    ],
+                    'namespace': 'Gth_Hs_Test_2',
+                    '@aether_extended_type': 'group'
+                }
+            ],
+            'namespace': 'Gth_Hs_Test_2',
+            '@aether_extended_type': 'group'
+        },
+        {
+            'doc': 'UUID',
+            'name': 'id',
+            'type': 'string'
+        }
+    ],
+    'namespace': 'org.ehealthafrica.aether.odk.xforms.Hsdemo'
 }

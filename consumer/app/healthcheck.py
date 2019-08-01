@@ -26,7 +26,7 @@ import threading
 from . import config, logger
 
 consumer_config = config.get_consumer_config()
-log = logger.get_module_logger(consumer_config.get('log_name'))
+LOG = logger.LOG
 
 
 class HealthcheckHandler(http.server.BaseHTTPRequestHandler):
@@ -45,7 +45,7 @@ class HealthcheckHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, format, *args):
-        log.debug(args)
+        LOG.debug(args)
 
 
 class HealthcheckServer(threading.Thread):
@@ -61,14 +61,14 @@ class HealthcheckServer(threading.Thread):
             self.httpd = TCPServer((host, port), handler)
             self.httpd.serve_forever()
         except OSError as ose:
-            log.critical('Could not serve healthcheck endpoint: %s' % ose)
+            LOG.critical('Could not serve healthcheck endpoint: %s' % ose)
             sys.exit(1)
 
     def stop(self):
         try:
-            log.debug('stopping healthcheck endpoint')
+            LOG.debug('stopping healthcheck endpoint')
             self.httpd.shutdown()
             self.httpd.server_close()
-            log.debug('healthcheck stopped.')
+            LOG.debug('healthcheck stopped.')
         except AttributeError:
-            log.debug('Healthcheck was already down.')
+            LOG.debug('Healthcheck was already down.')
