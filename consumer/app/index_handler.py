@@ -143,7 +143,7 @@ def index_from_file(index_path, index_file):
         }
 
 
-def static_from_lookups(schema, fieldname, default="Other"):
+def static_from_lookups(schema, fieldname, default='Other'):
     pass
 
 

@@ -18,3 +18,4 @@ mock
 pytest
 pytest-runner
 requests
+responses

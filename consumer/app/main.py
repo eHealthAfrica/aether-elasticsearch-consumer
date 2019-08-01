@@ -21,6 +21,7 @@
 from datetime import datetime
 import json
 import os
+import re
 import signal
 import sys
 import threading
@@ -355,6 +356,10 @@ class ESConsumerGroupV5(ESConsumerGroup):
 class ESConsumer(threading.Thread):
     # A single consumer subscribed to topic, pushing to an index
     # Runs as a daemon to avoid weird stops
+    tenant_topic_re = re.compile(
+        r'''topic:(?P<tenant>[^\.]*)\.(?P<topic>.*)-partition:.*'''
+    )
+
     def __init__(self, index, processor, has_group=True, doc_type=None):
         # has_group = False only used for testing
         self.processor = processor
@@ -427,7 +432,12 @@ class ESConsumer(threading.Thread):
                 sleep(5)
                 continue
             for parition_key, packages in new_messages.items():
-                LOG.debug(f'read PK: {parition_key}')
+                if MT:
+                    m = ESConsumer.tenant_topic_re.search(parition_key)
+                    tenant = m.group('tenant')
+                    topic = m.group('topic')
+                    LOG.debug(f'read PK: {tenant}.{topic}')
+
                 for package in packages:
                     schema = package.get('schema')
                     messages = package.get('messages')

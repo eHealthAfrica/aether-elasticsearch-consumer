@@ -22,7 +22,7 @@ from . import *  # get all test assets from test/__init__.py
 import requests
 from time import sleep
 
-from app.main import consumer_config
+from app.main import CONSUMER_CONFIG
 
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
@@ -46,7 +46,7 @@ def test_consumer_manager__test_healthcheck(MockConsumerManager, ElasticSearch):
     ConsumerManager = MockConsumerManager(start_healthcheck=True)
     try:
         sleep(1)
-        url = 'http://localhost:%s' % consumer_config.get('consumer_port')
+        url = 'http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port')
         r = requests.head(url)
         assert(r.status_code == 200)
         r = requests.head(url + '/healthcheck')
@@ -57,7 +57,7 @@ def test_consumer_manager__test_healthcheck(MockConsumerManager, ElasticSearch):
         ConsumerManager.stop()
         sleep(1)
         with pytest.raises(requests.exceptions.ConnectionError):
-            r = requests.head('http://localhost:%s' % consumer_config.get('consumer_port'))
+            r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
             assert(r.status_code != 200)
 
 
@@ -75,7 +75,7 @@ def test_consumer_manager__init(ConsumerManager, ElasticSearch):
         ConsumerManager.stop()
         sleep(1)
         with pytest.raises(requests.exceptions.ConnectionError):
-            r = requests.head('http://localhost:%s' % consumer_config.get('consumer_port'))
+            r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
             assert(r.status_code != 200)
 
 
@@ -85,7 +85,7 @@ def test_consumer_manager__reconnect(ConsumerManager, ElasticSearch):
     try:
         # wait for connection to ES
         sleep(5)
-        r = requests.head('http://localhost:%s/healthcheck' % consumer_config.get('consumer_port'))
+        r = requests.head('http://localhost:%s/healthcheck' % CONSUMER_CONFIG.get('consumer_port'))
         assert(r.status_code == 200)
         groups = [name for name in ConsumerManager.consumer_groups]
         assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
@@ -95,7 +95,7 @@ def test_consumer_manager__reconnect(ConsumerManager, ElasticSearch):
         ConsumerManager.stop()
         sleep(5)
         with pytest.raises(requests.exceptions.ConnectionError):
-            r = requests.head('http://localhost:%s' % consumer_config.get('consumer_port'))
+            r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
             assert(r.status_code != 200)
 
 

@@ -17,7 +17,7 @@ chardet==3.0.4
 decorator==4.3.0
 elasticsearch==7.0.2
 entrypoints==0.3
-flake8==3.7.7
+flake8==3.7.8
 flake8-quotes==2.0.1
 idna==2.7
 importlib-metadata==0.17
@@ -34,9 +34,10 @@ py==1.5.3
 pycodestyle==2.5.0
 pyflakes==2.1.1
 pyparsing==2.4.0
-pytest==4.6.2
+pytest==5.0.1
 pytest-runner==5.1
 requests==2.22.0
+responses==0.10.6
 six==1.11.0
 spavro==1.1.17
 urllib3==1.23
