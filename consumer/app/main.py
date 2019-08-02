@@ -241,29 +241,10 @@ class ESConsumerGroup(object):
         self.consumer.start()
         self.topics = []  # configuration for each topic
 
-    # TODO Move to Consumer
-
-    # def intuit_sources(self, index_body):
-    #     for doc_type, instr in index_body.get('mappings', {}).items():
-    #         # There's only one type per mapping allowed in ES6
-    #         LOG.debug('Adding processor for %s' % doc_type)
-    #         LOG.debug('instructions: %s' % instr)
-    #         topics = instr.get('_meta').get('aet_subscribed_topics')
-    #         if not topics:
-    #             raise ValueError('No topics in aet_subscribed_topics section in index %s' %
-    #                              self.name)
-    #         for topic in topics:
-    #             self.start_topic(topic, doc_type, instr)
-
     def add_topic(self, topic):
         LOG.debug(f'Tenant {self.tenant} caught new topic {topic}')
         self.topics.append(topic)
         self.consumer.add_topic(topic)
-        # index = index_handler.get_es_index_from_autoconfig(
-        #     self.autoconf,
-        #     topic_name,
-        #     tenant
-        # )
 
     def is_alive(self):
         try:
@@ -300,13 +281,8 @@ class ESConsumer(threading.Thread):
         self.indices = {}
         self.get_route = {}
         self.doc_types = {}
-        # self.es_types = {}
         self.topics = []
         self.autoconf = CONSUMER_CONFIG.get('autoconfig_settings', {})
-        # self.processor = processor
-        # self.doc_type = doc_type
-        # self.es_type = processor.es_type
-        # self.topic = processor.topic_name
         self.consumer_timeout = 8000  # MS
         self.consumer_max_records = 1000
         self.sleep_time = 10
@@ -337,7 +313,7 @@ class ESConsumer(threading.Thread):
     def init_topic(self, topic, schema):
         LOG.debug(f'{self.tenant} is starting topic: {topic}')
 
-        # TODO Handle schema add
+        # TODO Handle schema change ^^
 
         # check if index exists
         #     make index
@@ -355,29 +331,8 @@ class ESConsumer(threading.Thread):
         # check if kibana index exists
         #     make kibana index
 
-        # def intuit_sources(self, index_body):
-        #     for doc_type, instr in index_body.get('mappings', {}).items():
-        #         # There's only one type per mapping allowed in ES6
-        #         LOG.debug('Adding processor for %s' % doc_type)
-        #         LOG.debug('instructions: %s' % instr)
-        #         topics = instr.get('_meta').get('aet_subscribed_topics')
-        #         if not topics:
-        #             raise ValueError('No topics in aet_subscribed_topics section in index %s' %
-        #                              self.name)
-        #         for topic in topics:
-        #             self.start_topic(topic, doc_type, instr)
-
-        # if instr is not None:  # can be {}
-        #     self.topics[topic_name] = (topic_name, doc_type, instr)
-        # try:
-        #     topic_name, doc_type, instr = self.topics[topic_name]
-        # except KeyError as ker:
-        #     LOG.error(ker)
-        #     raise ValueError(f'Topic {topic_name} on group {self.name} has no instructions.')
         self.doc_types[topic] = doc_type
         self.processors[topic] = ESItemProcessor(topic, instr)
-        # self.consumers[topic_name] = ESConsumer(self.name, processor, doc_type=doc_type)
-        # self.consumers[topic_name].start()
 
     def connect(self):
         # have to get to force env lookups
