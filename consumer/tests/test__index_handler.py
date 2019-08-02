@@ -18,12 +18,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# import json
+import json
 import pytest
 import requests
 import responses
 
 from app import index_handler
+from app.logger import LOG
+from app.jsonpath import first, find
 
 from . import *  # noqa  # fixtures
 
@@ -42,90 +44,53 @@ def test__handle_http():
         index_handler.handle_http(res)
 
 
-def test__get_es_index_from_autoconfig():
-    pass
-    # def get_es_index_from_autoconfig(
-    #     autoconf,
-    #     topic_name,
-    #     MT=True
-    # ):
-    #     geo_point = (
-    #         autoconf.get('geo_point_name', None)
-    #         if autoconf.get('geo_point_creation', False)
-    #         else None
-    #     )
-    #     auto_ts = autoconf.get('auto_timestamp', None)
-    #     if MT:
-    #         tenant = topic_name.split('.')[0]
-    #         _name = '.'.join(topic_name.split('.')[1:])
-    #         index_name = (
-    #             tenant +
-    #             '.' +
-    #             autoconf.get('index_name_template') % _name).lower()
-    #     else:
-    #         index_name = (autoconf.get('index_name_template') % topic_name).lower()
-    #     LOG.debug('Index name => %s' % index_name)
-    #     index = {
-    #         'name': index_name,
-    #         'body': get_index_for_topic(
-    #             topic_name, geo_point, auto_ts
-    #         )
-    #     }
-    #     return index
+@pytest.mark.unit
+def test__get_es_index_from_autoconfig(AutoConfigSettings):
+    ACS = AutoConfigSettings
+    tenant = 'dev'
+    name = 'a-topic'
+    LOG.debug(json.dumps(ACS, indent=2))
+    index = index_handler.get_es_index_from_autoconfig(
+        ACS, name, tenant
+    )
+    LOG.debug(json.dumps(index, indent=2))
+    idx_tmp = ACS['index_name_template']
+    assert(first('$.name', index) == f'{tenant}.' + (idx_tmp % name))
+    geo_name = ACS['geo_point_name']
+    assert(first(f'$.body.mappings._doc.properties.{geo_name}', index) is not None)
 
 
+@pytest.mark.unit
 def test__get_index_for_topic(AutoConfigSettings):
     name = 'Person'
     geo_name = AutoConfigSettings.get('geo_point_name')
-    index = index_handler.get_index_for_topic(name, geo_name)
+    auto_ts = AutoConfigSettings.get('auto_timestamp')
+    index = index_handler.get_index_for_topic(name, geo_name, auto_ts)
     index = index.get('mappings', None)
-    assert(len(index) is 1)
-    assert(index.get('_doc') is not None)
-    assert(index.get('_doc').get('properties').get(geo_name) is not None)
-    assert(index.get('_doc').get('properties').get(geo_name).get('type') is 'geo_point')
-
-    # def get_index_for_topic(name, geo_point=None, auto_ts=None):
-    #     LOG.debug('Creating mappings for topic %s' % name)
-    #     mappings = {
-    #         # name: {
-    #         #     '_meta': {
-    #         #         'aet_subscribed_topics': [name]
-    #         #     }
-    #         # }
-    #         '_doc': {  # 7.x has made names illegal here...
-    #             '_meta': {
-    #                 'aet_subscribed_topics': [name]
-    #             }
-    #         }
-    #     }
-    #     if geo_point:
-    #         mappings['_doc']['_meta']['aet_geopoint'] = geo_point
-    #         mappings['_doc']['properties'] = {geo_point: {'type': 'geo_point'}}
-    #     if auto_ts:
-    #         mappings['_doc']['_meta']['aet_auto_ts'] = auto_ts
-    #     LOG.debug('created mappings: %s' % mappings)
-    #     return {'mappings': mappings}
+    assert(len(index) == 1)
+    assert(first('$._doc', index) is not None)
+    assert(first(f'$._doc.properties.{geo_name}.type', index) == 'geo_point')
+    assert(first(f'$._doc._meta.aet_auto_ts', index) == auto_ts)
 
 
-def test__register_es_index(es, index_path=None, index_file=None, index=None):
+@pytest.mark.unit
+def test__register_es_artifacts():
+    index = {'name': 'an_index'}
+    with pytest.raises(ValueError):
+        index_handler.register_es_artifacts()
+    assert(index_handler.register_es_artifacts(index=index, mock=True))
+    assert(index_handler.register_es_artifacts(
+        index_path='/code/tests/test_index/es6',
+        index_file='combined.json',
+        mock=True
+    ))
+
+
+@pytest.mark.integration
+def test__register_es_index():
+    # TODO add test
+    # Only ES functionality
     pass
-    # # TODO Add Kibana Index handling here...
-    # def register_es_index(es, index_path=None, index_file=None, index=None):
-    #     if not any([index_path, index_file, index]):
-    #         raise ValueError('Index cannot be created without an artifact')
-    #     if index_path and index_file:
-    #         LOG.debug('Loading index %s from file: %s' % (index_file, index_path))
-    #         index = index_from_file(index_path, index_file)
-    #     index_name = index.get('name')
-    #     if es.indices.exists(index=index.get('name')):
-    #         LOG.debug('Index %s already exists, skipping creation.' % index_name)
-    #     else:
-    #         LOG.info('Creating Index %s' % index.get('name'))
-    #         es.indices.create(
-    #             index=index_name,
-    #             body=index.get('body'),
-    #             params={'include_type_name': 'true'}  # json true...
-    #         )
 
 
 def test__make_kibana_index(name):

@@ -20,7 +20,7 @@
 
 import os
 
-from . import *  # get all test assets from test/__init__.py
+from . import *  # noqa # get all test assets from test/__init__.py
 from app.main import KAFKA_CONFIG
 
 # Test Suite contains both unit and integration tests
@@ -41,19 +41,6 @@ def test__get_config_alias():
     assert(args.get('bootstrap_servers') == os.environ.get('KAFKA_URL'))
     assert(args.get('kafka_url') is None)
     assert(KAFKA_CONFIG.get('kafka_url') is None)
-
-
-# @pytest.mark.unit
-# def test__get_index_for_topic(MockConsumerManager, AutoConfigSettings):
-#     name = 'Person'
-#     MockConsumerManager = MockConsumerManager()
-#     geo_name = AutoConfigSettings.get('geo_point_name')
-#     index = MockConsumerManager.get_index_for_topic(name, geo_name)
-#     index = index.get('mappings', None)
-#     assert(len(index) is 1)
-#     assert(index.get('_doc') is not None)
-#     assert(index.get('_doc').get('properties').get(geo_name) is not None)
-#     assert(index.get('_doc').get('properties').get(geo_name).get('type') is 'geo_point')
 
 
 @pytest.mark.unit

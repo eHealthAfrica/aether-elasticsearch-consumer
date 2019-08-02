@@ -20,7 +20,7 @@
 
 from datetime import datetime
 import json
-import os
+# import os
 import re
 import signal
 import sys
@@ -32,10 +32,10 @@ from aet.consumer import KafkaConsumer
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
-from jsonpath_ng.ext import parse as jsonpath_ng_ext_parse
 import spavro
 
 from . import config, healthcheck, index_handler
+from .jsonpath import CachedParser
 from .logger import LOG
 
 
@@ -48,36 +48,7 @@ CONN_RETRY_WAIT_TIME = int(CONSUMER_CONFIG.get('connect_retry_wait'))
 # Global Elasticsearch Connection
 es = None
 ES_VERSION = 0
-MT = True  # turn on the magic multi-tenant switch
-
-
-class CachedParser(object):
-    # jsonpath_ng.parse is a very time/compute expensive operation. The output is always
-    # the same for a given path. To reduce the number of times parse() is called, we cache
-    # all calls to jsonpath_ng here.
-
-    cache = {}
-
-    @staticmethod
-    def parse(path):
-        # we never need to call parse directly; use find()
-        if path not in CachedParser.cache.keys():
-            try:
-                CachedParser.cache[path] = jsonpath_ng_ext_parse(path)
-            except Exception as err:  # jsonpath-ng raises the base exception type
-                new_err = 'exception parsing path {path} : {error} '.format(
-                    path=path, error=err
-                )
-                LOG.error(new_err)
-                raise err
-
-        return CachedParser.cache[path]
-
-    @staticmethod
-    def find(path, obj):
-        # find is an optimized call with a potentially cached parse object.
-        parser = CachedParser.parse(path)
-        return parser.find(obj)
+MT = CONSUMER_CONFIG.get('multi-tenant', True)
 
 
 def connect():
@@ -141,7 +112,7 @@ def connect_kafka():
 
 class ESConsumerManager(object):
 
-    SUPPORTED_ES_SERIES = [5, 6, 7]
+    SUPPORTED_ES_SERIES = [6, 7]
 
     def __init__(self, es_instance):
         self.es = es_instance
@@ -152,25 +123,14 @@ class ESConsumerManager(object):
         signal.signal(signal.SIGTERM, self.stop)
         self.serve_healthcheck()
         self.es_version = self.get_es_version()
-        self.consumer_groups = {}  # index_name : consumer group
+        self.groups = {}  # index_name : consumer group
         auto_conf = CONSUMER_CONFIG.get('autoconfig_settings', {})
         self.autoconf_maintainer = AutoConfMaintainer(self, auto_conf)
         self.autoconf_maintainer.start()
-        self.load_indices_from_file()
 
     def serve_healthcheck(self):
         self.healthcheck = healthcheck.HealthcheckServer()
         self.healthcheck.start()
-
-    def load_indices_from_file(self):
-        index_path = CONSUMER_CONFIG.get('index_path')
-        if not index_path:
-            LOG.debug('No valid path for directory of index files')
-            return
-        if os.path.isdir(index_path):
-            index_files = os.listdir(index_path)
-            for index_file in index_files:
-                self.register_index(index_path=index_path, index_file=index_file)
 
     def get_es_version(self):
         info = self.es.info()
@@ -182,37 +142,26 @@ class ESConsumerManager(object):
         ES_VERSION = series
         return series
 
-    def register_index(self, index_path=None, index_file=None, index=None):
-        try:
-            index_handler.register_es_index(
-                self.es, index_path, index_file, index
-            )
-            self.start_consumer_group(
-                index.get('name'),
-                index.get('body')
-            )
-        except Exception as ese:
-            LOG.error('Error creating index in elasticsearch %s' %
-                      ([index_path, index_file, index],))
-            LOG.error(ese)
-            LOG.critical('Index not created: path:%s file:%s name:%s' %
-                         (index_path, index_file, index.get('name')))
+    def notify_topic(self, tenant, topic):
+        self.start_group(tenant)
+        LOG.debug(f'Adding {topic} to tenant {tenant}')
+        self.groups[tenant].add_topic(topic)
 
-    def start_consumer_group(self, index_name, index_body):
-        if self.es_version == 5:
-            self.consumer_groups[index_name] = ESConsumerGroupV5(
-                index_name, index_body)
-        else:
-            self.consumer_groups[index_name] = ESConsumerGroup(
-                index_name, index_body)
+    def start_group(self, tenant):
+        if not self.groups.get(tenant):
+            LOG.debug(f'Adding new service for tenant: {tenant}')
+            self.groups[tenant] = ESConsumerGroup(tenant)
+            # Give time for the thread to start before completing the operation
+            sleep(3)
 
-    def stop_group(self, index_name):
-        self.consumer_groups[index_name].stop()
+    def stop_group(self, tenant):
+        if self.groups.get(tenant):
+            self.groups[tenant].stop()
 
     def stop(self, *args, **kwargs):
         self.stopped = True
         self.healthcheck.stop()
-        for key in self.consumer_groups.keys():
+        for key in self.groups.keys():
             self.stop_group(key)
 
 
@@ -223,11 +172,7 @@ class AutoConfMaintainer(threading.Thread):
         self.parent = parent
         self.autoconf = autoconf
         self.configured_topics = []
-        self.kibana_index = None
         self.consumer = KafkaConsumer(**KAFKA_CONFIG.copy())
-        if self.autoconf.get('create_kibana_index', True):
-            kibana_index = self.autoconf.get('index_name_template')
-            self.kibana_index = kibana_index.split('%s')[0]
         super(AutoConfMaintainer, self).__init__()
 
     def run(self):
@@ -248,19 +193,22 @@ class AutoConfMaintainer(threading.Thread):
                     LOG.debug(
                         f'New topic: {topic}'
                     )
-                    index = index_handler.get_es_index_from_autoconfig(
-                        self.autoconf,
-                        topic,
-                        MT
-                    )
-                    self.parent.register_index(index=index)
+                    if MT:
+                        parts = topic.split('.')
+                        tenant = parts[0]
+                    else:
+                        tenant = CONSUMER_CONFIG.get('default_tenant')
+                    self.parent.notify_topic(tenant, topic)
                     self.configured_topics.append(topic)
 
             # Check running threads
-            try:
-                self.check_running_groups()
-            except Exception as err:
-                LOG.error(f'Error watching running threads: {err}')
+
+            # TODO RE-enable liveness check
+
+            # try:
+            #     self.check_running_groups()
+            # except Exception as err:
+            #     LOG.error(f'Error watching running threads: {err}')
             for x in range(10):
                 if self.parent.stopped:
                     return
@@ -284,112 +232,152 @@ class AutoConfMaintainer(threading.Thread):
 
 
 class ESConsumerGroup(object):
-    # Group of consumers (1 per topic) pushing to an ES index
+    # Consumer Group for a single tenant with a threaded consumer
 
-    def __init__(self, index_name, index_body):
-        self.name = index_name
-        self.consumers = {}
-        self.topics = {}  # configuration for each topic
-        LOG.debug('Consumer Group started for index: %s' % index_name)
-        self.intuit_sources(index_body)
+    def __init__(self, tenant):
+        LOG.debug(f'Consumer Group started for tenant: {tenant}')
+        self.tenant = tenant
+        self.consumer = ESConsumer(self.tenant)
+        self.consumer.start()
+        self.topics = []  # configuration for each topic
 
-    def intuit_sources(self, index_body):
-        for doc_type, instr in index_body.get('mappings', {}).items():
-            # There's only one type per mapping allowed in ES6
-            LOG.debug('Adding processor for %s' % doc_type)
-            LOG.debug('instructions: %s' % instr)
-            topics = instr.get('_meta').get('aet_subscribed_topics')
-            if not topics:
-                raise ValueError('No topics in aet_subscribed_topics section in index %s' %
-                                 self.name)
-            for topic in topics:
-                self.start_topic(topic, doc_type, instr)
+    # TODO Move to Consumer
 
-    def start_topic(self, topic_name, doc_type=None, instr=None, item_processor='V6'):
-        if item_processor == 'V5':
-            ItemProcessor = ESItemProcessorV5
-        else:
-            ItemProcessor = ESItemProcessor
-        LOG.debug(f'Group: {self.name} is starting topic: {topic_name}')
-        if instr is not None:  # can be {}
-            self.topics[topic_name] = (topic_name, doc_type, instr)
+    # def intuit_sources(self, index_body):
+    #     for doc_type, instr in index_body.get('mappings', {}).items():
+    #         # There's only one type per mapping allowed in ES6
+    #         LOG.debug('Adding processor for %s' % doc_type)
+    #         LOG.debug('instructions: %s' % instr)
+    #         topics = instr.get('_meta').get('aet_subscribed_topics')
+    #         if not topics:
+    #             raise ValueError('No topics in aet_subscribed_topics section in index %s' %
+    #                              self.name)
+    #         for topic in topics:
+    #             self.start_topic(topic, doc_type, instr)
+
+    def add_topic(self, topic):
+        LOG.debug(f'Tenant {self.tenant} caught new topic {topic}')
+        self.topics.append(topic)
+        self.consumer.add_topic(topic)
+        # index = index_handler.get_es_index_from_autoconfig(
+        #     self.autoconf,
+        #     topic_name,
+        #     tenant
+        # )
+
+    def is_alive(self):
         try:
-            topic_name, doc_type, instr = self.topics[topic_name]
+            return self.consumer.is_alive()
         except KeyError as ker:
-            LOG.error(ker)
-            raise ValueError(f'Topic {topic_name} on group {self.name} has no instructions.')
-        processor = ItemProcessor(topic_name, instr)
-        self.consumers[topic_name] = ESConsumer(self.name, processor, doc_type=doc_type)
-        self.consumers[topic_name].start()
-
-    def is_alive(self, topic_name):
-        try:
-            return self.consumers[topic_name].is_alive()
-        except KeyError as ker:
-            LOG.error(f'Error getting liveness on {self.name}:{topic_name}: {ker}')
+            LOG.error(f'Error getting liveness on {self.tenant}: {ker}')
             return False
 
     def monitor_threads(self):
-        LOG.debug(f'Checking threads on group: {self.name}')
-        for topic in self.consumers.keys():
-            if not self.is_alive(topic):
-                LOG.error(f'Topic {topic} on group {self.name} died. Restarting.')
-                self.start_topic(topic)
+        LOG.debug(f'Checking threads on group: {self.tenant}')
+        if not self.is_alive():
+            LOG.error(f'Tenant {self.tenant} died. Restarting.')
+            # self.start_topic(self.consumer)
 
     def stop(self):
-        for name in self.consumers.keys():
-            self.consumers[name].stop()
-
-
-class ESConsumerGroupV5(ESConsumerGroup):
-    # Same as Normal Group, just uses the V5 item processor
-    # and doc_type is None
-    def intuit_sources(self, index_body):
-        for name, instr in index_body.get('mappings', {}).items():
-            # There's only one type per mapping allowed in ES6.
-            # ES5 implementation is simpler.
-            LOG.debug('Adding processor for %s' % name)
-            LOG.debug('instructions: %s' % instr)
-            self.start_topic(name, None, instr, 'V5')
+        self.consumer.stop()
 
 
 class ESConsumer(threading.Thread):
-    # A single consumer subscribed to topic, pushing to an index
+    # A single consumer subscribed to all tenant topics
     # Runs as a daemon to avoid weird stops
     tenant_topic_re = re.compile(
-        r'''topic:(?P<tenant>[^\.]*)\.(?P<topic>.*)-partition:.*'''
+        r'''topic:(?P<tenant>[^\.]*)\.(?P<name>.*)-partition:.*'''
     )
+    kafka_group_template = '{tenant}.aether.es_consumer.group-{tenant}.v1'
 
-    def __init__(self, index, processor, has_group=True, doc_type=None):
+    def __init__(self, tenant):  # , index, processor, has_group=True, doc_type=None):
         # has_group = False only used for testing
-        self.processor = processor
-        self.doc_type = doc_type
-        self.es_type = processor.es_type
-        self.topic = processor.topic_name
-        if MT:
-            self.tenant = self.topic.split('.')[0]
-        self.index = index
+        LOG.debug(f'Initializing consumer for tenant: {tenant}')
+        self.tenant = tenant
+        self.group_name = ESConsumer.kafka_group_template.format(tenant=tenant)
+        self.schemas = {}
+        self.processors = {}
+        self.indices = {}
+        self.get_route = {}
+        self.doc_types = {}
+        # self.es_types = {}
+        self.topics = []
+        self.autoconf = CONSUMER_CONFIG.get('autoconfig_settings', {})
+        # self.processor = processor
+        # self.doc_type = doc_type
+        # self.es_type = processor.es_type
+        # self.topic = processor.topic_name
         self.consumer_timeout = 8000  # MS
         self.consumer_max_records = 1000
-        kafka_topic_template = CONSUMER_CONFIG.get(
-            'kafka_topic_template',
-            'elastic_{es_index_name}_{data_type}'
-        )
-        if MT:
-            idx_comp = kafka_topic_template.format(
-                es_index_name=self.index,
-                data_type=self.es_type)
-            self.group_name = f'{self.tenant}.{idx_comp}'
-        else:
-            self.group_name = kafka_topic_template.format(
-                es_index_name=self.index,
-                data_type=self.es_type)\
-                if has_group else None
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
         self.thread_id = 0
         super(ESConsumer, self).__init__()
+
+    def add_topic(self, topic):
+        LOG.debug(f'Adding {topic} to consumer thread: {self.tenant}')
+        self.topics.append(topic)
+        # get processor
+        try:
+            self.consumer.subscribe(self.topics)
+            LOG.debug(f'{self.tenant} subscribed on topics: {self.topics}')
+        except Exception as ke:
+            LOG.error('%s failed to subscibe to topic %s with error \n%s' %
+                      (self.tenant, topic, ke))
+            return False
+
+    def name_from_topic(self, topic):
+        return topic.lstrip(f'{self.tenant}.')
+
+    def update_topic(self, topic, schema):
+        # TODO Handle schema change
+        pass
+
+    def init_topic(self, topic, schema):
+        LOG.debug(f'{self.tenant} is starting topic: {topic}')
+
+        # TODO Handle schema add
+
+        # check if index exists
+        #     make index
+        index = index_handler.get_es_index_from_autoconfig(
+            self.autoconf,
+            self.tenant,
+            self.name_from_topic(topic)
+        )
+        self.indices[topic] = index
+        LOG.debug(f'{self.tenant}:{topic} | idx: {index}')
+        #     make alias
+
+        # update processor for type
+        doc_type, instr = list(index['body']['mappings'].items())[0]
+        # check if kibana index exists
+        #     make kibana index
+
+        # def intuit_sources(self, index_body):
+        #     for doc_type, instr in index_body.get('mappings', {}).items():
+        #         # There's only one type per mapping allowed in ES6
+        #         LOG.debug('Adding processor for %s' % doc_type)
+        #         LOG.debug('instructions: %s' % instr)
+        #         topics = instr.get('_meta').get('aet_subscribed_topics')
+        #         if not topics:
+        #             raise ValueError('No topics in aet_subscribed_topics section in index %s' %
+        #                              self.name)
+        #         for topic in topics:
+        #             self.start_topic(topic, doc_type, instr)
+
+        # if instr is not None:  # can be {}
+        #     self.topics[topic_name] = (topic_name, doc_type, instr)
+        # try:
+        #     topic_name, doc_type, instr = self.topics[topic_name]
+        # except KeyError as ker:
+        #     LOG.error(ker)
+        #     raise ValueError(f'Topic {topic_name} on group {self.name} has no instructions.')
+        self.doc_types[topic] = doc_type
+        self.processors[topic] = ESItemProcessor(topic, instr)
+        # self.consumers[topic_name] = ESConsumer(self.name, processor, doc_type=doc_type)
+        # self.consumers[topic_name].start()
 
     def connect(self):
         # have to get to force env lookups
@@ -399,28 +387,25 @@ class ESConsumer(threading.Thread):
         try:
             LOG.debug(
                 f'Kafka CONFIG [{self.thread_id}]'
-                f'[{self.index}:{self.group_name}]')
+                f'[{self.tenant}:{self.group_name}]')
             LOG.debug(json.dumps(args, indent=2))
             self.consumer = KafkaConsumer(**args)
-            self.consumer.subscribe([self.topic])
-            LOG.debug('Consumer %s subscribed on topic: %s @ group %s' %
-                      (self.index, self.topic, self.group_name))
             return True
         except Exception as ke:
-            LOG.error('%s failed to subscibe to topic %s with error \n%s' %
-                      (self.index, self.topic, ke))
+            LOG.error(
+                f'{self.tenant} failed to subscibe to kafka with error \n{ke}'
+            )
             return False
 
     def run(self):
         self.thread_id = threading.get_ident()
-        LOG.debug(f'Consumer [{self.thread_id}] running on {self.index} : {self.es_type}')
+        LOG.debug(f'Consumer [{self.thread_id}] running on {self.tenant}')
         while True:
             if self.connect():
                 break
             elif self.stopped:
                 return
             sleep(2)
-        last_schema = None
         while not self.stopped:
             new_messages = self.consumer.poll_and_deserialize(
                 timeout_ms=self.consumer_timeout,
@@ -428,105 +413,87 @@ class ESConsumer(threading.Thread):
             if not new_messages:
                 LOG.info(
                     f'Kafka IDLE [{self.thread_id}]'
-                    f'[{self.index}:{self.group_name}]')
+                    f'[{self.tenant}:{self.group_name}]')
                 sleep(5)
                 continue
             for parition_key, packages in new_messages.items():
-                if MT:
-                    m = ESConsumer.tenant_topic_re.search(parition_key)
-                    tenant = m.group('tenant')
-                    topic = m.group('topic')
-                    LOG.debug(f'read PK: {tenant}.{topic}')
+
+                m = ESConsumer.tenant_topic_re.search(parition_key)
+                tenant = m.group('tenant')
+                name = m.group('name')
+                topic = f'{tenant}.{name}'
+                LOG.debug(f'read PK: {topic}')
 
                 for package in packages:
                     schema = package.get('schema')
                     messages = package.get('messages')
                     LOG.debug('messages #%s' % len(messages))
-                    if schema != last_schema:
-                        LOG.info('Schema change on type %s' % self.es_type)
+                    if schema != self.schemas.get(topic):
+                        LOG.info('Schema change on type %s' % topic)
                         LOG.debug('schema: %s' % schema)
-                        self.processor.load_avro(schema)
-                        self.get_route = self.processor.create_route()
+                        self.init_topic(topic, schema)
+                        self.processors[topic].load_avro(schema)
+                        self.get_route[topic] = self.processors[topic].create_route()
                     else:
                         LOG.debug('Schema unchanged.')
                     count = 0
                     for x, msg in enumerate(messages):
-                        doc = self.processor.process(msg)
+                        doc = self.processors[topic].process(msg)
                         count = x
                         LOG.debug(
                             f'Kafka READ [{self.thread_id}]'
-                            f'[{self.index}:{self.group_name}]'
+                            f'[{topic}:{self.group_name}]'
                             f' -> {doc.get("id")}')
-                        self.submit(doc)
+                        self.submit(doc, topic)
                     LOG.debug(
                         f'Kafka COMMIT [{self.thread_id}]'
-                        f'[{self.index}:{self.group_name}]')
+                        f'[{topic}:{self.group_name}]')
                     self.consumer.commit_async(callback=self.report_commit)
-                    LOG.info('processed %s docs in index %s' % ((count + 1), self.es_type))
-                    last_schema = schema
+                    LOG.info('processed %s %s docs in tenant %s' %
+                             ((count + 1), name, self.tenant))
+                    self.schemas[topic] = schema
 
-        LOG.info('Shutting down consumer %s | %s' % (self.index, self.topic))
+        LOG.info(f'Shutting down consumer {self.tenant}')
         self.consumer.close(autocommit=True)
         return
 
     def report_commit(self, offsets, response):
         LOG.info(f'Kafka OFFSET CMT {offsets} -> {response}')
 
-    def submit(self, doc, route=None):
+    def submit(self, doc, topic, route=None):
+        index = self.indices[topic]['name']
+        doc_type = self.doc_types[topic]
         parent = doc.get('_parent', None)
         if parent:  # _parent field can only be in metadata apparently
             del doc['_parent']
         try:
-            if ES_VERSION > 5:
-                route = self.get_route(doc)
-                '''
-                if route:
-                    LOG.debug(doc)
-                    LOG.debug(route)
-                '''
-                es.create(
-                    index=self.index,
-                    id=doc.get('id'),
-                    routing=route,
-                    doc_type=self.doc_type,
-                    body=doc
-                )
-            else:
-                es.create(
-                    index=self.index,
-                    doc_type=self.es_type,
-                    id=doc.get('id'),
-                    parent=parent,
-                    body=doc
-                )
+            route = self.get_route[topic](doc)
+            es.create(
+                index=index,
+                id=doc.get('id'),
+                routing=route,
+                doc_type=doc_type,
+                body=doc
+            )
             LOG.debug(
                 f'ES CREATE-OK [{self.thread_id}]'
-                f'[{self.index}:{self.group_name}]'
+                f'[{index}:{self.group_name}]'
                 f' -> {doc.get("id")}')
 
         except (Exception, TransportError) as ese:
             LOG.info('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
-                if ES_VERSION > 5:
-                    route = self.get_route(doc)
-                    es.update(
-                        index=self.index,
-                        id=doc.get('id'),
-                        routing=route,
-                        doc_type=self.doc_type,
-                        body=doc
-                    )
-                else:
-                    es.update(
-                        index=self.index,
-                        doc_type=self.es_type,
-                        id=doc.get('id'),
-                        parent=parent,
-                        body=doc
-                    )
+                route = self.get_route(doc)
+                es.update(
+                    index=index,
+                    id=doc.get('id'),
+                    routing=route,
+                    doc_type=self.doc_type,
+                    body=doc
+                )
                 LOG.debug(
                     f'ES UPDATE-OK [{self.thread_id}]'
-                    f'[{self.index}:{self.group_name}]'
+                    f'[{index}:{self.group_name}]'
                     f' -> {doc.get("id")}')
             except TransportError:
                 LOG.debug('conflict exists, ignoring document with id %s' %
@@ -702,7 +669,7 @@ class ESItemProcessor(object):
     def find_path_in_schema(self, schema, test, previous_path='$'):
         # Searches a schema document for matching instances of an element.
         # Will look in nested objects. Aggregates matching paths.
-        LOG.debug(f'search: {test}:{previous_path}')
+        # LOG.debug(f'search: {test}:{previous_path}')
         matches = []
         if isinstance(schema, list):
             for _dict in schema:
@@ -731,50 +698,6 @@ class ESItemProcessor(object):
                 self.find_path_in_schema(schema.get('fields'), test, previous_path)
             )
         return [m for m in matches if m]
-
-
-class ESItemProcessorV5(ESItemProcessor):
-
-    def load(self):
-        self.pipeline = []
-        meta = self.type_instructions.get('_meta')
-        if not meta:
-            LOG.debug('type: %s has no meta arguments' % (self.es_type))
-            return
-        for key, value in meta.items():
-            LOG.debug('Type %s has meta type: %s' % (self.es_type, key))
-            if key == 'aet_parent_field':
-                cmd = {
-                    'function': '_add_parent',
-                    'field_name': value
-                }
-                self.pipeline.append(cmd)
-                LOG.debug('Added %s to pipeline' % cmd)
-            elif key == 'aet_geopoint':
-                cmd = {
-                    'function': '_add_geopoint',
-                    'field_name': value
-                }
-                try:
-                    cmd.update(self._find_geopoints())
-                    self.pipeline.append(cmd)
-                    LOG.debug('Added %s to pipeline' % cmd)
-                except ValueError as ver:
-                    LOG.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
-            elif key.startswith('aet'):
-                LOG.debug('aet _meta keyword %s in type %s generates no command'
-                          % (key, self.es_type))
-            else:
-                LOG.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
-        LOG.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
-
-    def _add_parent(self, doc, field_name=None, **kwargs):
-        try:
-            doc['_parent'] = self._get_doc_field(doc, field_name)
-        except Exception as e:
-            LOG.error('Could not add parent to doc type %s. Error: %s' %
-                      (self.es_type, e))
-        return doc
 
 
 class ElasticSearchConsumer(object):

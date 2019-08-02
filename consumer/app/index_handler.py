@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
+# Copyright (C) 2019 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
 # regarding copyright ownership.
@@ -34,8 +34,8 @@ def handle_http(req):
 
 def get_es_index_from_autoconfig(
     autoconf,
-    topic_name,
-    MT=True
+    name,
+    tenant
 ):
     geo_point = (
         autoconf.get('geo_point_name', None)
@@ -43,16 +43,9 @@ def get_es_index_from_autoconfig(
         else None
     )
     auto_ts = autoconf.get('auto_timestamp', None)
-    if MT:
-        tenant = topic_name.split('.')[0]
-        _name = '.'.join(topic_name.split('.')[1:])
-        index_name = (
-            tenant +
-            '.' +
-            autoconf.get('index_name_template') % _name).lower()
-    else:
-        index_name = (autoconf.get('index_name_template') % topic_name).lower()
-    LOG.debug('Index name => %s' % index_name)
+    index_name = (autoconf.get('index_name_template') % name).lower()
+    topic_name = f'{tenant}.{name}'
+    index_name = f'{tenant}.{index_name}'.lower()
     index = {
         'name': index_name,
         'body': get_index_for_topic(
@@ -86,51 +79,67 @@ def get_index_for_topic(name, geo_point=None, auto_ts=None):
 
 
 # TODO Add Kibana Index handling here...
-def register_es_index(es, index_path=None, index_file=None, index=None):
+def register_es_artifacts(
+    es=None,
+    index_path=None,
+    index_file=None,
+    index=None,
+    mock=False
+):
     if not any([index_path, index_file, index]):
         raise ValueError('Index cannot be created without an artifact')
     if index_path and index_file:
         LOG.debug('Loading index %s from file: %s' % (index_file, index_path))
         index = index_from_file(index_path, index_file)
+    if mock:
+        return True
+    register_es_index(es, index)
+
+
+def register_es_index(es, index):
     index_name = index.get('name')
     if es.indices.exists(index=index.get('name')):
         LOG.debug('Index %s already exists, skipping creation.' % index_name)
+        return False
     else:
+        # TODO Add alias
         LOG.info('Creating Index %s' % index.get('name'))
         es.indices.create(
             index=index_name,
             body=index.get('body'),
             params={'include_type_name': 'true'}  # json true...
         )
+        return True
 
 
-def make_kibana_index(name):
+def make_kibana_index(tenant, name, schema):
+    kibana_ts = consumer_config.get('kibana_auto_timestamp', None)
+    data = {
+        'attributes': {
+            'title': name,
+            'timeFieldName': kibana_ts
+        }
+    }
+    data['attributes']['timeFieldName'] = kibana_ts if kibana_ts else None
+    # TODO Add schema handling
+    return data
+
+
+def register_kibana_index(name, index, tenant):
     # throws HTTPError on failure
     host = consumer_config.get('kibana_url', None)
     if not host:
         LOG.debug('No kibana_url in config for default index creation.')
         return
-    pattern = f'{name}*'
+    pattern = f'{name}'
     index_url = f'{host}/api/saved_objects/index-pattern/{pattern}'
-    headers = {'kbn-xsrf': 'meaningless-but-required'}
-    kibana_ts = consumer_config.get('kibana_auto_timestamp', None)
-    data = {
-        'attributes': {
-            'title': pattern,
-            'timeFieldName': kibana_ts
-        }
+    headers = {
+        'x-oauth-realm': tenant,  # tenant to create on behalf of
+        'kbn-xsrf': 'f'  # meaningless but required
     }
-    data['attributes']['timeFieldName'] = kibana_ts if kibana_ts else None
-    LOG.debug(f'registering default kibana index: {data}')
-    # register the base index
-    handle_http(requests.post(index_url, headers=headers, json=data))
-    default_url = f'{host}/api/kibana/settings/defaultIndex'
-    data = {
-        'value': pattern
-    }
-    # make this index the default
-    handle_http(requests.post(default_url, headers=headers, json=data))
-    LOG.debug(f'Created default index {pattern} on host {host}')
+    LOG.debug(f'registering kibana index: {index}')
+    # register the index
+    handle_http(requests.post(index_url, headers=headers, json=index))
 
 
 def index_from_file(index_path, index_file):
