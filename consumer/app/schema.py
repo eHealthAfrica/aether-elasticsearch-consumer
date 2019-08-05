@@ -8,6 +8,7 @@ LOG = get_logger('SCHEMA')
 class Node:
 
     doc: str
+    default: str
     name: str
     type: Union[str, List[Any]]
     namespace: str
