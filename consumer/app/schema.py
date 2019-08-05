@@ -31,7 +31,14 @@ class Node:
         return name
 
     def parse(self, source):
-        fields = ['doc', 'name', 'namespace', 'default', '__extended_type', '__lookup']
+        fields = [
+            'doc',
+            'name',
+            'namespace',
+            'default',
+            '__extended_type',
+            '__lookup'
+        ]
         fields = {f: self.__swap_name(f) for f in fields}
         for field, alias in fields.items():
             if source.get(alias):
@@ -44,10 +51,14 @@ class Node:
             name = f.get('name')
             grand_children = [i for i in f.get('type', []) if isinstance(i, dict)]
             if not grand_children:
+                if not name:  # array values, ignore them
+                    continue
                 self.children[name] = Node(f)
             else:
                 for gc in grand_children:
                     name = gc.get('name')
+                    if not name:  # array values, ignore them
+                        continue
                     self.children[name] = Node(gc)
 
     def iter_children(self, parent=''):
@@ -65,12 +76,15 @@ class Node:
                 return True
         for condition in conditions.get('match_attr', []):
             for k, v in condition.items():
-                if getattr(self, k) == v:
+                if getattr(self, k, None) == v:
                     return True
         return False
 
     def find_children(self, conditions, parent=''):
-        lineage = f'{parent}.{self.name}' if parent else self.name
+        try:
+            lineage = f'{parent}.{self.name}' if parent else self.name
+        except AttributeError:
+            raise ValueError(f'{parent} has unnamed child!')
         if self.test_node(conditions):
             yield lineage
         if self.has_children:
@@ -90,6 +104,8 @@ class Node:
                     return _next.get_node('.'.join(path_parts[1:]))
                 except KeyError:
                     pass
-        msg = f'No node found, deadend @ path {path}'
-        LOG.error(msg)
-        raise ValueError(msg)
+        raise ValueError(f'No node found, deadend @ path {path}')
+
+    def collect_matching(self, conditions):
+        for path in self.find_children(conditions):
+            yield (path, self.get_node(path))
