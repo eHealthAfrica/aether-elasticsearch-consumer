@@ -81,10 +81,7 @@ class Node:
         return False
 
     def find_children(self, conditions, parent=''):
-        try:
-            lineage = f'{parent}.{self.name}' if parent else self.name
-        except AttributeError:
-            raise ValueError(f'{parent} has unnamed child!')
+        lineage = f'{parent}.{self.name}' if parent else self.name
         if self.test_node(conditions):
             yield lineage
         if self.has_children:
