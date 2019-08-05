@@ -22,8 +22,9 @@ import json
 import requests
 
 from .import config
-from .logger import LOG
+from .logger import get_logger
 
+LOG = get_logger('INDEX')
 consumer_config = config.get_consumer_config()
 kafka_config = config.get_kafka_config()
 
@@ -34,8 +35,8 @@ def handle_http(req):
 
 def get_es_index_from_autoconfig(
     autoconf,
-    name,
-    tenant
+    name=None,
+    tenant=None
 ):
     geo_point = (
         autoconf.get('geo_point_name', None)

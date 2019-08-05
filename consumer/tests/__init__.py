@@ -21,7 +21,9 @@
 import json
 import pytest
 import os
-from app.main import ESConsumerManager, connect_es, ESItemProcessor  # NOQA
+from app.main import ESConsumerManager
+from app.connection_handler import ESConnectionManager
+from app.processor import ESItemProcessor
 
 # Some of the fixtures are non-compliant so we don't QA this file.
 # flake8: noqa
@@ -47,9 +49,8 @@ class _MockConsumerManager(ESConsumerManager):
 @pytest.mark.integration
 @pytest.fixture(scope='session')
 def ElasticSearch():
-    global es
-    es = connect_es()
-    return es
+    es = ESConnectionManager()
+    return es.get_connection()
 
 
 @pytest.mark.integration
@@ -319,6 +320,7 @@ DOC_SCHEMA = {
 
 
 DOC_SCHEMA2 = {
+    'name': 'rapidtest',
     'doc': 'Rapid Test - Start (id: rapidtest_start, version: 2019012807)',
     'fields': [
         {

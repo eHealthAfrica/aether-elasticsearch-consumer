@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
+# Copyright (C) 2019 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
 # regarding copyright ownership.
@@ -18,17 +18,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from time import sleep
-from app.main import ESConsumerManager
 
-if __name__ == '__main__':
-    manager = ESConsumerManager()
-    while True:
-        try:
-            if not manager.stopped:
-                for x in range(10):
-                    sleep(1)
-            else:
-                break
-        except KeyboardInterrupt:
-            break
+def replace_nested(_dict, keys, value):
+    if len(keys) > 1:
+        _dict[keys[0]] = replace_nested(_dict[keys[0]], keys[1:], value)
+    else:
+        _dict[keys[0]] = value
+    return _dict

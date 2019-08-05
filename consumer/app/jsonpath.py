@@ -19,7 +19,9 @@
 # under the License.
 
 from eha_jsonpath import parse
-from .logger import LOG
+from .logger import get_logger
+
+LOG = get_logger('JSON')
 
 
 class CachedParser(object):

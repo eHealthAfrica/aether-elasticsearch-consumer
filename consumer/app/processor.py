@@ -18,15 +18,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import datetime
+from datetime import datetime
 import json
-from jsonpath import CachedParser
 import spavro
 
 from .config import get_consumer_config
-from .logger import LOG
+from .jsonpath import CachedParser
+from .logger import get_logger
 
-
+LOG = get_logger('PROCESS')
 CONSUMER_CONFIG = get_consumer_config()
 
 

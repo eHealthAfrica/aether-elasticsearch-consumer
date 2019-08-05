@@ -24,10 +24,13 @@ import requests
 import responses
 
 from app import index_handler
-from app.logger import LOG
-from app.jsonpath import first, find
+from app.logger import get_logger
+from app.jsonpath import first
 
 from . import *  # noqa  # fixtures
+
+
+LOG = get_logger('TEST-IDX')
 
 
 @responses.activate
@@ -57,7 +60,8 @@ def test__get_es_index_from_autoconfig(AutoConfigSettings):
     idx_tmp = ACS['index_name_template']
     assert(first('$.name', index) == f'{tenant}.' + (idx_tmp % name))
     geo_name = ACS['geo_point_name']
-    assert(first(f'$.body.mappings._doc.properties.{geo_name}', index) is not None)
+    assert(first(
+        f'$.body.mappings._doc.properties.{geo_name}', index) is not None)
 
 
 @pytest.mark.unit

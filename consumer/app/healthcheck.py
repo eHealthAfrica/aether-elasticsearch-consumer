@@ -23,10 +23,12 @@ from socketserver import TCPServer
 import sys
 import threading
 
-from . import config, logger
+from . import config
+from .logger import get_logger
 
 consumer_config = config.get_consumer_config()
-LOG = logger.LOG
+
+LOG = get_logger('HEALTH')
 
 
 class HealthcheckHandler(http.server.BaseHTTPRequestHandler):
