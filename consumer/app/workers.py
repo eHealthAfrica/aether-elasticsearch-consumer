@@ -98,13 +98,15 @@ class ESWorker(threading.Thread):
 
         # TODO Handle schema change ^^
 
-        # check if index exists
-        #     make index
         index = index_handler.get_es_index_from_autoconfig(
             self.autoconf,
             name=self.name_from_topic(topic),
             tenant=self.tenant
         )
+        # check if index exists
+        #     make index
+        for es_instance in self.es_instances[topic]:
+            index_handler.register_es_index(es_instance, index)
         self.indices[topic] = index
         LOG.debug(f'{self.tenant}:{topic} | idx: {index}')
         #     make alias

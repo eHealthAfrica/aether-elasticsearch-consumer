@@ -23,6 +23,7 @@ import requests
 
 from .import config
 from .logger import get_logger
+from .schema import Node
 
 LOG = get_logger('INDEX')
 consumer_config = config.get_consumer_config()
@@ -79,22 +80,22 @@ def get_index_for_topic(name, geo_point=None, auto_ts=None):
     return {'mappings': mappings}
 
 
-# TODO Add Kibana Index handling here...
-def register_es_artifacts(
-    es=None,
-    index_path=None,
-    index_file=None,
-    index=None,
-    mock=False
-):
-    if not any([index_path, index_file, index]):
-        raise ValueError('Index cannot be created without an artifact')
-    if index_path and index_file:
-        LOG.debug('Loading index %s from file: %s' % (index_file, index_path))
-        index = index_from_file(index_path, index_file)
-    if mock:
-        return True
-    register_es_index(es, index)
+# # TODO Add Kibana Index handling here...
+# def register_es_artifacts(
+#     es=None,
+#     index_path=None,
+#     index_file=None,
+#     index=None,
+#     mock=False
+# ):
+#     if not any([index_path, index_file, index]):
+#         raise ValueError('Index cannot be created without an artifact')
+#     if index_path and index_file:
+#         LOG.debug('Loading index %s from file: %s' % (index_file, index_path))
+#         index = index_from_file(index_path, index_file)
+#     if mock:
+#         return True
+#     register_es_index(es, index)
 
 
 def register_es_index(es, index):
@@ -122,8 +123,31 @@ def make_kibana_index(tenant, name, schema):
         }
     }
     data['attributes']['timeFieldName'] = kibana_ts if kibana_ts else None
-    # TODO Add schema handling
     return data
+
+
+def _format_lookups(schema, default='Other'):
+    schema = Node(schema)
+    matching = schema.collect_matching(
+        {'has_attr': ['__lookup']}
+    )
+    if not matching:
+        return {}
+    return {
+        key: _format_single_lookup(node, default)
+        for key, node in matching
+    }
+
+
+def _format_single_lookup(node, default='Other'):
+    lookup = node.__lookup
+    definition = {
+        'id': 'static_lookup',
+        'params': {'lookupEntries': [
+            [{'value': pair['label'], 'key': pair['value']} for pair in lookup]
+        ], 'unknownKeyValue': default}
+    }
+    return definition
 
 
 def register_kibana_index(name, index, tenant):
@@ -151,10 +175,6 @@ def index_from_file(index_path, index_file):
             'name': index_name,
             'body': json.load(f)
         }
-
-
-def static_from_lookups(schema, fieldname, default='Other'):
-    pass
 
 
 def add_alias():
