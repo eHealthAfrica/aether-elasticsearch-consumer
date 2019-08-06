@@ -58,6 +58,7 @@ class ESWorker(threading.Thread):
         self.schemas = {}
         self.processors = {}
         self.es_instances = {}
+        self.kibana_instances = {}
         self.indices = {}
         self.get_route = {}
         self.doc_types = {}
@@ -110,9 +111,9 @@ class ESWorker(threading.Thread):
             name=self.name_from_topic(topic),
             tenant=self.tenant
         )
-        schema: Node = Node(schema)
+        node: Node = Node(schema)
         alias = index_handler.get_alias_from_namespace(
-            self.tenant, schema.namespace
+            self.tenant, node.namespace
         )
         # Try to add the indices / ES alias
         updated = any([
@@ -125,13 +126,13 @@ class ESWorker(threading.Thread):
         )
         # Register Kibana index if a new ES index was created
         if updated:
-            k_index = index_handler.make_kibana_index(alias, schema)
+            kibana_index = index_handler.make_kibana_index(alias, node)
             conn: KibanaConnection
             for conn in self.kibana_instances[topic]:
                 try:
-                    index_handler.register_es_index(
+                    index_handler.register_kibana_index(
                         alias,
-                        k_index,
+                        kibana_index,
                         self.tenant,
                         conn
                     )

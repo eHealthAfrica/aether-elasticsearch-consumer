@@ -175,7 +175,7 @@ def _format_single_lookup(node: Node, default='Other'):
 def register_kibana_index(name, index, tenant, conn: KibanaConnection):
     # throws HTTPError on failure
     pattern = f'{name}'
-    index_url = f'api/saved_objects/index-pattern/{pattern}'
+    index_url = f'/api/saved_objects/index-pattern/{pattern}'
     handle_http(
         conn.request(tenant, 'post', index_url, json=index)
     )

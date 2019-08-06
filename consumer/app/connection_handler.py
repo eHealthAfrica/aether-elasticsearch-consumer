@@ -146,22 +146,22 @@ class KibanaConnection:
     '''Kibana Connection Helper Class'''
     def __init__(self, config: KibanaConfig):
         self.config = config
-        self.session = requests.Session()
         self.base_url = self.config.kibana_url
 
     def _make_session(self):
-        if config.kibana_user and config.kibana_password:
-            self.session.auth = (
-                config.kibana_user, config.kibana_password
+        session = requests.Session()
+        if self.config.kibana_user and self.config.kibana_password:
+            session.auth = (
+                self.config.kibana_user, self.config.kibana_password
             )
+        return session
 
     def _get_headers(self, tenant=None):
         if self.config.kibana_header_template:
             return json.loads(
-                self.config.kibana_header_template.format(
-                    tenant=tenant
-                )
+                (self.config.kibana_header_template % tenant)
             )
+
         elif self.config.kibana_headers:
             return self.config.kibana_headers
         return {}
@@ -170,8 +170,11 @@ class KibanaConnection:
         # options = copy(kwargs)
         session = self._make_session()
         full_url = f'{self.base_url}{url}'
-        headers = self._get_headers(tenant)
-        return session.request(method, full_url, headers=headers, **kwargs)
+        passed_headers = kwargs.get('headers', {})
+        passed_headers.update(self._get_headers(tenant))
+        kwargs['headers'] = passed_headers
+        LOG.debug([method, full_url, kwargs])
+        return session.request(method, full_url, **kwargs)
 
 
 class KibanaConnectionManager:
@@ -186,11 +189,8 @@ class KibanaConnectionManager:
 
     def _load_default_config(self):
         default = KibanaConfig(
-            CONSUMER_CONFIG.get('kibana_url'),
-            kibana_header_template='''{
-                'x-oauth-realm': {tenant},
-                'kbn-xsrf': 'f'
-            }'''
+            kibana_url=CONSUMER_CONFIG.get('kibana_url'),
+            kibana_header_template='''{"x-oauth-realm": "%s","kbn-xsrf": "f"}'''
         )
         self.add_connection(default)
 
