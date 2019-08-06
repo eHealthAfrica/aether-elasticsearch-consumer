@@ -24,6 +24,7 @@ import os
 from app.main import ESConsumerManager
 from app.connection_handler import ESConnectionManager
 from app.processor import ESItemProcessor
+from app.schema import Node
 
 # Some of the fixtures are non-compliant so we don't QA this file.
 # flake8: noqa
@@ -76,8 +77,20 @@ def AutoConfigSettings():
         return obj.get('autoconfig_settings')
 
 
+@pytest.mark.unit
+@pytest.fixture(scope='module')
+def SimpleSchema():
+    return Node(DOC_SCHEMA2)  # noqa
+
+
+@pytest.mark.unit
+@pytest.fixture(scope='module')
+def ComplexSchema():
+    return Node(ANNOTATED_SCHEMA)  # noqa
+
+
 SAMPLE_FIELD_LOOKUP = {
-    'occupant_gender': {
+    'operational_status': {
         'id': 'static_lookup',
         'params': {
             'lookupEntries': [
@@ -94,7 +107,7 @@ SAMPLE_FIELD_LOOKUP = {
                     'key': 'unknown'
                 }
             ],
-            'unknownKeyValue': 'N/A'
+            'unknownKeyValue': 'Other'
         }
     }
 }

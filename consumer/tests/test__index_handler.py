@@ -77,17 +77,17 @@ def test__get_index_for_topic(AutoConfigSettings):
     assert(first(f'$._doc._meta.aet_auto_ts', index) == auto_ts)
 
 
-@pytest.mark.unit
-def test__register_es_artifacts():
-    index = {'name': 'an_index'}
-    with pytest.raises(ValueError):
-        index_handler.register_es_artifacts()
-    assert(index_handler.register_es_artifacts(index=index, mock=True))
-    assert(index_handler.register_es_artifacts(
-        index_path='/code/tests/test_index/es6',
-        index_file='combined.json',
-        mock=True
-    ))
+# @pytest.mark.unit
+# def test__register_es_artifacts():
+#     index = {'name': 'an_index'}
+#     with pytest.raises(ValueError):
+#         index_handler.register_es_artifacts()
+#     assert(index_handler.register_es_artifacts(index=index, mock=True))
+#     assert(index_handler.register_es_artifacts(
+#         index_path='/code/tests/test_index/es6',
+#         index_file='combined.json',
+#         mock=True
+#     ))
 
 
 @pytest.mark.integration
@@ -126,6 +126,29 @@ def test__make_kibana_index(name):
     #     # make this index the default
     #     handle_http(requests.post(default_url, headers=headers, json=data))
     #     LOG.debug(f'Created default index {pattern} on host {host}')
+
+
+@pytest.mark.unit
+def test___format_lookups():
+    formatted = index_handler._format_lookups(ANNOTATED_SCHEMA)
+    assert(
+        json.dumps(
+            formatted.get(
+                'Gth_Hs_Test_2.operational_status'), sort_keys=True) ==
+        json.dumps(
+            SAMPLE_FIELD_LOOKUP.get(
+                'operational_status'), sort_keys=True)
+    )
+
+
+@pytest.mark.unit
+def test___format_single_lookup(ComplexSchema):
+    matching = ComplexSchema.get_node('Gth_Hs_Test_2.operational_status')
+    res = index_handler._format_single_lookup(matching)
+    assert(
+        json.dumps(res, sort_keys=True) ==
+        json.dumps(SAMPLE_FIELD_LOOKUP.get('operational_status'), sort_keys=True)
+    )
 
 
 def test__index_from_file(index_path, index_file):

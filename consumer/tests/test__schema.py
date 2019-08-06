@@ -20,24 +20,11 @@
 
 
 import pytest
-from app.schema import Node
 
 from app.logger import get_logger
 LOG = get_logger('TEST-SCH')
 
 from . import *  # noqa  # fixtures
-
-
-@pytest.mark.unit
-@pytest.fixture(scope='module')
-def SimpleSchema():
-    return Node(DOC_SCHEMA2)  # noqa
-
-
-@pytest.mark.unit
-@pytest.fixture(scope='module')
-def ComplexSchema():
-    return Node(ANNOTATED_SCHEMA)  # noqa
 
 
 @pytest.mark.unit

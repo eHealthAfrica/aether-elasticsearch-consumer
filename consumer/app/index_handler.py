@@ -144,7 +144,7 @@ def _format_single_lookup(node, default='Other'):
     definition = {
         'id': 'static_lookup',
         'params': {'lookupEntries': [
-            [{'value': pair['label'], 'key': pair['value']} for pair in lookup]
+            {'value': pair['label'], 'key': pair['value']} for pair in lookup
         ], 'unknownKeyValue': default}
     }
     return definition
