@@ -60,8 +60,8 @@ def test__get_field_by_name():
 @pytest.mark.unit
 def test__process_geo_field():
     to_test = [
-        [TYPE_INSTRUCTIONS, DOC_SCHEMA, SAMPLE_DOC],
-        [TYPE_INSTRUCTIONS, DOC_SCHEMA2, SAMPLE_DOC2]
+        [TYPE_INSTRUCTIONS, AUTOGEN_SCHEMA, SAMPLE_DOC],
+        [TYPE_INSTRUCTIONS, SIMPLE_SCHEMA, SAMPLE_DOC2]
     ]
     for instr, schema, doc in to_test:
         processor = ESItemProcessor('test', instr)

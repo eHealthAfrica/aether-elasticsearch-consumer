@@ -18,14 +18,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# from copy import copy
 from dataclasses import dataclass
+import json
 import sys
-from typing import List
+from typing import Any, List, Mapping
 from urllib3.exceptions import NewConnectionError
 
 # from aet.consumer import KafkaConsumer
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
+import requests
 
 from . import config, utils
 from .logger import get_logger
@@ -129,65 +132,79 @@ class ESConnectionManager:
             return False
 
 
+@dataclass
+class KibanaConfig:
+    '''Class an elasticsearch configuration'''
+    kibana_url: str
+    kibana_user: str = None
+    kibana_password: str = None
+    kibana_headers: Mapping[str, Any] = None
+    kibana_header_template: str = None
+
+
+class KibanaConnection:
+    '''Kibana Connection Helper Class'''
+    def __init__(self, config: KibanaConfig):
+        self.config = config
+        self.session = requests.Session()
+        self.base_url = self.config.kibana_url
+
+    def _make_session(self):
+        if config.kibana_user and config.kibana_password:
+            self.session.auth = (
+                config.kibana_user, config.kibana_password
+            )
+
+    def _get_headers(self, tenant=None):
+        if self.config.kibana_header_template:
+            return json.loads(
+                self.config.kibana_header_template.format(
+                    tenant=tenant
+                )
+            )
+        elif self.config.kibana_headers:
+            return self.config.kibana_headers
+        return {}
+
+    def request(self, tenant, method, url, **kwargs):
+        # options = copy(kwargs)
+        session = self._make_session()
+        full_url = f'{self.base_url}{url}'
+        headers = self._get_headers(tenant)
+        return session.request(method, full_url, headers=headers, **kwargs)
+
+
 class KibanaConnectionManager:
     # Collection of requests sessions pointing at Kibana instances
-    pass
 
+    DEFAULT_TENANT = ':all'
 
-# def connect():
-#     connect_kafka()
-#     connect_es()
+    def __init__(self, add_default=True):
+        self.conn = {KibanaConnectionManager.DEFAULT_TENANT: {}}
+        if add_default:
+            self._load_default_config()
 
+    def _load_default_config(self):
+        default = KibanaConfig(
+            CONSUMER_CONFIG.get('kibana_url'),
+            kibana_header_template='''{
+                'x-oauth-realm': {tenant},
+                'kbn-xsrf': 'f'
+            }'''
+        )
+        self.add_connection(default)
 
-# def connect_es():
-#     for x in range(CONN_RETRY):
-#         try:
-#             global es
-#             # default connection on localhost
-#             es_urls = [CONSUMER_CONFIG.get('elasticsearch_url')]
-#             LOG.debug('Connecting to ES on %s' % (es_urls,))
+    def add_connection(
+        self,
+        config: KibanaConfig,
+        tenant=DEFAULT_TENANT,
+        instance='default'
+    ):
+        conn = KibanaConnection(config)
+        utils.replace_nested(self.conn, [tenant, instance], conn)
 
-#             if CONSUMER_CONFIG.get('elasticsearch_user'):
-#                 http_auth = [
-#                     CONSUMER_CONFIG.get('elasticsearch_user'),
-#                     CONSUMER_CONFIG.get('elasticsearch_password')
-#                 ]
-#             else:
-#                 http_auth = None
-
-#             es_connection_info = {
-#                 'port': int(CONSUMER_CONFIG.get('elasticsearch_port', 0)),
-#                 'http_auth': http_auth
-#             }
-#             es_connection_info = {k: v for k, v in es_connection_info.items() if v}
-#             es_connection_info['sniff_on_start'] = False
-
-#             es = Elasticsearch(
-#                 es_urls, **es_connection_info)
-#             es_info = es.info()
-#             LOG.debug('ES Instance info: %s' % (es_info,))
-#             LOG.debug(es_info.get('version').get('number'))
-#             return es
-#         except (NewConnectionError, ConnectionRefusedError, ESConnectionError) as nce:
-#             LOG.debug('Could not connect to Elasticsearch Instance: nce')
-#             LOG.debug(nce)
-#             sleep(CONN_RETRY_WAIT_TIME)
-
-#     LOG.critical('Failed to connect to ElasticSearch after %s retries' % CONN_RETRY)
-#     sys.exit(1)  # Kill consumer with error
-
-
-# def connect_kafka():
-#     for x in range(CONN_RETRY):
-#         try:
-#             # have to get to force env lookups
-#             args = KAFKA_CONFIG.copy()
-#             consumer = KafkaConsumer(**args)
-#             consumer.topics()
-#             LOG.debug('Connected to Kafka...')
-#             return
-#         except Exception as ke:
-#             LOG.debug('Could not connect to Kafka: %s' % (ke))
-#             sleep(CONN_RETRY_WAIT_TIME)
-#     LOG.critical('Failed to connect to Kafka after %s retries' % CONN_RETRY)
-#     sys.exit(1)  # Kill consumer with error
+    def get_connection(self, tenant=DEFAULT_TENANT, instance='default'):
+        conn = self.conn.get(tenant, {}).get(instance)
+        if not conn:
+            raise ValueError(f'No matching instance {tenant}:{instance}')
+        return conn

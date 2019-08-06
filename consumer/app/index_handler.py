@@ -19,11 +19,12 @@
 # under the License.
 
 import json
-import requests
 
 from .import config
 from .logger import get_logger
 from .schema import Node
+
+from .connection_handler import KibanaConnection
 
 LOG = get_logger('INDEX')
 consumer_config = config.get_consumer_config()
@@ -80,66 +81,87 @@ def get_index_for_topic(name, geo_point=None, auto_ts=None):
     return {'mappings': mappings}
 
 
-# # TODO Add Kibana Index handling here...
-# def register_es_artifacts(
-#     es=None,
-#     index_path=None,
-#     index_file=None,
-#     index=None,
-#     mock=False
-# ):
-#     if not any([index_path, index_file, index]):
-#         raise ValueError('Index cannot be created without an artifact')
-#     if index_path and index_file:
-#         LOG.debug('Loading index %s from file: %s' % (index_file, index_path))
-#         index = index_from_file(index_path, index_file)
-#     if mock:
-#         return True
-#     register_es_index(es, index)
-
-
-def register_es_index(es, index):
+def register_es_index(es, index, alias=None):
     index_name = index.get('name')
     if es.indices.exists(index=index.get('name')):
         LOG.debug('Index %s already exists, skipping creation.' % index_name)
         return False
     else:
-        # TODO Add alias
         LOG.info('Creating Index %s' % index.get('name'))
         es.indices.create(
             index=index_name,
             body=index.get('body'),
             params={'include_type_name': 'true'}  # json true...
         )
+        if alias:
+            es.indices.put_alias(index=index_name, name=alias)
         return True
 
 
-def make_kibana_index(tenant, name, schema):
-    kibana_ts = consumer_config.get('kibana_auto_timestamp', None)
+def get_alias_from_namespace(tenant: str, namespace: str):
+    parts = namespace.split('_')
+    if len(parts) < 2:
+        return f'{tenant}.{namespace}'
+    return f'{tenant}.' + '_'.join(parts[:-1])
+
+
+def make_kibana_index(name, schema: Node):
     data = {
         'attributes': {
             'title': name,
-            'timeFieldName': kibana_ts
+            'timeFieldName': _find_timestamp(schema),
+            'fieldFormatMap': _format_lookups(schema)
         }
     }
-    data['attributes']['timeFieldName'] = kibana_ts if kibana_ts else None
     return data
 
 
-def _format_lookups(schema, default='Other'):
-    schema = Node(schema)
+def register_index_pattern(tenant, name, schema):
+    pass
+
+
+def _remove_formname(name):
+    pieces = name.split('.')
+    return '.'.join(pieces[1:])
+
+
+def _find_timestamp(schema: Node):
+    # takes a field matching timestamp, or the first timestamp
+    matching = schema.collect_matching(
+        {'match_attr': [{'__extended_type': 'dateTime'}]}
+    )
+    fields = sorted([key for key, node in matching])
+    LOG.debug(fields)
+    timestamps = [f for f in fields if 'timestamp' in f]
+    if timestamps:
+        return _remove_formname(timestamps[0])
+    elif fields:
+        return _remove_formname(fields[0])
+    else:
+        return consumer_config.get(
+            'autoconfig_settings', {}).get(
+            'auto_timestamp', None)
+
+
+def _format_lookups(schema: Node, default='Other', strip_form_name=True):
     matching = schema.collect_matching(
         {'has_attr': ['__lookup']}
     )
     if not matching:
         return {}
-    return {
-        key: _format_single_lookup(node, default)
-        for key, node in matching
-    }
+    if not strip_form_name:
+        return {
+            key: _format_single_lookup(node, default)
+            for key, node in matching
+        }
+    else:
+        return {
+            _remove_formname(key): _format_single_lookup(node, default)
+            for key, node in matching
+        }
 
 
-def _format_single_lookup(node, default='Other'):
+def _format_single_lookup(node: Node, default='Other'):
     lookup = node.__lookup
     definition = {
         'id': 'static_lookup',
@@ -150,21 +172,13 @@ def _format_single_lookup(node, default='Other'):
     return definition
 
 
-def register_kibana_index(name, index, tenant):
+def register_kibana_index(name, index, tenant, conn: KibanaConnection):
     # throws HTTPError on failure
-    host = consumer_config.get('kibana_url', None)
-    if not host:
-        LOG.debug('No kibana_url in config for default index creation.')
-        return
     pattern = f'{name}'
-    index_url = f'{host}/api/saved_objects/index-pattern/{pattern}'
-    headers = {
-        'x-oauth-realm': tenant,  # tenant to create on behalf of
-        'kbn-xsrf': 'f'  # meaningless but required
-    }
-    LOG.debug(f'registering kibana index: {index}')
-    # register the index
-    handle_http(requests.post(index_url, headers=headers, json=index))
+    index_url = f'api/saved_objects/index-pattern/{pattern}'
+    handle_http(
+        conn.request(tenant, 'post', index_url, json=index)
+    )
 
 
 def index_from_file(index_path, index_file):

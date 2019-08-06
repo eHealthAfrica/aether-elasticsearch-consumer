@@ -80,7 +80,13 @@ def AutoConfigSettings():
 @pytest.mark.unit
 @pytest.fixture(scope='module')
 def SimpleSchema():
-    return Node(DOC_SCHEMA2)  # noqa
+    return Node(SIMPLE_SCHEMA)  # noqa
+
+
+@pytest.mark.unit
+@pytest.fixture(scope='module')
+def AutoGenSchema():
+    return Node(AUTOGEN_SCHEMA)  # noqa
 
 
 @pytest.mark.unit
@@ -181,7 +187,7 @@ TYPE_INSTRUCTIONS = {
     }
 }
 
-DOC_SCHEMA = {
+AUTOGEN_SCHEMA = {
     'type': 'record',
     'fields': [
         {
@@ -332,7 +338,7 @@ DOC_SCHEMA = {
 }
 
 
-DOC_SCHEMA2 = {
+SIMPLE_SCHEMA = {
     'name': 'rapidtest',
     'doc': 'Rapid Test - Start (id: rapidtest_start, version: 2019012807)',
     'fields': [

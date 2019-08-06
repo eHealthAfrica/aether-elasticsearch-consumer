@@ -22,19 +22,25 @@ import json
 import re
 from time import sleep
 import threading
+from typing import Any, Mapping
 
 from aet.consumer import KafkaConsumer
 from elasticsearch.exceptions import TransportError
+from requests.exceptions import HTTPError
 
 from . import config, connection_handler, index_handler
 from .processor import ESItemProcessor
 from .logger import get_logger
+from .schema import Node
+
+from .connection_handler import KibanaConnection
 
 LOG = get_logger('WORKER')
 CONSUMER_CONFIG = config.get_consumer_config()
 KAFKA_CONFIG = config.get_kafka_config()
 
 ES = connection_handler.ESConnectionManager(add_default=True)
+KIBANA = connection_handler.KibanaConnectionManager(add_default=True)
 
 
 class ESWorker(threading.Thread):
@@ -68,6 +74,7 @@ class ESWorker(threading.Thread):
         LOG.debug(f'Adding {topic} to consumer thread: {self.tenant}')
         self.topics.append(topic)
         self.es_instances[topic] = [ES.get_connection()]
+        self.kibana_instances[topic] = [KIBANA.get_connection()]
         self._update_topics()
 
     def add_topics(self, topics):
@@ -93,7 +100,7 @@ class ESWorker(threading.Thread):
         # TODO Handle schema change
         pass
 
-    def init_topic(self, topic, schema):
+    def init_topic(self, topic, schema: Mapping[Any, Any]):
         LOG.debug(f'{self.tenant} is starting topic: {topic}')
 
         # TODO Handle schema change ^^
@@ -103,19 +110,43 @@ class ESWorker(threading.Thread):
             name=self.name_from_topic(topic),
             tenant=self.tenant
         )
-        # check if index exists
-        #     make index
-        for es_instance in self.es_instances[topic]:
-            index_handler.register_es_index(es_instance, index)
+        schema: Node = Node(schema)
+        alias = index_handler.get_alias_from_namespace(
+            self.tenant, schema.namespace
+        )
+        # Try to add the indices / ES alias
+        updated = any([
+            index_handler.register_es_index(
+                es_instance,
+                index,
+                alias
+            )
+            for es_instance in self.es_instances[topic]]
+        )
+        # Register Kibana index if a new ES index was created
+        if updated:
+            k_index = index_handler.make_kibana_index(alias, schema)
+            conn: KibanaConnection
+            for conn in self.kibana_instances[topic]:
+                try:
+                    index_handler.register_es_index(
+                        alias,
+                        k_index,
+                        self.tenant,
+                        conn
+                    )
+                    LOG.info(
+                        f'Registered kibana index {alias} for {self.tenant}'
+                    )
+                except HTTPError as err:
+                    LOG.error(
+                        f'Failed to register kibana index {alias}: {err}'
+                    )
+
         self.indices[topic] = index
         LOG.debug(f'{self.tenant}:{topic} | idx: {index}')
-        #     make alias
-
         # update processor for type
         doc_type, instr = list(index['body']['mappings'].items())[0]
-        # check if kibana index exists
-        #     make kibana index
-
         self.doc_types[topic] = doc_type
         self.processors[topic] = ESItemProcessor(topic, instr)
         self.processors[topic].load_avro(schema)

@@ -97,44 +97,26 @@ def test__register_es_index():
     pass
 
 
-def test__make_kibana_index(name):
-    pass
-    # def make_kibana_index(name):
-    #     # throws HTTPError on failure
-    #     host = consumer_config.get('kibana_url', None)
-    #     if not host:
-    #         LOG.debug('No kibana_url in config for default index creation.')
-    #         return
-    #     pattern = f'{name}*'
-    #     index_url = f'{host}/api/saved_objects/index-pattern/{pattern}'
-    #     headers = {'kbn-xsrf': 'meaningless-but-required'}
-    #     kibana_ts = consumer_config.get('kibana_auto_timestamp', None)
-    #     data = {
-    #         'attributes': {
-    #             'title': pattern,
-    #             'timeFieldName': kibana_ts
-    #         }
-    #     }
-    #     data['attributes']['timeFieldName'] = kibana_ts if kibana_ts else None
-    #     LOG.debug(f'registering default kibana index: {data}')
-    #     # register the base index
-    #     handle_http(requests.post(index_url, headers=headers, json=data))
-    #     default_url = f'{host}/api/kibana/settings/defaultIndex'
-    #     data = {
-    #         'value': pattern
-    #     }
-    #     # make this index the default
-    #     handle_http(requests.post(default_url, headers=headers, json=data))
-    #     LOG.debug(f'Created default index {pattern} on host {host}')
+@pytest.mark.unit
+def test__make_kibana_index(AutoGenSchema):
+    name = 'kibana-index-name'
+    res = index_handler.make_kibana_index(name, AutoGenSchema)
+    assert(res.get('attributes', {}).get('title') == name)
 
 
 @pytest.mark.unit
-def test___format_lookups():
-    formatted = index_handler._format_lookups(ANNOTATED_SCHEMA)
+def test___find_timestamp(ComplexSchema):
+    result = index_handler._find_timestamp(ComplexSchema)
+    assert(result == 'timestamp')
+
+
+@pytest.mark.unit
+def test___format_lookups(ComplexSchema):
+    formatted = index_handler._format_lookups(ComplexSchema)
     assert(
         json.dumps(
             formatted.get(
-                'Gth_Hs_Test_2.operational_status'), sort_keys=True) ==
+                'operational_status'), sort_keys=True) ==
         json.dumps(
             SAMPLE_FIELD_LOOKUP.get(
                 'operational_status'), sort_keys=True)
@@ -147,7 +129,8 @@ def test___format_single_lookup(ComplexSchema):
     res = index_handler._format_single_lookup(matching)
     assert(
         json.dumps(res, sort_keys=True) ==
-        json.dumps(SAMPLE_FIELD_LOOKUP.get('operational_status'), sort_keys=True)
+        json.dumps(SAMPLE_FIELD_LOOKUP.get(
+            'operational_status'), sort_keys=True)
     )
 
 
@@ -176,3 +159,11 @@ def test__add_alias():
     #     "aliases" : {}
     #     '''
     pass
+
+
+@pytest.mark.unit
+def test__get_alias_from_namespace():
+    tenant = 'test'
+    namespace = 'A_Gather_Form_V1'
+    res = index_handler.get_alias_from_namespace(tenant, namespace)
+    assert(res == 'test.A_Gather_Form')

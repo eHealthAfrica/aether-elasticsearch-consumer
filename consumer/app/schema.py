@@ -17,7 +17,7 @@ class Node:
     has_children: bool
     children: Mapping[str, Any]
 
-    def __init__(self, source, optional=False):
+    def __init__(self, source: Mapping[Any, Any], optional=False):
         self.has_children = False
         self.children = {}
         self.parse(source)
@@ -31,7 +31,7 @@ class Node:
             return f'@aether_{name.lstrip("__")}'
         return name
 
-    def parse(self, source):
+    def parse(self, source: Mapping[Any, Any]):
         fields = [
             'doc',
             'name',
@@ -45,7 +45,7 @@ class Node:
             if source.get(alias):
                 setattr(self, field, source.get(alias))
 
-    def parse_children(self, source):
+    def parse_children(self, source: Mapping[Any, Any]):
         fields = source.get('fields', [])
         for f in fields:
             self.has_children = True
