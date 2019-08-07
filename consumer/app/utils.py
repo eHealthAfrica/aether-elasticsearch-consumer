@@ -18,6 +18,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from hashlib import md5
+import json
+
 
 def replace_nested(_dict, keys, value, replace_missing=True):
     if len(keys) > 1:
@@ -42,3 +45,13 @@ def replace_nested(_dict, keys, value, replace_missing=True):
     else:
         _dict[keys[0]] = value
     return _dict
+
+
+def hash(obj):
+    try:
+        _sorted = json.dumps(obj, sort_keys=True)
+    except Exception:
+        _sorted = str(obj)
+    encoded = _sorted.encode('utf-8')
+    hash = str(md5(encoded).hexdigest())[:16]  # 64bit hash
+    return hash

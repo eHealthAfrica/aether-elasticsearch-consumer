@@ -97,14 +97,8 @@ class ESWorker(threading.Thread):
     def name_from_topic(self, topic):
         return topic.lstrip(f'{self.tenant}.')
 
-    def update_topic(self, topic, schema):
-        # TODO Handle schema change
-        pass
-
-    def init_topic(self, topic, schema: Mapping[Any, Any]):
-        LOG.debug(f'{self.tenant} is starting topic: {topic}')
-
-        # TODO Handle schema change ^^
+    def update_topic(self, topic, schema: Mapping[Any, Any]):
+        LOG.debug(f'{self.tenant} is updating topic: {topic}')
 
         index = index_handler.get_es_index_from_autoconfig(
             self.autoconf,
@@ -200,7 +194,7 @@ class ESWorker(threading.Thread):
                     if schema != self.schemas.get(topic):
                         LOG.info('Schema change on type %s' % topic)
                         LOG.debug('schema: %s' % schema)
-                        self.init_topic(topic, schema)
+                        self.update_topic(topic, schema)
                         self.schemas[topic] = schema
                     else:
                         LOG.debug('Schema unchanged.')

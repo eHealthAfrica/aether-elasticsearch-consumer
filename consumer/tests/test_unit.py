@@ -22,6 +22,7 @@ import os
 
 from . import *  # noqa # get all test assets from test/__init__.py
 from app.main import KAFKA_CONFIG
+from app import utils
 
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
@@ -71,3 +72,23 @@ def test__process_geo_field():
         assert(res.get('lat') is not None)
         doc = processor.process(doc)
         assert(doc.get('geo_point').get('lon') is not None)
+
+
+@pytest.mark.unit
+def test__hash():
+    pairs = [
+        ('a', 'n', False),
+        ({
+            'b': ['a', 'b'],
+            'a': ['a', 'b']},  # swap order of keys
+            {
+            'a': ['a', 'b'],
+            'b': ['a', 'b']},
+            True),
+        (1, 2, False),
+        ('a', 'a', True),
+        (2, 2, True),
+    ]
+
+    for a, b, match in pairs:
+        assert((utils.hash(a) == utils.hash(b)) == match), [a, b, match]
