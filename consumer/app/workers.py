@@ -74,8 +74,9 @@ class ESWorker(threading.Thread):
     def add_topic(self, topic):
         LOG.debug(f'Adding {topic} to consumer thread: {self.tenant}')
         self.topics.append(topic)
+        # TODO align related ES / Kibana instances
         self.es_instances[topic] = [ES.get_connection()]
-        self.kibana_instances[topic] = [KIBANA.get_connection()]
+        self.kibana_instances[topic] = [ES.get_kibana()]
         self._update_topics()
 
     def add_topics(self, topics):
@@ -116,33 +117,31 @@ class ESWorker(threading.Thread):
             self.tenant, node.namespace
         )
         # Try to add the indices / ES alias
-        updated = any([
-            index_handler.register_es_index(
+        for es_instance in self.es_instances.get(topic, []):
+            updated = index_handler.register_es_index(
                 es_instance,
                 index,
                 alias
             )
-            for es_instance in self.es_instances[topic]]
-        )
-        # Register Kibana index if a new ES index was created
-        if updated:
+            if updated:
+                LOG.debug(f'{self.tenant} updated schema for {topic}')
+            # TODO, update for multiple kibana case
+            conn: KibanaConnection = self.kibana_instances[topic][0]
             kibana_index = index_handler.make_kibana_index(alias, node)
-            conn: KibanaConnection
-            for conn in self.kibana_instances[topic]:
-                try:
-                    index_handler.register_kibana_index(
-                        alias,
-                        kibana_index,
-                        self.tenant,
-                        conn
-                    )
-                    LOG.info(
-                        f'Registered kibana index {alias} for {self.tenant}'
-                    )
-                except HTTPError as err:
-                    LOG.error(
-                        f'Failed to register kibana index {alias}: {err}'
-                    )
+            try:
+                index_handler.register_kibana_index(
+                    alias,
+                    kibana_index,
+                    self.tenant,
+                    conn
+                )
+                LOG.info(
+                    f'Registered kibana index {alias} for {self.tenant}'
+                )
+            except HTTPError as err:
+                LOG.error(
+                    f'Failed to register kibana index {alias}: {err}'
+                )
 
         self.indices[topic] = index
         LOG.debug(f'{self.tenant}:{topic} | idx: {index}')

@@ -19,9 +19,26 @@
 # under the License.
 
 
-def replace_nested(_dict, keys, value):
+def replace_nested(_dict, keys, value, replace_missing=True):
     if len(keys) > 1:
-        _dict[keys[0]] = replace_nested(_dict[keys[0]], keys[1:], value)
+        try:
+            _dict[keys[0]] = replace_nested(
+                _dict[keys[0]],
+                keys[1:],
+                value,
+                replace_missing
+            )
+        except KeyError as ker:
+            if replace_missing:
+                _dict[keys[0]] = {}
+                _dict[keys[0]] = replace_nested(
+                    _dict[keys[0]],
+                    keys[1:],
+                    value,
+                    replace_missing
+                )
+            else:
+                raise ker
     else:
         _dict[keys[0]] = value
     return _dict

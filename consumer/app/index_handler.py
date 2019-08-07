@@ -106,11 +106,15 @@ def get_alias_from_namespace(tenant: str, namespace: str):
 
 
 def make_kibana_index(name, schema: Node):
+    lookups = _format_lookups(schema)
     data = {
         'attributes': {
             'title': name,
             'timeFieldName': _find_timestamp(schema),
-            'fieldFormatMap': _format_lookups(schema)
+            'fieldFormatMap': json.dumps(  # Kibana requires this be escaped
+                lookups,
+                sort_keys=True
+            ) if lookups else None  # Don't include if there aren't any
         }
     }
     return data

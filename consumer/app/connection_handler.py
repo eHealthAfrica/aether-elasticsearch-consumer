@@ -45,96 +45,13 @@ KAFKA_CONFIG = config.get_kafka_config()
 CONN_RETRY = int(CONSUMER_CONFIG.get('startup_connection_retry'))
 
 
-@dataclass
-class ESConfig:
-    '''Class an elasticsearch configuration'''
-    elasticsearch_url: List[str]
-    elasticsearch_user: str = None
-    elasticsearch_password: str = None
-    elasticsearch_port: int = None
-
-
-class ESConnectionManager:
-
-    DEFAULT_TENANT = ':all'
-
-    def __init__(self, add_default=True):
-        self.conn = {ESConnectionManager.DEFAULT_TENANT: {}}
-        self.config = {ESConnectionManager.DEFAULT_TENANT: {}}
-        if add_default:
-            self._load_default_config()
-            for x in range(CONN_RETRY):
-                ok = self.test_connection()  # default
-                if ok:
-                    return
-            LOG.critical('Could not connect to default ElasticSearch')
-            sys.exit(1)
-
-    def add_connection(
-        self,
-        config: ESConfig,
-        tenant=DEFAULT_TENANT,
-        instance='default'
-    ):
-        # prepare connection details
-        http_auth = [
-            config.elasticsearch_user,
-            config.elasticsearch_password
-        ] if config.elasticsearch_user else None
-        conn_info = {
-            'port': config.elasticsearch_port,
-            'http_auth': http_auth
-        }
-        conn_info = {k: v for k, v in conn_info.items() if v}
-        conn_info['sniff_on_start'] = False
-        # get connection
-        conn = Elasticsearch(config.elasticsearch_url, **conn_info)
-        # update values
-        utils.replace_nested(self.config, [tenant, instance], config)
-        utils.replace_nested(self.conn, [tenant, instance], conn)
-
-    def _load_default_config(self):
-        default_es = ESConfig(
-            [CONSUMER_CONFIG.get('elasticsearch_url')],
-            CONSUMER_CONFIG.get('elasticsearch_user'),
-            CONSUMER_CONFIG.get('elasticsearch_password'),
-            CONSUMER_CONFIG.get('elasticsearch_port')
-        )
-        self.add_connection(default_es)
-
-    def get_connection(self, tenant=DEFAULT_TENANT, instance='default'):
-        conn = self.conn.get(tenant, {}).get(instance)
-        if not conn:
-            raise ValueError(f'No matching instance {tenant}:{instance}')
-        return conn
-
-    def test_connection(self, tenant=':all', instance='default'):
-        conn = self.get_connection(tenant, instance)
-        LOG.debug(f'Test connection {tenant}:{instance}')
-        return self._test_connection(conn)
-
-    def _test_connection(self, conn):
-        try:
-            es_info = conn.info()
-            LOG.debug('ES Instance info: %s' % (es_info,))
-            version = es_info.get('version').get('number')
-            series = int(version.split('.')[0])
-            if series not in SUPPORTED_ES_SERIES:
-                LOG.error(f'Elastic Version {version} is not supported')
-                return False
-            return True
-        except (
-            NewConnectionError,
-            ConnectionRefusedError,
-            ESConnectionError
-        ) as nce:
-            LOG.error(f'Connection Error: {nce}')
-            return False
-
-
+'''
+    Kibana instances must be registered with an ES instance.
+    As such, KibanaConnectionManager is used through the ES Manager API
+'''
 @dataclass
 class KibanaConfig:
-    '''Class an elasticsearch configuration'''
+    '''Kibana configuration'''
     kibana_url: str
     kibana_user: str = None
     kibana_password: str = None
@@ -167,7 +84,6 @@ class KibanaConnection:
         return {}
 
     def request(self, tenant, method, url, **kwargs):
-        # options = copy(kwargs)
         session = self._make_session()
         full_url = f'{self.base_url}{url}'
         passed_headers = kwargs.get('headers', {})
@@ -180,31 +96,131 @@ class KibanaConnection:
 class KibanaConnectionManager:
     # Collection of requests sessions pointing at Kibana instances
 
-    DEFAULT_TENANT = ':all'
-
     def __init__(self, add_default=True):
-        self.conn = {KibanaConnectionManager.DEFAULT_TENANT: {}}
-        if add_default:
-            self._load_default_config()
-
-    def _load_default_config(self):
-        default = KibanaConfig(
-            kibana_url=CONSUMER_CONFIG.get('kibana_url'),
-            kibana_header_template='''{"x-oauth-realm": "%s","kbn-xsrf": "f"}'''
-        )
-        self.add_connection(default)
+        self.conn = {}
 
     def add_connection(
         self,
         config: KibanaConfig,
-        tenant=DEFAULT_TENANT,
-        instance='default'
+        tenant=None,
+        instance=None
     ):
         conn = KibanaConnection(config)
         utils.replace_nested(self.conn, [tenant, instance], conn)
+
+    def get_connection(self, tenant=None, instance=None):
+        conn = self.conn.get(tenant, {}).get(instance)
+        if not conn:
+            raise ValueError(f'No matching instance {tenant}:{instance}')
+        return conn
+
+
+@dataclass
+class ESConfig:
+    '''Class an elasticsearch configuration'''
+    elasticsearch_url: List[str]
+    elasticsearch_user: str = None
+    elasticsearch_password: str = None
+    elasticsearch_port: int = None
+    # set automatically depending on whether it's created with a Kibana
+    has_kibana: bool = False
+
+
+class ESConnectionManager:
+
+    DEFAULT_TENANT = ':all'
+
+    def __init__(self, add_default=True):
+        self.conn = {ESConnectionManager.DEFAULT_TENANT: {}}
+        self.config = {ESConnectionManager.DEFAULT_TENANT: {}}
+        self.kibana = KibanaConnectionManager()
+        if add_default:
+            self._load_default_config()
+            for x in range(CONN_RETRY):
+                ok = self.test_connection()  # default
+                if ok:
+                    return
+            LOG.critical('Could not connect to default ElasticSearch')
+            sys.exit(1)
+
+    def add_connection(
+        self,
+        config: ESConfig,
+        tenant=DEFAULT_TENANT,
+        instance='default',
+        kibana_config: KibanaConfig = None
+    ):
+        # prepare connection details
+        http_auth = [
+            config.elasticsearch_user,
+            config.elasticsearch_password
+        ] if config.elasticsearch_user else None
+        conn_info = {
+            'port': config.elasticsearch_port,
+            'http_auth': http_auth
+        }
+        conn_info = {k: v for k, v in conn_info.items() if v}
+        conn_info['sniff_on_start'] = False
+        # get connection
+        conn = Elasticsearch(config.elasticsearch_url, **conn_info)
+
+        if kibana_config:
+            config.has_kibana = True
+            self.kibana.add_connection(kibana_config, tenant, instance)
+        # update values
+        utils.replace_nested(self.config, [tenant, instance], config)
+        utils.replace_nested(self.conn, [tenant, instance], conn)
+
+    def _load_default_config(self):
+        default_es = ESConfig(
+            [CONSUMER_CONFIG.get('elasticsearch_url')],
+            CONSUMER_CONFIG.get('elasticsearch_user'),
+            CONSUMER_CONFIG.get('elasticsearch_password'),
+            CONSUMER_CONFIG.get('elasticsearch_port')
+        )
+        default_kibana = KibanaConfig(
+            kibana_url=CONSUMER_CONFIG.get('kibana_url'),
+            kibana_header_template='''
+            {
+                "x-forwarded-for": "255.0.0.1",
+                "x-oauth-preferred_username":"aether-consumer",
+                "x-oauth-realm": "%s",
+                "kbn-xsrf": "f"
+            }'''
+        )
+        self.add_connection(default_es, kibana_config=default_kibana)
 
     def get_connection(self, tenant=DEFAULT_TENANT, instance='default'):
         conn = self.conn.get(tenant, {}).get(instance)
         if not conn:
             raise ValueError(f'No matching instance {tenant}:{instance}')
         return conn
+
+    def get_kibana(self, tenant=DEFAULT_TENANT, instance='default'):
+        config = self.config.get(tenant, {}).get(instance)
+        if not config or not config.has_kibana:
+            return None
+        return self.kibana.get_connection(tenant, instance)
+
+    def test_connection(self, tenant=':all', instance='default'):
+        conn = self.get_connection(tenant, instance)
+        LOG.debug(f'Test connection {tenant}:{instance}')
+        return self._test_connection(conn)
+
+    def _test_connection(self, conn):
+        try:
+            es_info = conn.info()
+            LOG.debug('ES Instance info: %s' % (es_info,))
+            version = es_info.get('version').get('number')
+            series = int(version.split('.')[0])
+            if series not in SUPPORTED_ES_SERIES:
+                LOG.error(f'Elastic Version {version} is not supported')
+                return False
+            return True
+        except (
+            NewConnectionError,
+            ConnectionRefusedError,
+            ESConnectionError
+        ) as nce:
+            LOG.error(f'Connection Error: {nce}')
+            return False
