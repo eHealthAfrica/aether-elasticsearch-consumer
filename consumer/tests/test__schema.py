@@ -18,13 +18,39 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
+from copy import deepcopy
 import pytest
 
 from app.logger import get_logger
 LOG = get_logger('TEST-SCH')
 
 from . import *  # noqa  # fixtures
+
+
+@pytest.mark.unit
+def test__comparison_none(SimpleSchema):
+    assert(Node.compare(SimpleSchema, SimpleSchema) == {})
+
+
+@pytest.mark.unit
+def test__comparison_all(SimpleSchema):
+    a = deepcopy(SimpleSchema)
+    b = deepcopy(SimpleSchema)
+    a.name = 'SomethingElse'  # change root node (changes all paths)
+    assert(len(Node.compare(a, b)) == 15)  # all nodes
+
+
+@pytest.mark.unit
+def test__comparison_nested_attr(ComplexSchema):
+    a = deepcopy(ComplexSchema)
+    b = deepcopy(ComplexSchema)
+    path = 'operator_type'
+    # change a node's attribute
+    a.children[path].__lookup = [{"something": "else"}]
+    # I don't always trust deepcopy...
+    assert(a.children[path].__lookup != b.children[path].__lookup)
+    res = Node.compare(b, a)
+    assert(any([path in k for k in res.keys()]))
 
 
 @pytest.mark.unit

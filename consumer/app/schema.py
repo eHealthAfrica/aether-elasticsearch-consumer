@@ -1,3 +1,5 @@
+from copy import copy
+import json
 from typing import Any, List, Mapping, Union
 
 from app.logger import get_logger
@@ -6,6 +8,15 @@ LOG = get_logger('SCHEMA')
 
 
 class Node:
+
+    fields = [
+        'doc',
+        'name',
+        'namespace',
+        'default',
+        '__extended_type',
+        '__lookup'
+    ]
 
     doc: str
     default: str
@@ -23,6 +34,42 @@ class Node:
         self.parse(source)
         self.parse_children(source)
 
+    # Node comparison methods
+    @staticmethod
+    def compare(left, right):
+        paths = left.iter_children()
+        differences = {}
+        for p in paths:
+            diff = []
+            try:
+                l_node = left.get_node(p)
+                r_node = right.get_node(p)
+            except ValueError:
+                diff = copy(Node.fields)
+            else:
+                diff = Node.diff_nodes(l_node, r_node)
+            if diff:
+                differences[p] = diff
+        return differences
+
+    @staticmethod
+    def diff_nodes(left, right):
+        return [f for f in Node.fields
+                if not Node.compare_objects(
+                    getattr(left, f, None),
+                    getattr(right, f, None)
+                )]
+
+    @staticmethod
+    def compare_objects(a, b):
+        try:
+            a = json.dumps(a, sort_keys=True)
+            b = json.dumps(b, sort_keys=True)
+            return a == b
+        except Exception as ce:
+            LOG.debug(['comparison error:', ce, a, b])
+            return a == b
+
     def __swap_name(self, name):
         ''' we can't have python attributes that start with @aether
             so we make a simple substitution
@@ -32,15 +79,7 @@ class Node:
         return name
 
     def parse(self, source: Mapping[Any, Any]):
-        fields = [
-            'doc',
-            'name',
-            'namespace',
-            'default',
-            '__extended_type',
-            '__lookup'
-        ]
-        fields = {f: self.__swap_name(f) for f in fields}
+        fields = {f: self.__swap_name(f) for f in Node.fields}
         for field, alias in fields.items():
             if source.get(alias):
                 setattr(self, field, source.get(alias))

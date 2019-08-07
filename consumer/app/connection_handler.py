@@ -96,7 +96,7 @@ class KibanaConnection:
 class KibanaConnectionManager:
     # Collection of requests sessions pointing at Kibana instances
 
-    def __init__(self, add_default=True):
+    def __init__(self):
         self.conn = {}
 
     def add_connection(

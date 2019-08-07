@@ -40,7 +40,6 @@ CONSUMER_CONFIG = config.get_consumer_config()
 KAFKA_CONFIG = config.get_kafka_config()
 
 ES = connection_handler.ESConnectionManager(add_default=True)
-KIBANA = connection_handler.KibanaConnectionManager(add_default=True)
 
 
 class ESWorker(threading.Thread):
