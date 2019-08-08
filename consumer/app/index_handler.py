@@ -273,12 +273,14 @@ def _format_single_lookup(node: Node, default='Other'):
     return definition
 
 
-def merge_kibana_artifacts(kibana_index, es, old_artifact=None):
+def merge_kibana_artifacts(kibana_index, schema, es, old_artifact=None):
     visualizations = {}  # make_visualizations
+    # TODO schema name!
+    schema_name = schema.get('name')
     new_artifact = {
         'hashes': {
             'index': {
-                'utils': utils.hash(kibana_index)
+                schema_name: utils.hash(kibana_index)
             },
             'template': {k: utils.hash(v) for k, v in visualizations}
         }
