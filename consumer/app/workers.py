@@ -26,7 +26,6 @@ from typing import Any, Mapping
 
 from aet.consumer import KafkaConsumer
 from elasticsearch.exceptions import TransportError
-from requests.exceptions import HTTPError
 
 from . import config, connection_handler, index_handler
 from .processor import ESItemProcessor
@@ -100,7 +99,7 @@ class ESWorker(threading.Thread):
     def update_topic(self, topic, schema: Mapping[Any, Any]):
         LOG.debug(f'{self.tenant} is updating topic: {topic}')
 
-        index = index_handler.get_es_index_from_autoconfig(
+        es_index = index_handler.get_es_index_from_autoconfig(
             self.autoconf,
             name=self.name_from_topic(topic),
             tenant=self.tenant
@@ -113,33 +112,38 @@ class ESWorker(threading.Thread):
         for es_instance in self.es_instances.get(topic, []):
             updated = index_handler.register_es_index(
                 es_instance,
-                index,
+                es_index,
                 alias
             )
             if updated:
                 LOG.debug(f'{self.tenant} updated schema for {topic}')
-            # TODO, update for multiple kibana case
+            # TODO, update connection get for multiple kibana case
             conn: KibanaConnection = self.kibana_instances[topic][0]
-            kibana_index = index_handler.make_kibana_index(alias, node)
-            try:
-                index_handler.register_kibana_index(
-                    alias,
-                    kibana_index,
-                    self.tenant,
-                    conn
-                )
+
+            old_schema = self.schemas.get(topic)
+            updated_kibana = index_handler.kibana_handle_schema_change(
+                self.tenant,
+                alias,
+                old_schema,
+                schema,
+                es_index,
+                es_instance,
+                conn
+            )
+
+            if updated_kibana:
                 LOG.info(
                     f'Registered kibana index {alias} for {self.tenant}'
                 )
-            except HTTPError as err:
-                LOG.error(
-                    f'Failed to register kibana index {alias}: {err}'
+            else:
+                LOG.info(
+                    f'Kibana index {alias} did not need update.'
                 )
 
-        self.indices[topic] = index
-        LOG.debug(f'{self.tenant}:{topic} | idx: {index}')
+        self.indices[topic] = es_index
+        LOG.debug(f'{self.tenant}:{topic} | idx: {es_index}')
         # update processor for type
-        doc_type, instr = list(index['body']['mappings'].items())[0]
+        doc_type, instr = list(es_index['body']['mappings'].items())[0]
         self.doc_types[topic] = doc_type
         self.processors[topic] = ESItemProcessor(topic, instr)
         self.processors[topic].load_avro(schema)

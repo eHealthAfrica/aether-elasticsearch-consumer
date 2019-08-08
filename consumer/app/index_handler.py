@@ -19,10 +19,14 @@
 # under the License.
 
 import json
+from typing import Any, Mapping
+
+from requests.exceptions import HTTPError
 
 from .import config
 from .logger import get_logger
 from .schema import Node
+from . import utils
 
 from .connection_handler import KibanaConnection
 
@@ -120,7 +124,101 @@ def make_kibana_index(name, schema: Node):
     return data
 
 
-def register_index_pattern(tenant, name, schema):
+def kibana_handle_schema_change(
+    tenant: str,
+    alias: str,
+    schema_old: Mapping[Any, Any],
+    schema_new: Mapping[Any, Any],
+    es_index: Mapping[Any, Any],
+    es_conn,
+    kibana_conn
+):
+    node_new = Node(schema_new)
+    kibana_index = make_kibana_index(alias, node_new)
+    if schema_old is not None:
+        node_old = Node(schema_old)
+        if Node.compare(node_old, node_new) == {}:
+            return False  # schema not substantially different
+    if not check_for_kibana_update(
+            tenant,
+            alias,
+            kibana_index,
+            es_index,
+            es_conn,
+            kibana_conn):
+        return False
+
+    return update_kibana_index(
+        tenant,
+        alias,
+        kibana_index,
+        es_index,
+        es_conn,
+        kibana_conn
+    )
+
+
+def check_for_kibana_update(
+    tenant: str,
+    alias: str,
+    kibana_index: Mapping[Any, Any],
+    es_index: Mapping[Any, Any],
+    es_conn,
+    kibana_conn
+):
+    # if the schema is unchanged, we don't need to do anything.
+    index_hash = utils.hash(kibana_index)
+    artifact = get_es_artifact_for_alias(alias, tenant, es_conn)
+    try:
+        old_kibana_index = handle_kibana_index(
+            alias,
+            tenant,
+            kibana_conn,
+            mode='READ'
+        )
+    except HTTPError as hpe:
+        LOG.debug(f'Could not get old kibana index: {hpe}')
+        old_kibana_index = {}
+    LOG.debug(json.dumps({
+        'i_hash': index_hash,
+        'art': artifact,
+        'old_kibana_index': old_kibana_index
+    }, indent=2))
+
+    if not artifact or old_kibana_index:
+        return True
+    # TODO update...
+    return False
+
+
+def update_kibana_index(
+    tenant: str,
+    alias: str,
+    kibana_index: Mapping[Any, Any],
+    es_index: Mapping[Any, Any],
+    es_conn,
+    kibana_conn
+):
+    # find differences between indices
+    # create new asset
+
+    old_artifact = get_es_artifact_for_alias(alias, tenant, es_conn)
+    merged_index, new_artifact = merge_kibana_artifacts(
+        kibana_index,
+        es_conn,
+        old_artifact
+    )
+    try:
+        try:
+            handle_kibana_index(alias, tenant, kibana_conn, merged_index, 'CREATE')
+        except HTTPError:
+            handle_kibana_index(alias, tenant, kibana_conn, merged_index, 'UPDATE')
+        finally:
+            put_es_artifact_for_alias(alias, tenant, new_artifact, es_conn)
+    except Exception as err:
+        LOG.critical(f'Error registering Kibana App: {err}')
+    # save asset hashes
+
     pass
 
 
@@ -135,7 +233,6 @@ def _find_timestamp(schema: Node):
         {'match_attr': [{'__extended_type': 'dateTime'}]}
     )
     fields = sorted([key for key, node in matching])
-    LOG.debug(fields)
     timestamps = [f for f in fields if 'timestamp' in f]
     if timestamps:
         return _remove_formname(timestamps[0])
@@ -176,13 +273,90 @@ def _format_single_lookup(node: Node, default='Other'):
     return definition
 
 
-def register_kibana_index(name, index, tenant, conn: KibanaConnection):
-    # throws HTTPError on failure
+def merge_kibana_artifacts(kibana_index, es, old_artifact=None):
+    visualizations = {}  # make_visualizations
+    new_artifact = {
+        'hashes': {
+            'index': {
+                'utils': utils.hash(kibana_index)
+            },
+            'template': {k: utils.hash(v) for k, v in visualizations}
+        }
+    }
+    if old_artifact:
+        merged_index = kibana_index
+    else:
+        # TODO merge indices based on diff in artifacts
+        merged_index = kibana_index
+    return merged_index, new_artifact
+
+
+def __get_es_artifact_index_name(tenant):
+    return f'{tenant}._aether_artifacts_v1'.lower()
+
+
+def __get_es_artifact_doc_name(alias):
+    return f'kibana.{alias}'
+
+
+def get_es_artifact_for_alias(alias, tenant, es):
+    index = __get_es_artifact_index_name(tenant)
+    _id = __get_es_artifact_doc_name(alias)
+    if es.exists(index=index, id=_id):
+        return es.get(index=index, id=_id)
+    LOG.debug(f'No artifact doc for {_id}')
+    return None
+
+
+def make_es_artifact_index(tenant, es):
+    index_name = __get_es_artifact_index_name(tenant)
+    if not es.indices.exists(index_name):
+        LOG.debug(f'Creating artifact index {index_name} for tenant {tenant}')
+        es.indices.create(index=index_name)
+    return
+
+
+def put_es_artifact_for_alias(name, tenant, doc, es):
+    index = __get_es_artifact_index_name(tenant)
+    _id = __get_es_artifact_doc_name(name)
+    make_es_artifact_index(tenant, es)  # make sure we have an index
+    if not es.exists(index=index, id=_id):
+        LOG.debug(f'Creating ES Artifact for {tenant}:{name}')
+        es.create(
+            index=index,
+            id=_id,
+            body=doc
+        )
+    else:
+        LOG.debug(f'Updating ES Artifact for {tenant}:{name}')
+        es.update(
+            index=index,
+            id=_id,
+            body=doc
+        )
+
+
+def handle_kibana_index(name, tenant, conn: KibanaConnection, index=None, mode='CREATE'):
+
+    modes = {
+        'CREATE': 'post',
+        'READ': 'get',
+        'UPDATE': 'put',
+        'DELETE': 'delete'
+    }
+    operation = modes.get(mode)
+    if not operation:
+        raise ValueError(f'Unknown request type: {mode}')
+    payload = None
+    if mode in ['CREATE', 'UPDATE']:
+        payload = index
     pattern = f'{name}'
     index_url = f'/api/saved_objects/index-pattern/{pattern}'
-    handle_http(
-        conn.request(tenant, 'post', index_url, json=index)
-    )
+    res = conn.request(tenant, operation, index_url, json=payload)
+    handle_http(res)
+    if mode == 'READ':
+        return res.json()
+    return res
 
 
 def index_from_file(index_path, index_file):
@@ -193,10 +367,3 @@ def index_from_file(index_path, index_file):
             'name': index_name,
             'body': json.load(f)
         }
-
-
-def add_alias():
-    '''
-    "aliases" : {}
-    '''
-    pass
