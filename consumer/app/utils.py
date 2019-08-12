@@ -18,6 +18,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from deepmerge import always_merger
 from hashlib import md5
 import json
 
@@ -55,3 +56,7 @@ def hash(obj):
     encoded = _sorted.encode('utf-8')
     hash = str(md5(encoded).hexdigest())[:16]  # 64bit hash
     return hash
+
+
+def merge_dicts(base, new):
+    return always_merger.merge(base, new)

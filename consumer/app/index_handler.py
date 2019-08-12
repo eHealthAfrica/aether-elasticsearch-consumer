@@ -26,6 +26,7 @@ from requests.exceptions import HTTPError
 from .import config
 from .logger import get_logger
 from .schema import Node
+from . import visualization
 from . import utils
 
 from .connection_handler import KibanaConnection
@@ -135,11 +136,15 @@ def kibana_handle_schema_change(
 ):
     node_new = Node(schema_new)
     kibana_index = make_kibana_index(alias, node_new)
+    schema_name = schema_new.get('name')
     if schema_old is not None:
+        if schema_old.get('name'):
+            schema_name = schema_old.get('name')
         node_old = Node(schema_old)
         if Node.compare(node_old, node_new) == {}:
             return False  # schema not substantially different
     if not check_for_kibana_update(
+            schema_name,
             tenant,
             alias,
             kibana_index,
@@ -151,6 +156,7 @@ def kibana_handle_schema_change(
     return update_kibana_index(
         tenant,
         alias,
+        schema_new,
         kibana_index,
         es_index,
         es_conn,
@@ -159,6 +165,7 @@ def kibana_handle_schema_change(
 
 
 def check_for_kibana_update(
+    schema_name: str,
     tenant: str,
     alias: str,
     kibana_index: Mapping[Any, Any],
@@ -170,11 +177,12 @@ def check_for_kibana_update(
     index_hash = utils.hash(kibana_index)
     artifact = get_es_artifact_for_alias(alias, tenant, es_conn)
     try:
-        old_kibana_index = handle_kibana_index(
+        old_kibana_index = handle_kibana_artifact(
             alias,
             tenant,
             kibana_conn,
-            mode='READ'
+            mode='READ',
+            _type='index-pattern'
         )
     except HTTPError as hpe:
         LOG.debug(f'Could not get old kibana index: {hpe}')
@@ -187,13 +195,20 @@ def check_for_kibana_update(
 
     if not artifact or old_kibana_index:
         return True
-    # TODO update...
+    old_index_hash = artifact.get(
+        'hashes', {}).get(
+        'index', {}).get(
+        schema_name
+    )
+    if old_index_hash != index_hash:
+        return True
     return False
 
 
 def update_kibana_index(
     tenant: str,
     alias: str,
+    schema: Mapping[Any, Any],
     kibana_index: Mapping[Any, Any],
     es_index: Mapping[Any, Any],
     es_conn,
@@ -203,26 +218,46 @@ def update_kibana_index(
     # create new asset
 
     old_artifact = get_es_artifact_for_alias(alias, tenant, es_conn)
-    merged_index, new_artifact = merge_kibana_artifacts(
+    merged_index, new_artifact, updated_visuals = merge_kibana_artifacts(
+        tenant,
+        alias,
+        schema,
         kibana_index,
-        es_conn,
+        kibana_conn,
         old_artifact
     )
+    if not any([merged_index, new_artifact, updated_visuals]):
+        LOG.debug('No kibana update required')
+        return
     try:
-        try:
-            handle_kibana_index(alias, tenant, kibana_conn, merged_index, 'CREATE')
-        except HTTPError:
-            handle_kibana_index(alias, tenant, kibana_conn, merged_index, 'UPDATE')
-        finally:
-            put_es_artifact_for_alias(alias, tenant, new_artifact, es_conn)
+        update_kibana_artifact(
+            alias,
+            tenant,
+            kibana_conn,
+            merged_index,
+            'index-pattern'
+        )
+        for vis_id, body in updated_visuals.items():
+            update_kibana_artifact(
+                vis_id,
+                tenant,
+                kibana_conn,
+                body,
+                'visualization'
+            )
+        # save the new hashes last in case of partial failure
+        # on restart, it should try again
+        put_es_artifact_for_alias(alias, tenant, new_artifact, es_conn)
+        return True
+    except HTTPError as her:
+        LOG.critical(f'Kibana index update failed: {her}')
+        raise her
     except Exception as err:
-        LOG.critical(f'Error registering Kibana App: {err}')
-    # save asset hashes
-
-    pass
+        LOG.critical(f'Kibana index with generic: {err}')
+        raise err
 
 
-def _remove_formname(name):
+def remove_formname(name):
     pieces = name.split('.')
     return '.'.join(pieces[1:])
 
@@ -235,9 +270,9 @@ def _find_timestamp(schema: Node):
     fields = sorted([key for key, node in matching])
     timestamps = [f for f in fields if 'timestamp' in f]
     if timestamps:
-        return _remove_formname(timestamps[0])
+        return remove_formname(timestamps[0])
     elif fields:
-        return _remove_formname(fields[0])
+        return remove_formname(fields[0])
     else:
         return consumer_config.get(
             'autoconfig_settings', {}).get(
@@ -257,7 +292,7 @@ def _format_lookups(schema: Node, default='Other', strip_form_name=True):
         }
     else:
         return {
-            _remove_formname(key): _format_single_lookup(node, default)
+            remove_formname(key): _format_single_lookup(node, default)
             for key, node in matching
         }
 
@@ -273,24 +308,86 @@ def _format_single_lookup(node: Node, default='Other'):
     return definition
 
 
-def merge_kibana_artifacts(kibana_index, schema, es, old_artifact=None):
-    visualizations = {}  # make_visualizations
-    # TODO schema name!
-    schema_name = schema.get('name')
+def _make_artifact(index=None, visualization=None, old_artifact=None):
+    indices = {
+        k: v for k, v in index.items()} \
+        if isinstance(index, dict)  \
+        else {}
+
+    visualizations = {
+        k: v for k, v in visualization.items()} \
+        if isinstance(visualization, dict) \
+        else {}
+
     new_artifact = {
         'hashes': {
-            'index': {
-                schema_name: utils.hash(kibana_index)
-            },
-            'template': {k: utils.hash(v) for k, v in visualizations}
+            'index': indices,
+            'visualization': visualizations
         }
     }
-    if old_artifact:
-        merged_index = kibana_index
-    else:
-        # TODO merge indices based on diff in artifacts
-        merged_index = kibana_index
-    return merged_index, new_artifact
+    if not old_artifact:
+        return new_artifact
+    _source = old_artifact.get('_source', {})
+    return utils.merge_dicts(_source, new_artifact)
+
+
+def merge_kibana_artifacts(
+    tenant: str,
+    alias: str,
+    schema: Mapping[Any, Any],
+    kibana_index: Mapping[Any, Any],  # individual kibana index contribution
+    kibana_conn,
+    old_artifact: Mapping[Any, Any] = None  # artifact describes multiple types
+):
+    schema_name = schema.get('name')
+    index_hash = utils.hash(kibana_index)
+    visualizations = visualization.get_visualizations(
+        alias,
+        Node(schema)
+    )
+    vis_hashes = {k: utils.hash(v) for k, v in visualizations.items()}
+    if not old_artifact:
+        # use the new one since there is no old one
+
+        artifact = _make_artifact(
+            index={schema_name: index_hash},
+            visualization=vis_hashes
+        )
+        return kibana_index, artifact, visualizations
+    old_index_hash = old_artifact.get(
+        'hashes', {}).get(
+        'index', {}).get(
+        schema_name
+    )
+    old_vis_hashes = old_artifact.get(
+        'hashes', {}).get(
+        'visualization', {}
+    )
+    updated_visuals = {
+        key: visualizations[key] for key, _hash in vis_hashes.items()
+        if _hash not in old_vis_hashes.values()
+    }
+    if updated_visuals:
+        LOG.debug(f'updated visuals: {list(updated_visuals.keys())}')
+    # no change, ignore
+    if (old_index_hash == index_hash) and (len(updated_visuals) == 0):
+        return None, None, None
+
+    # we need to reconcile the update
+    old_kibana_index = handle_kibana_artifact(
+        alias,
+        tenant,
+        kibana_conn,
+        mode='READ',
+        _type='index-pattern'
+    )
+    new_kibana_index = utils.merge_dicts(old_kibana_index, kibana_index)
+    artifact = _make_artifact(
+        index={schema_name: index_hash},
+        visualization=vis_hashes,
+        old_artifact=old_artifact
+    )
+    return new_kibana_index, artifact, updated_visuals
 
 
 def __get_es_artifact_index_name(tenant):
@@ -305,7 +402,8 @@ def get_es_artifact_for_alias(alias, tenant, es):
     index = __get_es_artifact_index_name(tenant)
     _id = __get_es_artifact_doc_name(alias)
     if es.exists(index=index, id=_id):
-        return es.get(index=index, id=_id)
+        doc = es.get(index=index, id=_id)
+        return doc.get('_source', {})
     LOG.debug(f'No artifact doc for {_id}')
     return None
 
@@ -330,16 +428,51 @@ def put_es_artifact_for_alias(name, tenant, doc, es):
             body=doc
         )
     else:
-        LOG.debug(f'Updating ES Artifact for {tenant}:{name}')
+        LOG.debug(f'Updating ES Artifact for {tenant}:{name}:{_id}')
+        LOG.debug(json.dumps(doc, indent=2))
         es.update(
             index=index,
             id=_id,
-            body=doc
+            body={'doc': doc}
         )
 
 
-def handle_kibana_index(name, tenant, conn: KibanaConnection, index=None, mode='CREATE'):
+def update_kibana_artifact(
+    alias,
+    tenant,
+    conn:
+    KibanaConnection,
+    index=None,
+    _type='index-pattern'
+):
+    try:
+        handle_kibana_artifact(
+            alias,
+            tenant,
+            conn,
+            index,
+            'CREATE',
+            _type
+        )
+    except HTTPError:
+        handle_kibana_artifact(
+            alias,
+            tenant,
+            conn,
+            index,
+            'UPDATE',
+            _type
+        )
 
+
+def handle_kibana_artifact(
+    name,
+    tenant,
+    conn: KibanaConnection,
+    index=None,
+    mode='CREATE',
+    _type=None
+):
     modes = {
         'CREATE': 'post',
         'READ': 'get',
@@ -353,11 +486,20 @@ def handle_kibana_index(name, tenant, conn: KibanaConnection, index=None, mode='
     if mode in ['CREATE', 'UPDATE']:
         payload = index
     pattern = f'{name}'
-    index_url = f'/api/saved_objects/index-pattern/{pattern}'
+    index_url = f'/api/saved_objects/{_type}/{pattern}'
     res = conn.request(tenant, operation, index_url, json=payload)
-    handle_http(res)
+    try:
+        handle_http(res)
+    except HTTPError as her:
+        LOG.debug(f'Kibana index handle failed op: {operation}')
+        LOG.debug(res.text)
+        LOG.debug(f'index: {json.dumps(index, indent=2)}')
+        raise her
     if mode == 'READ':
-        return res.json()
+        body = res.json()
+        # Only the attributes fields can be passed back,
+        # so we remove the others here
+        return {'attributes': body.get('attributes', {})}
     return res
 
 

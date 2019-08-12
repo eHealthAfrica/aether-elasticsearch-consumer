@@ -92,3 +92,26 @@ def test__hash():
 
     for a, b, match in pairs:
         assert((utils.hash(a) == utils.hash(b)) == match), [a, b, match]
+
+
+@pytest.mark.unit
+def test__merge_dicts():
+    cases = [
+        (
+            {'a': [1, 2, 3]},
+            {'b': [4, 5, 6]},
+            {'a': [1, 2, 3], 'b': [4, 5, 6]}
+        ),
+        (
+            {'a': [1, 2, 3]},
+            {'a': [4, 5, 6]},
+            {'a': [1, 2, 3, 4, 5, 6]}
+        ),
+        (
+            {'a': {'a': 1, 'b': 0, 'c': 0}, 'b': {'a': 0, 'b': 2, 'c': 3}},
+            {'a': {'b': 2, 'c': 3}, 'b': {'b': 0, 'c': 0}},
+            {'a': {'a': 1, 'b': 2, 'c': 3}, 'b': {'a': 0, 'b': 0, 'c': 0}}
+        )
+    ]
+    for a, b, c in cases:
+        assert(utils.merge_dicts(a, b) == c)
