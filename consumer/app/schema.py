@@ -94,8 +94,10 @@ class Node:
         elif isinstance(_type, dict):
             if '@aether_extended_type' in _type:
                 yield _type['@aether_extended_type']
-            elif '@name' in _type:
+            elif 'name' in _type:
                 yield f'object:{_type["name"]}'
+            elif 'items' in _type:
+                yield f'array:{_type["items"]}'
             else:
                 yield 'object'
 
@@ -104,15 +106,27 @@ class Node:
         for field, alias in fields.items():
             if source.get(alias):
                 setattr(self, field, source.get(alias))
+
         __types = [i for i in self._get_avro_type(source.get('type'))]
+        LOG.debug(f'{self.name} -> {__types}')
         setattr(self, 'avro_type', __types)
         setattr(self, 'optional', ('null' in __types))
+
+    def __is_array(self, field):
+        for i in field.get('type', []):
+            if isinstance(i, dict):
+                if i.get('type') == 'array':
+                    return True
+        return False
 
     def parse_children(self, source: Mapping[Any, Any]):
         fields = source.get('fields', [])
         for f in fields:
             self.has_children = True
             name = f.get('name')
+            if self.__is_array(f):
+                self.children[name] = Node(f)
+                continue
             grand_children = [i for i in f.get('type', []) if isinstance(i, dict)]
             if not grand_children:
                 if not name:  # array values, ignore them

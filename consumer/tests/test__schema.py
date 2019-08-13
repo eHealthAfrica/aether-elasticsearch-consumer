@@ -114,7 +114,7 @@ def test__collect_nodes_by_required(ComplexSchema):
 
 @pytest.mark.unit
 def test__collect_nodes_by_optional(ComplexSchema):
-    expected = 45
+    expected = 50
     matches = ComplexSchema.collect_matching(
         {'match_attr': [{'optional': True}]}
     )

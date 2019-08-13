@@ -48,13 +48,13 @@ def test__handle_http():
 
 
 @pytest.mark.unit
-def test__get_es_index_from_autoconfig(AutoConfigSettings):
+def test__get_es_index_from_autoconfig(AutoConfigSettings, ComplexSchema):
     ACS = AutoConfigSettings
     tenant = 'dev'
     name = 'a-topic'
     LOG.debug(json.dumps(ACS, indent=2))
     index = index_handler.get_es_index_from_autoconfig(
-        ACS, name, tenant
+        ACS, name, tenant, ComplexSchema
     )
     LOG.debug(json.dumps(index, indent=2))
     idx_tmp = ACS['index_name_template']
@@ -65,11 +65,11 @@ def test__get_es_index_from_autoconfig(AutoConfigSettings):
 
 
 @pytest.mark.unit
-def test__get_index_for_topic(AutoConfigSettings):
+def test__get_index_for_topic(AutoConfigSettings, ComplexSchema):
     name = 'Person'
     geo_name = AutoConfigSettings.get('geo_point_name')
     auto_ts = AutoConfigSettings.get('auto_timestamp')
-    index = index_handler.get_index_for_topic(name, geo_name, auto_ts)
+    index = index_handler.get_index_for_topic(name, geo_name, auto_ts, ComplexSchema)
     index = index.get('mappings', None)
     assert(len(index) == 1)
     assert(first('$._doc', index) is not None)
@@ -81,11 +81,11 @@ def test__get_index_for_topic(AutoConfigSettings):
 def test__get_es_types_from_schema(ComplexSchema):
     res = index_handler.get_es_types_from_schema(ComplexSchema)
     assert(first('$.beds.type', res) == 'integer')
-    assert(first('$._id.type', res) == 'keyword')
+    assert(first('$.username.type', res) == 'keyword')
     assert(first('$._start.type', res) == 'date')
-    assert(first('$.geometry.type', res) == 'geo_point')
+    assert(first('$.geometry.type', res) == 'object')
     assert(first('$.meta.type', res) == 'object')
-    assert(len(list(res.keys())) == 49)
+    assert(len(list(res.keys())) == 52)
 
 
 @pytest.mark.integration

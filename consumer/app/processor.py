@@ -30,6 +30,12 @@ LOG = get_logger('PROCESS')
 CONSUMER_CONFIG = get_consumer_config()
 
 
+ES_RESERVED = [
+    '_uid', '_id', '_type', '_source', '_all', '_field_names',
+    '_routing', '_index', '_size', '_timestamp', '_ttl', '_version'
+]
+
+
 class ESItemProcessor(object):
 
     def __init__(self, type_name, type_instructions):
@@ -105,10 +111,8 @@ class ESItemProcessor(object):
         return route
 
     def rename_reserved_fields(self, doc):
-        reserved = ['_uid', '_id', '_type', '_source', '_all', '_field_names',
-                    '_routing', '_index', '_size', '_timestamp', '_ttl', '_version']
         for key in doc:
-            if key in reserved:
+            if key in ES_RESERVED:
                 val = self._get_doc_field(doc, key)
                 safe_name = 'es_reserved_%s' % key
                 doc[safe_name] = val

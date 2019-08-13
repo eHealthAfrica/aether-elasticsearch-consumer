@@ -80,6 +80,9 @@ class ESWorker(threading.Thread):
     def add_topics(self, topics):
         LOG.debug(f'Adding {(topics,)} to consumer thread: {self.tenant}')
         self.topics.extend(topics)
+        for topic in topics:
+            self.es_instances[topic] = [ES.get_connection()]
+            self.kibana_instances[topic] = [ES.get_kibana()]
         self._update_topics()
 
     def _update_topics(self):
@@ -99,18 +102,19 @@ class ESWorker(threading.Thread):
     def update_topic(self, topic, schema: Mapping[Any, Any]):
         LOG.debug(f'{self.tenant} is updating topic: {topic}')
 
+        node: Node = Node(schema)
         es_index = index_handler.get_es_index_from_autoconfig(
             self.autoconf,
             name=self.name_from_topic(topic),
             tenant=self.tenant,
-            schema=schema
+            schema=node
         )
-        node: Node = Node(schema)
         alias = index_handler.get_alias_from_namespace(
             self.tenant, node.namespace
         )
         # Try to add the indices / ES alias
         for es_instance in self.es_instances.get(topic, []):
+            LOG.debug(f'registering ES index:\n{json.dumps(es_index, indent=2)}')
             updated = index_handler.register_es_index(
                 es_instance,
                 es_index,
@@ -154,7 +158,7 @@ class ESWorker(threading.Thread):
         # have to get to force env lookups
         args = KAFKA_CONFIG.copy()
         args['client_id'] = self.group_name
-        args['group_id'] = self.group_name + '_001'  # TODO KILL!
+        args['group_id'] = self.group_name + '_005'  # TODO KILL!
         args['enable_auto_commit'] = False
         try:
             LOG.debug(
@@ -263,7 +267,7 @@ class ESWorker(threading.Thread):
                     index=index_name,
                     id=doc.get('id'),
                     routing=route,
-                    doc_type=self.doc_type,
+                    doc_type=doc_type,
                     body=doc
                 )
                 LOG.debug(

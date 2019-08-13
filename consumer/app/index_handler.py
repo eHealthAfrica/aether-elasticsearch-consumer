@@ -25,6 +25,7 @@ from requests.exceptions import HTTPError
 
 from .import config
 from .logger import get_logger
+from .processor import ES_RESERVED
 from .schema import Node
 from . import visualization
 from . import utils
@@ -34,6 +35,30 @@ from .connection_handler import KibanaConnection
 LOG = get_logger('INDEX')
 consumer_config = config.get_consumer_config()
 kafka_config = config.get_kafka_config()
+
+AVRO_TYPES = [
+    ('boolean', 'boolean'),
+    ('int', 'integer'),
+    ('long', 'long'),
+    ('float', 'float'),
+    ('double', 'double'),
+    ('bytes', 'binary'),
+    ('string', 'keyword'),
+    ('record', 'object'),
+    ('enum', 'string'),
+    ('array', 'nested'),
+    ('fixed', 'string'),
+    ('object', 'object'),
+    ('array:string', 'object')
+]
+
+AETHER_TYPES = [
+    ('dateTime', 'date'),
+    ('geopoint', 'object'),  # our geopoints don't fit the requirement
+    ('select', 'keyword'),
+    ('select1', 'keyword'),
+    ('group', 'object')
+]
 
 
 def handle_http(req):
@@ -98,47 +123,24 @@ def get_es_types_from_schema(schema: Node):
     # to ES's handling of them. I.E. if it can be an object or a string,
     # it's more tolerant to treat it as an object, etc.
 
-    avro_types = [
-        ('boolean', 'boolean'),
-        ('int', 'integer'),
-        ('long', 'long'),
-        ('float', 'float'),
-        ('double', 'double'),
-        ('bytes', 'binary'),
-        ('string', 'keyword'),
-        ('record', 'object'),
-        ('enum', 'string'),
-        ('array', 'nested'),
-        ('fixed', 'string'),
-        ('object', 'object')
-    ]
-
-    aether_types = [
-        ('dateTime', 'date'),
-        ('geopoint', 'geo_point'),
-        ('select', 'keyword'),
-        ('select1', 'keyword'),
-        ('group', 'object')
-    ]
-
     mappings = {}
 
-    for avro_type, es_type in avro_types:
+    for avro_type, es_type in AVRO_TYPES:
         matches = [i for i in schema.find_children(
             {'attr_contains': [{'avro_type': avro_type}]})
         ]
         for match in matches:
             path = remove_formname(match)
-            if path:
+            if path and path not in ES_RESERVED:
                 mappings[path] = {'type': es_type}
 
-    for aether_type, es_type in aether_types:
+    for aether_type, es_type in AETHER_TYPES:
         matches = [i for i in schema.find_children(
             {'match_attr': [{'__extended_type': aether_type}]})
         ]
         for match in matches:
             path = remove_formname(match)
-            if path:
+            if path and path not in ES_RESERVED:
                 mappings[path] = {'type': es_type}
 
     return mappings
