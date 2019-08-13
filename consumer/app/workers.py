@@ -102,7 +102,8 @@ class ESWorker(threading.Thread):
         es_index = index_handler.get_es_index_from_autoconfig(
             self.autoconf,
             name=self.name_from_topic(topic),
-            tenant=self.tenant
+            tenant=self.tenant,
+            schema=schema
         )
         node: Node = Node(schema)
         alias = index_handler.get_alias_from_namespace(

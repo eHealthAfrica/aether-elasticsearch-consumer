@@ -104,6 +104,31 @@ def test__get_child_from_path__fail(SimpleSchema):
 
 
 @pytest.mark.unit
+def test__collect_nodes_by_required(ComplexSchema):
+    matches = ComplexSchema.collect_matching(
+        {'match_attr': [{'optional': False}]}
+    )
+    count = sum([1 for (path, node) in matches])
+    assert(count == 5)
+
+
+@pytest.mark.unit
+def test__collect_nodes_by_optional(ComplexSchema):
+    expected = 45
+    matches = ComplexSchema.collect_matching(
+        {'match_attr': [{'optional': True}]}
+    )
+    count = sum([1 for (path, node) in matches])
+    assert(count == expected)
+    # Do it in another way
+    matches = ComplexSchema.collect_matching(
+        {'attr_contains': [{'avro_type': 'null'}]}
+    )
+    count = sum([1 for (path, node) in matches])
+    assert(count == expected)
+
+
+@pytest.mark.unit
 def test__collect_nodes_by_criteria(ComplexSchema):
     matches = ComplexSchema.collect_matching(
         {'match_attr': [{'__extended_type': 'select1'}]}

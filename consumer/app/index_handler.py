@@ -43,7 +43,8 @@ def handle_http(req):
 def get_es_index_from_autoconfig(
     autoconf,
     name=None,
-    tenant=None
+    tenant=None,
+    schema: Node = None
 ):
     geo_point = (
         autoconf.get('geo_point_name', None)
@@ -57,13 +58,18 @@ def get_es_index_from_autoconfig(
     index = {
         'name': index_name,
         'body': get_index_for_topic(
-            topic_name, geo_point, auto_ts
+            topic_name, geo_point, auto_ts, schema
         )
     }
     return index
 
 
-def get_index_for_topic(name, geo_point=None, auto_ts=None):
+def get_index_for_topic(
+    name,
+    geo_point=None,
+    auto_ts=None,
+    schema: Node = None
+):
     LOG.debug('Creating mappings for topic %s' % name)
     mappings = {
         # name: {
@@ -77,6 +83,7 @@ def get_index_for_topic(name, geo_point=None, auto_ts=None):
             }
         }
     }
+    # mappings['_doc']['properties'] = get_es_types_from_schema(schema)
     if geo_point:
         mappings['_doc']['_meta']['aet_geopoint'] = geo_point
         mappings['_doc']['properties'] = {geo_point: {'type': 'geo_point'}}
@@ -84,6 +91,22 @@ def get_index_for_topic(name, geo_point=None, auto_ts=None):
         mappings['_doc']['_meta']['aet_auto_ts'] = auto_ts
     LOG.debug('created mappings: %s' % mappings)
     return {'mappings': mappings}
+
+
+# def get_es_types_from_schema(schema: Node):
+#     types = {
+
+#     }
+
+#     mappings = {}
+#     for _type, es_type in types.items():
+#         matches = [i for i in schema.find_children(
+#             {'match_attr': [{'__extended_type': _type}]})
+#         ]
+#         for match in matches:
+#             path = remove_formname(match)
+#             mappings[path]
+#         pass
 
 
 def register_es_index(es, index, alias=None):

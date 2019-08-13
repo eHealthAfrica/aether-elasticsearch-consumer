@@ -18,6 +18,9 @@ class Node:
         '__lookup'
     ]
 
+    # also avro_type which is derrived from the avro types
+    # & optional, which means null is an option
+
     doc: str
     default: str
     name: str
@@ -78,11 +81,29 @@ class Node:
             return f'@aether_{name.lstrip("__")}'
         return name
 
+    def _get_avro_type(self, _type):
+        ''' parse the avro types of this node'''
+        if isinstance(_type, str):
+            yield _type
+        elif isinstance(_type, list):
+            for i in _type:
+                yield from self._get_avro_type(i)
+        elif isinstance(_type, dict):
+            if '@aether_extended_type' in _type:
+                yield _type['@aether_extended_type']
+            elif '@name' in _type:
+                yield f'object:{_type["name"]}'
+            else:
+                yield 'object'
+
     def parse(self, source: Mapping[Any, Any]):
         fields = {f: self.__swap_name(f) for f in Node.fields}
         for field, alias in fields.items():
             if source.get(alias):
                 setattr(self, field, source.get(alias))
+        __types = [i for i in self._get_avro_type(source.get('type'))]
+        setattr(self, 'avro_type', __types)
+        setattr(self, 'optional', ('null' in __types))
 
     def parse_children(self, source: Mapping[Any, Any]):
         fields = source.get('fields', [])
@@ -117,6 +138,10 @@ class Node:
         for condition in conditions.get('match_attr', []):
             for k, v in condition.items():
                 if getattr(self, k, None) == v:
+                    return True
+        for condition in conditions.get('attr_contains', []):
+            for k, v in condition.items():
+                if v in getattr(self, k, []):
                     return True
         return False
 
