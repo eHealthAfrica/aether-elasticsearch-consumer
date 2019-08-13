@@ -93,20 +93,52 @@ def get_index_for_topic(
     return {'mappings': mappings}
 
 
-# def get_es_types_from_schema(schema: Node):
-#     types = {
+def get_es_types_from_schema(schema: Node):
+    # since we handle union types, we sort these in increasing importance
+    # to ES's handling of them. I.E. if it can be an object or a string,
+    # it's more tolerant to treat it as an object, etc.
 
-#     }
+    avro_types = [
+        ('boolean', 'boolean'),
+        ('int', 'integer'),
+        ('long', 'long'),
+        ('float', 'float'),
+        ('double', 'double'),
+        ('bytes', 'binary'),
+        ('string', 'keyword'),
+        ('record', 'object'),
+        ('enum', 'string'),
+        ('array', 'nested'),
+        ('fixed', 'string'),
+        ('object', 'object')
+    ]
 
-#     mappings = {}
-#     for _type, es_type in types.items():
-#         matches = [i for i in schema.find_children(
-#             {'match_attr': [{'__extended_type': _type}]})
-#         ]
-#         for match in matches:
-#             path = remove_formname(match)
-#             mappings[path]
-#         pass
+    # TODO Add overrides for types with supersceding Aether Types
+
+    # aether_types = [
+    #     ('boolean', 'boolean'),
+    #     ('int', 'integer'),
+    #     ('long', 'long'),
+    #     ('float', 'float'),
+    #     ('double', 'double'),
+    #     ('bytes', 'binary'),
+    #     ('string', 'keyword'),
+    #     ('record', 'object'),
+    #     ('enum', 'string'),
+    #     ('array', 'nested'),
+    #     ('fixed', 'string'),
+    #     ('object', 'object')
+    # ]
+
+    mappings = {}
+    for avro_type, es_type in avro_types:
+        matches = [i for i in schema.find_children(
+            {'attr_contains': [{'avro_type': avro_type}]})
+        ]
+        for match in matches:
+            path = remove_formname(match)
+            mappings[path]
+        pass
 
 
 def register_es_index(es, index, alias=None):

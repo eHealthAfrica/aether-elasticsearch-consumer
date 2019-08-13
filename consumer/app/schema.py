@@ -18,8 +18,11 @@ class Node:
         '__lookup'
     ]
 
-    # also avro_type which is derrived from the avro types
-    # & optional, which means null is an option
+    # fields we have to derrive from the original
+    calculated_fields = [
+        'avro_type',
+        'optional'
+    ]
 
     doc: str
     default: str
@@ -57,11 +60,11 @@ class Node:
 
     @staticmethod
     def diff_nodes(left, right):
-        return [f for f in Node.fields
+        return [f for f in (Node.fields + Node.calculated_fields)
                 if not Node.compare_objects(
                     getattr(left, f, None),
                     getattr(right, f, None)
-                )]
+        )]
 
     @staticmethod
     def compare_objects(a, b):
