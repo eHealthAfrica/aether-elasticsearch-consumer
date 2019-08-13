@@ -77,17 +77,15 @@ def test__get_index_for_topic(AutoConfigSettings):
     assert(first(f'$._doc._meta.aet_auto_ts', index) == auto_ts)
 
 
-# @pytest.mark.unit
-# def test__register_es_artifacts():
-#     index = {'name': 'an_index'}
-#     with pytest.raises(ValueError):
-#         index_handler.register_es_artifacts()
-#     assert(index_handler.register_es_artifacts(index=index, mock=True))
-#     assert(index_handler.register_es_artifacts(
-#         index_path='/code/tests/test_index/es6',
-#         index_file='combined.json',
-#         mock=True
-#     ))
+@pytest.mark.unit
+def test__get_es_types_from_schema(ComplexSchema):
+    res = index_handler.get_es_types_from_schema(ComplexSchema)
+    assert(first('$.beds.type', res) == 'integer')
+    assert(first('$._id.type', res) == 'keyword')
+    assert(first('$._start.type', res) == 'date')
+    assert(first('$.geometry.type', res) == 'geo_point')
+    assert(first('$.meta.type', res) == 'object')
+    assert(len(list(res.keys())) == 49)
 
 
 @pytest.mark.integration

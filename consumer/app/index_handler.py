@@ -83,10 +83,10 @@ def get_index_for_topic(
             }
         }
     }
-    # mappings['_doc']['properties'] = get_es_types_from_schema(schema)
+    mappings['_doc']['properties'] = get_es_types_from_schema(schema)
     if geo_point:
         mappings['_doc']['_meta']['aet_geopoint'] = geo_point
-        mappings['_doc']['properties'] = {geo_point: {'type': 'geo_point'}}
+        mappings['_doc']['properties']['geo_point'] = {'type': 'geo_point'}
     if auto_ts:
         mappings['_doc']['_meta']['aet_auto_ts'] = auto_ts
     LOG.debug('created mappings: %s' % mappings)
@@ -113,32 +113,35 @@ def get_es_types_from_schema(schema: Node):
         ('object', 'object')
     ]
 
-    # TODO Add overrides for types with supersceding Aether Types
-
-    # aether_types = [
-    #     ('boolean', 'boolean'),
-    #     ('int', 'integer'),
-    #     ('long', 'long'),
-    #     ('float', 'float'),
-    #     ('double', 'double'),
-    #     ('bytes', 'binary'),
-    #     ('string', 'keyword'),
-    #     ('record', 'object'),
-    #     ('enum', 'string'),
-    #     ('array', 'nested'),
-    #     ('fixed', 'string'),
-    #     ('object', 'object')
-    # ]
+    aether_types = [
+        ('dateTime', 'date'),
+        ('geopoint', 'geo_point'),
+        ('select', 'keyword'),
+        ('select1', 'keyword'),
+        ('group', 'object')
+    ]
 
     mappings = {}
+
     for avro_type, es_type in avro_types:
         matches = [i for i in schema.find_children(
             {'attr_contains': [{'avro_type': avro_type}]})
         ]
         for match in matches:
             path = remove_formname(match)
-            mappings[path]
-        pass
+            if path:
+                mappings[path] = {'type': es_type}
+
+    for aether_type, es_type in aether_types:
+        matches = [i for i in schema.find_children(
+            {'match_attr': [{'__extended_type': aether_type}]})
+        ]
+        for match in matches:
+            path = remove_formname(match)
+            if path:
+                mappings[path] = {'type': es_type}
+
+    return mappings
 
 
 def register_es_index(es, index, alias=None):
