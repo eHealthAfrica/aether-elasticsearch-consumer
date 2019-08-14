@@ -523,6 +523,14 @@ def update_kibana_artifact(
             'UPDATE',
             _type
         )
+    finally:
+        default_index = get_default_index(tenant, conn)
+        if not default_index:
+            LOG.critical(f'No default index is set, using: {alias}')
+            set_default_index(tenant, conn, alias)
+        else:
+            LOG.critical(
+                f'default index {default_index} already set. Ignoring.')
 
 
 def handle_kibana_artifact(
@@ -561,6 +569,33 @@ def handle_kibana_artifact(
         # so we remove the others here
         return {'attributes': body.get('attributes', {})}
     return res
+
+
+def get_default_index(tenant, conn: KibanaConnection):
+    url = '/api/kibana/settings'
+    op = 'get'
+    res = conn.request(tenant, op, url)
+    try:
+        handle_http(res)
+        default = res.json().get('settings', {}) \
+            .get('defaultIndex', {}) \
+            .get('userValue')
+        return default
+    except HTTPError as her:
+        LOG.debug(f'Could not get default index: {her}')
+        return None
+
+
+def set_default_index(tenant, conn: KibanaConnection, index_name):
+    url = '/api/kibana/settings/defaultIndex'
+    op = 'post'
+    res = conn.request(tenant, op, url, json={'value': index_name})
+    try:
+        handle_http(res)
+        return True
+    except HTTPError as her:
+        LOG.debug(f'Could not set default index to {index_name}: {her}')
+        return False
 
 
 def index_from_file(index_path, index_file):
