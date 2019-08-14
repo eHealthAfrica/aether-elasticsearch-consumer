@@ -30,4 +30,5 @@ LOG = get_logger('TEST-VIZ')
 @pytest.mark.unit
 def test__get_visualizations(ComplexSchema):
     res = get_visualizations('com.example', ComplexSchema)
+    LOG.debug(json.dumps(res, indent=2))
     assert(res is not None)

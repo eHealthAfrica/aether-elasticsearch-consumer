@@ -32,7 +32,7 @@ from .processor import ESItemProcessor
 from .logger import get_logger
 from .schema import Node
 
-from .connection_handler import KibanaConnection
+from .connection_handler import KibanaConnection, ESConnectionManager
 
 LOG = get_logger('WORKER')
 CONSUMER_CONFIG = config.get_consumer_config()
@@ -158,7 +158,7 @@ class ESWorker(threading.Thread):
         # have to get to force env lookups
         args = KAFKA_CONFIG.copy()
         args['client_id'] = self.group_name
-        args['group_id'] = self.group_name + '_008'  # TODO KILL!
+        args['group_id'] = self.group_name + '_010'  # TODO KILL!
         args['enable_auto_commit'] = False
         try:
             LOG.debug(
@@ -172,6 +172,30 @@ class ESWorker(threading.Thread):
             )
             return False
 
+    def test_es_connection(self):
+        unique_es = {
+            es.instance_id: es
+            for topic, eses in self.es_instances.items()
+            for es in eses
+        }
+        for _id, es in unique_es.items():
+            if not ESConnectionManager.connection_is_live(es):
+                raise ConnectionError(
+                    f'ES instance {_id} could not be contacted')
+            else:
+                LOG.debug(f'ES {_id} ready')
+        unique_kibana = {
+            kb.instance_id: kb
+            for topic, kbs in self.kibana_instances.items()
+            for kb in kbs
+        }
+        for _id, kb in unique_kibana.items():
+            if not kb.test(self.tenant):
+                raise ConnectionError(
+                    f'Kibana instance {_id} could not be contacted')
+            else:
+                LOG.debug(f'Kibana {_id} ready')
+
     def run(self):
         LOG.debug(f'Consumer running on {self.tenant}')
         while True:
@@ -181,9 +205,15 @@ class ESWorker(threading.Thread):
                 return
             sleep(2)
         while not self.stopped:
-            new_messages = self.consumer.poll_and_deserialize(
-                timeout_ms=self.consumer_timeout,
-                max_records=self.consumer_max_records)
+            try:
+                # don't fetch messages if we can't post them
+                self.test_es_connection()
+                new_messages = self.consumer.poll_and_deserialize(
+                    timeout_ms=self.consumer_timeout,
+                    max_records=self.consumer_max_records)
+            except ConnectionError as cer:
+                LOG.debug(f'ES or Kibana not ready: {cer}')
+                new_messages = []
             if not new_messages:
                 LOG.info(
                     f'Kafka IDLE [{self.tenant}:{self.topics}]')

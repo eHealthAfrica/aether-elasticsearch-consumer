@@ -27,7 +27,7 @@ from .import config
 from .logger import get_logger
 from .processor import ES_RESERVED
 from .schema import Node
-from . import visualization
+from .visualization import get_visualizations
 from . import utils
 
 from .connection_handler import KibanaConnection
@@ -35,30 +35,6 @@ from .connection_handler import KibanaConnection
 LOG = get_logger('INDEX')
 consumer_config = config.get_consumer_config()
 kafka_config = config.get_kafka_config()
-
-AVRO_TYPES = [
-    ('boolean', 'boolean'),
-    ('int', 'integer'),
-    ('long', 'long'),
-    ('float', 'float'),
-    ('double', 'double'),
-    ('bytes', 'binary'),
-    ('string', 'keyword'),
-    ('record', 'object'),
-    ('enum', 'string'),
-    ('array', 'nested'),
-    ('fixed', 'string'),
-    ('object', 'object'),
-    ('array:string', 'object')
-]
-
-AETHER_TYPES = [
-    ('dateTime', 'date'),
-    ('geopoint', 'object'),  # our geopoints don't fit the requirement
-    ('select', 'keyword'),
-    ('select1', 'keyword'),
-    ('group', 'object')
-]
 
 
 def handle_http(req):
@@ -125,7 +101,7 @@ def get_es_types_from_schema(schema: Node):
 
     mappings = {}
 
-    for avro_type, es_type in AVRO_TYPES:
+    for avro_type, es_type in config.AVRO_TYPES:
         matches = [i for i in schema.find_children(
             {'attr_contains': [{'avro_type': avro_type}]})
         ]
@@ -134,7 +110,7 @@ def get_es_types_from_schema(schema: Node):
             if path and path not in ES_RESERVED:
                 mappings[path] = {'type': es_type}
 
-    for aether_type, es_type in AETHER_TYPES:
+    for aether_type, es_type in config.AETHER_TYPES:
         matches = [i for i in schema.find_children(
             {'match_attr': [{'__extended_type': aether_type}]})
         ]
@@ -308,6 +284,13 @@ def update_kibana_index(
         # save the new hashes last in case of partial failure
         # on restart, it should try again
         put_es_artifact_for_alias(alias, tenant, new_artifact, es_conn)
+        default_index = get_default_index(tenant, kibana_conn)
+        if not default_index:
+            LOG.debug(f'No default index is set, using: {alias}')
+            set_default_index(tenant, kibana_conn, alias)
+        else:
+            LOG.debug(
+                f'default index {default_index} already set. Ignoring.')
         return True
     except HTTPError as her:
         LOG.critical(f'Kibana index update failed: {her}')
@@ -401,7 +384,7 @@ def merge_kibana_artifacts(
 ):
     schema_name = schema.get('name')
     index_hash = utils.hash(kibana_index)
-    visualizations = visualization.get_visualizations(
+    visualizations = get_visualizations(
         alias,
         Node(schema)
     )
@@ -523,14 +506,6 @@ def update_kibana_artifact(
             'UPDATE',
             _type
         )
-    finally:
-        default_index = get_default_index(tenant, conn)
-        if not default_index:
-            LOG.critical(f'No default index is set, using: {alias}')
-            set_default_index(tenant, conn, alias)
-        else:
-            LOG.critical(
-                f'default index {default_index} already set. Ignoring.')
 
 
 def handle_kibana_artifact(

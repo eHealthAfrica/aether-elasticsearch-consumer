@@ -25,6 +25,32 @@ consumer_config = None
 kafka_config = None
 
 
+# Mappings types to ES equivalents
+AVRO_TYPES = [
+    ('boolean', 'boolean'),
+    ('int', 'integer'),
+    ('long', 'long'),
+    ('float', 'float'),
+    ('double', 'double'),
+    ('bytes', 'binary'),
+    ('string', 'keyword'),
+    ('record', 'object'),
+    ('enum', 'string'),
+    ('array', 'nested'),
+    ('fixed', 'string'),
+    ('object', 'object'),
+    ('array:string', 'object')
+]
+
+AETHER_TYPES = [
+    ('dateTime', 'date'),
+    ('geopoint', 'object'),  # our geopoints don't always fit ES requirements
+    ('select', 'keyword'),
+    ('select1', 'keyword'),
+    ('group', 'object')
+]
+
+
 class Settings(dict):
     # A container for our settings
     def __init__(self, file_path=None, alias=None, exclude=None):

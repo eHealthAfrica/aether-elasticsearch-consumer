@@ -21,9 +21,11 @@
 # from copy import copy
 from dataclasses import dataclass
 import json
+from requests.exceptions import HTTPError
 import sys
 from typing import Any, List, Mapping
 from urllib3.exceptions import NewConnectionError
+from uuid import uuid4
 
 # from aet.consumer import KafkaConsumer
 from elasticsearch import Elasticsearch
@@ -92,6 +94,15 @@ class KibanaConnection:
         LOG.debug([method, full_url, kwargs])
         return session.request(method, full_url, **kwargs)
 
+    def test(self, tenant):
+        res = self.request(tenant, 'head', '')
+        try:
+            res.raise_for_status()
+        except HTTPError as her:
+            LOG.debug(f'Error testing kibana connection {her}')
+            return False
+        return True
+
 
 class KibanaConnectionManager:
     # Collection of requests sessions pointing at Kibana instances
@@ -106,6 +117,7 @@ class KibanaConnectionManager:
         instance=None
     ):
         conn = KibanaConnection(config)
+        setattr(conn, 'instance_id', str(uuid4()))
         utils.replace_nested(self.conn, [tenant, instance], conn)
 
     def get_connection(self, tenant=None, instance=None):
@@ -163,6 +175,8 @@ class ESConnectionManager:
         conn_info['sniff_on_start'] = False
         # get connection
         conn = Elasticsearch(config.elasticsearch_url, **conn_info)
+        # add an _id so we can check the instance
+        setattr(conn, 'instance_id', str(uuid4()))
 
         if kibana_config:
             config.has_kibana = True
@@ -205,12 +219,12 @@ class ESConnectionManager:
     def test_connection(self, tenant=':all', instance='default'):
         conn = self.get_connection(tenant, instance)
         LOG.debug(f'Test connection {tenant}:{instance}')
-        return self._test_connection(conn)
+        return ESConnectionManager.connection_is_live(conn)
 
-    def _test_connection(self, conn):
+    @staticmethod
+    def connection_is_live(conn):
         try:
             es_info = conn.info()
-            LOG.debug('ES Instance info: %s' % (es_info,))
             version = es_info.get('version').get('number')
             series = int(version.split('.')[0])
             if series not in SUPPORTED_ES_SERIES:
