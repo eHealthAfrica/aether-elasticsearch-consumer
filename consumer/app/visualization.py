@@ -23,6 +23,7 @@ import json
 from . import config
 from . import index_handler
 from .logger import get_logger
+from .processor import ES_RESERVED
 from .schema import Node
 
 consumer_config = config.get_consumer_config()
@@ -482,6 +483,10 @@ def get_visualizations(
             for path in paths:
                 LOG.debug(f'matching path: {path}')
                 field_name = index_handler.remove_formname(path)
+                if field_name in ES_RESERVED:
+                    # Don't make visualizations for fields that ES uses
+                    # internally, since they're not published to ES
+                    continue
                 title = title_template.format(
                     field_name=field_name.capitalize(),
                     vis_type=vis_type.capitalize()
