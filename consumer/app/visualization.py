@@ -299,7 +299,7 @@ def get_table_buckets(  # text only
                     'otherBucketLabel': 'Other',
                     'missingBucket': False,
                     'missingBucketLabel': 'Missing',
-                    'customLabel': 'TYPE_LABEL'
+                    'customLabel': label
                 }
             }
         ]
@@ -403,6 +403,7 @@ def get_barchart(  # numeric histogram / as bars
                 'schema': 'segment',
                 'params': {
                     'field': field_name,
+                    'customLabel': label,
                     'interval': 5,
                     'extended_bounds': {}
                 }
