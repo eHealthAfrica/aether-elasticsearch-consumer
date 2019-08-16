@@ -174,6 +174,8 @@ class ESConnectionManager:
         conn_info = {k: v for k, v in conn_info.items() if v}
         conn_info['sniff_on_start'] = False
         # get connection
+        LOG.debug(f'Adding ES connection: {config.elasticsearch_url}'
+                  f'\n{json.dumps(conn_info, indent=2)}')
         conn = Elasticsearch(config.elasticsearch_url, **conn_info)
         # add an _id so we can check the instance
         setattr(conn, 'instance_id', str(uuid4()))

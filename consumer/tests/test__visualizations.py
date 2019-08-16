@@ -31,4 +31,4 @@ LOG = get_logger('TEST-VIZ')
 def test__get_visualizations(ComplexSchema):
     res = get_visualizations('com.example', ComplexSchema)
     LOG.debug(json.dumps(res, indent=2))
-    assert(res is not None)
+    assert(sum([1 for k in res.keys()]) == 67)

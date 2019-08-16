@@ -11,6 +11,9 @@ services:
     extends:
       file: docker-compose-base.yml
       service: elasticsearch-base-7
+    ports:
+      - "9200:9200"
+      - "9300:9300"
     networks:
       - aether
 

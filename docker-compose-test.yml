@@ -14,6 +14,9 @@ services:
     extends:
       file: docker-compose-base.yml
       service: elasticsearch-base-6
+    ports:
+    - "9400:9200"
+    - "9500:9300"
     networks:
       - test_net
 
@@ -21,6 +24,9 @@ services:
     extends:
       file: docker-compose-base.yml
       service: elasticsearch-base-5
+    ports:
+    - "9400:9200"
+    - "9500:9300"
     networks:
       - test_net
 

@@ -19,6 +19,7 @@
 # under the License.
 
 import json
+from typing import List, Callable
 
 from . import config
 from . import index_handler
@@ -459,9 +460,28 @@ def _supported_types():
     return [i for i in VIS_MAP.keys()]
 
 
+def __default_path_filters() -> List[Callable[[str], bool]]:
+    # false -> omit
+
+    def _filter_reserved(path):
+        field_name = index_handler.remove_formname(path)
+        if field_name in ES_RESERVED:
+            return False
+        return True
+
+    def _filter_underscored(path):
+        field_name = index_handler.remove_formname(path)
+        if field_name[0] == '_':
+            return False
+        return True
+
+    return [_filter_reserved, _filter_underscored]
+
+
 def get_visualizations(
     alias: str,
-    node: Node
+    node: Node,
+    path_filters: List[Callable[[str], bool]] = __default_path_filters()
 ):
     LOG.debug(f'Getting visualizations for {alias}')
     visualizations = {}
@@ -477,21 +497,23 @@ def get_visualizations(
                     {'attr_contains': [{'avro_type': _type}]}
                 )]
 
-            title_template = '{field_name}-{vis_type}'
-            id_template = '{field_name}_{vis_type}'
+            title_template = '{form_name} ({field_name} -> {vis_type})'
+            id_template = '{form_name}_{field_name}_{vis_type}'
 
             for path in paths:
-                LOG.debug(f'matching path: {path}')
-                field_name = index_handler.remove_formname(path)
-                if field_name in ES_RESERVED:
-                    # Don't make visualizations for fields that ES uses
-                    # internally, since they're not published to ES
+                if path_filters and not all([fn(path) for fn in path_filters]):
+                    LOG.debug(f'{path} ignored for visualization (filtered).')
                     continue
+                LOG.debug(f'visualizing path -> {path}')
+                form_name = index_handler.get_formname(path)
+                field_name = index_handler.remove_formname(path)
                 title = title_template.format(
-                    field_name=field_name.capitalize(),
+                    form_name=form_name,
+                    field_name=field_name,
                     vis_type=vis_type.capitalize()
                 )
                 _id = id_template.format(
+                    form_name=form_name.lower(),
                     field_name=field_name.lower(),
                     vis_type=vis_type.lower()
                 )

@@ -305,6 +305,10 @@ def remove_formname(name):
     return '.'.join(pieces[1:])
 
 
+def get_formname(name):
+    return name.split('.')[0]
+
+
 def _find_timestamp(schema: Node):
     # takes a field matching timestamp, or the first timestamp
     matching = schema.collect_matching(

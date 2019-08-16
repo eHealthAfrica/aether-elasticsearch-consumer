@@ -506,8 +506,8 @@ SIMPLE_SCHEMA = {
 
 
 ANNOTATED_SCHEMA = {
-    'doc': 'HS OSM Gather Test (id: gth_hs_test, version: 2)',
-    'name': 'Gth_Hs_Test_2',
+    'doc': 'MySurvey (title: HS OSM Gather Test id: gth_hs_test, version: 2)',
+    'name': 'MySurvey',
     'type': 'record',
     'fields': [
         {
@@ -517,7 +517,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2'
+            'namespace': 'MySurvey'
         },
         {
             'doc': 'xForm version',
@@ -526,7 +526,26 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2'
+            'namespace': 'MySurvey'
+        },
+        {
+            'doc': 'Surveyor',
+            'name': '_surveyor',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'MySurvey'
+        },
+        {
+            'doc': 'Submitted at',
+            'name': '_submitted_at',
+            'type': [
+                'null',
+                'string'
+            ],
+            'namespace': 'MySurvey',
+            '@aether_extended_type': 'dateTime'
         },
         {
             'name': '_start',
@@ -534,7 +553,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'dateTime'
         },
         {
@@ -543,7 +562,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'dateTime'
         },
         {
@@ -552,7 +571,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -561,7 +580,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -570,7 +589,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -580,7 +599,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -590,7 +609,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -600,7 +619,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -610,7 +629,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -620,7 +639,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Public',
@@ -670,7 +689,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'float'
                             ],
-                            'namespace': 'Gth_Hs_Test_2.geometry'
+                            'namespace': 'MySurvey.geometry'
                         },
                         {
                             'doc': 'longitude',
@@ -679,7 +698,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'float'
                             ],
-                            'namespace': 'Gth_Hs_Test_2.geometry'
+                            'namespace': 'MySurvey.geometry'
                         },
                         {
                             'doc': 'altitude',
@@ -688,7 +707,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'float'
                             ],
-                            'namespace': 'Gth_Hs_Test_2.geometry'
+                            'namespace': 'MySurvey.geometry'
                         },
                         {
                             'doc': 'accuracy',
@@ -697,14 +716,14 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'float'
                             ],
-                            'namespace': 'Gth_Hs_Test_2.geometry'
+                            'namespace': 'MySurvey.geometry'
                         }
                     ],
-                    'namespace': 'Gth_Hs_Test_2',
+                    'namespace': 'MySurvey',
                     '@aether_extended_type': 'geopoint'
                 }
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'geopoint'
         },
         {
@@ -714,7 +733,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Operational',
@@ -738,7 +757,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Pick the days of the week open and enter hours for each day',
@@ -757,7 +776,7 @@ ANNOTATED_SCHEMA = {
                     'value': 'oh_advanced'
                 },
                 {
-                    'label': '''I don't know the operating hours''',
+                    'label': 'I do not know the operating hours',
                     'value': 'oh_unknown'
                 }
             ],
@@ -773,7 +792,7 @@ ANNOTATED_SCHEMA = {
                     'items': 'string'
                 }
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Monday',
@@ -827,7 +846,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -837,7 +856,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -847,7 +866,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -857,7 +876,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -867,7 +886,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -877,7 +896,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -887,7 +906,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -897,7 +916,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -907,7 +926,7 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         },
                         {
@@ -916,15 +935,15 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2._dow_group',
+                            'namespace': 'MySurvey._dow_group',
                             '@aether_extended_type': 'string'
                         }
                     ],
-                    'namespace': 'Gth_Hs_Test_2',
+                    'namespace': 'MySurvey',
                     '@aether_extended_type': 'group'
                 }
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'group'
         },
         {
@@ -934,17 +953,17 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
-            'doc': '''OSM 'opening_hours ''',
+            'doc': 'OSM:opening_hours',
             'name': '_advanced_hours',
             'type': [
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -953,7 +972,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -963,7 +982,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -973,7 +992,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Clinic',
@@ -1008,7 +1027,7 @@ ANNOTATED_SCHEMA = {
                     'items': 'string'
                 }
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Doctor',
@@ -1071,7 +1090,7 @@ ANNOTATED_SCHEMA = {
                     'items': 'string'
                 }
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'xx',
@@ -1090,7 +1109,7 @@ ANNOTATED_SCHEMA = {
                     'items': 'string'
                 }
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Ultrasound',
@@ -1138,7 +1157,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Yes',
@@ -1158,7 +1177,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Yes',
@@ -1178,7 +1197,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'int'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'int'
         },
         {
@@ -1188,7 +1207,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'int'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'int'
         },
         {
@@ -1198,7 +1217,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'int'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'int'
         },
         {
@@ -1211,7 +1230,7 @@ ANNOTATED_SCHEMA = {
                     'items': 'string'
                 }
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Public',
@@ -1239,7 +1258,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Yes',
@@ -1259,7 +1278,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Well',
@@ -1295,7 +1314,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_lookup': [
                 {
                     'label': 'Power grid',
@@ -1327,7 +1346,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -1337,7 +1356,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -1347,7 +1366,7 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'string'
         },
         {
@@ -1364,15 +1383,15 @@ ANNOTATED_SCHEMA = {
                                 'null',
                                 'string'
                             ],
-                            'namespace': 'Gth_Hs_Test_2.meta',
+                            'namespace': 'MySurvey.meta',
                             '@aether_extended_type': 'string'
                         }
                     ],
-                    'namespace': 'Gth_Hs_Test_2',
+                    'namespace': 'MySurvey',
                     '@aether_extended_type': 'group'
                 }
             ],
-            'namespace': 'Gth_Hs_Test_2',
+            'namespace': 'MySurvey',
             '@aether_extended_type': 'group'
         },
         {
@@ -1381,5 +1400,5 @@ ANNOTATED_SCHEMA = {
             'type': 'string'
         }
     ],
-    'namespace': 'org.ehealthafrica.aether.odk.xforms.Hsdemo'
+    'namespace': 'org.ehealthafrica.aether.odk.xforms.Mysurvey'
 }

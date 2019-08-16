@@ -85,7 +85,7 @@ def test__get_es_types_from_schema(ComplexSchema):
     assert(first('$._start.type', res) == 'date')
     assert(first('$.geometry.type', res) == 'object')
     assert(first('$.meta.type', res) == 'object')
-    assert(len(list(res.keys())) == 52)
+    assert(len(list(res.keys())) == 54)
 
 
 @pytest.mark.integration
@@ -123,7 +123,7 @@ def test___format_lookups(ComplexSchema):
 
 @pytest.mark.unit
 def test___format_single_lookup(ComplexSchema):
-    matching = ComplexSchema.get_node('Gth_Hs_Test_2.operational_status')
+    matching = ComplexSchema.get_node('MySurvey.operational_status')
     res = index_handler._format_single_lookup(matching)
     assert(
         json.dumps(res, sort_keys=True) ==
