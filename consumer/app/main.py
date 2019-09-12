@@ -25,6 +25,7 @@ import signal
 import sys
 import threading
 from time import sleep
+from uuid import uuid4
 from urllib3.exceptions import NewConnectionError
 
 from aet.consumer import KafkaConsumer
@@ -528,6 +529,15 @@ class ESConsumer(threading.Thread):
         try:
             if ES_VERSION > 5:
                 route = self.get_route(doc)
+                required = [
+                    self.index,
+                    doc.get('id'),
+                    route,
+                    self.doc_type,
+                    doc
+                ]
+                if not all(required):
+                    log.error(f'Missing required value in {required}')
                 '''
                 if route:
                     log.debug(doc)
@@ -535,7 +545,7 @@ class ESConsumer(threading.Thread):
                 '''
                 es.create(
                     index=self.index,
-                    id=doc.get('id'),
+                    id=doc.get('id') or str(uuid4()),
                     routing=route,
                     doc_type=self.doc_type,
                     body=doc
