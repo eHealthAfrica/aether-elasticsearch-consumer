@@ -19,4 +19,13 @@
 # under the License.
 #
 
-docker-compose -f docker-compose-test.yml run --rm elasticsearch-consumer-test-7 test_integration
+source .env
+cp .env aether-bootstrap/.env
+pushd aether-bootstrap
+source scripts/lib.sh
+create_docker_assets
+docker-compose -f elasticsearch/docker-compose.yml up -d kibana elasticsearch
+sleep 10
+docker-compose -f auth/docker-compose.yml run --rm gateway-manager add_elasticsearch_tenant dev 7
+popd
+docker-compose -f docker-compose-test.yml up elasticsearch-consumer-test-cloud
