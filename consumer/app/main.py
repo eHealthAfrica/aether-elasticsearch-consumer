@@ -169,7 +169,7 @@ class ESConsumerGroup(object):
 
     def restart(self):
         self.worker.stop()
-        self.worker.consumer.close(autocommit=True)
+        self.worker.consumer.close()
         self.worker = None
         self.worker = ESWorker(self.tenant)
         self.worker.start()
