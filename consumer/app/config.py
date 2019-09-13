@@ -99,7 +99,7 @@ def load_config():
     global kafka_config
     kafka_config = Settings(
         file_path=KAFKA_CONFIG_PATH,
-        alias={'bootstrap_servers': 'kafka_url'},
+        alias={'bootstrap.servers': 'kafka_url'},
         exclude=['kafka_url']
     )
 
@@ -107,12 +107,12 @@ def load_config():
 def get_kafka_config():
     # load security settings in from environment
     # if the security protocol is set
-    if kafka_config.get('security_protocol'):
+    if kafka_config.get('security.protocol'):
         for i in [
-            'security_protocol',
-            'sasl_mechanism',
-            'sasl_plain_username',
-            'sasl_plain_password'
+            'security.protocol',
+            'sasl.mechanism',
+            'sasl.username',
+            'sasl.password'
         ]:
             kafka_config[i] = kafka_config.get(i)
     return kafka_config

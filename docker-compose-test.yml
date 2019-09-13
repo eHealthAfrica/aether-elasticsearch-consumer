@@ -89,6 +89,21 @@ services:
       LOG_NAME: "ES_7-Consumer"
       KAFKA_TOPIC_TEMPLATE: "elastic7_{es_index_name}_{data_type}"
 
+  elasticsearch-consumer-test-cloud:
+    extends:
+      service: elasticsearch-consumer-test
+    links:
+      - elasticsearch-test-7
+    environment:
+      ELASTICSEARCH_URL: "elasticsearch-test-7"
+      INDEX_PATH: "/code/tests/test_index/es6"
+      LOG_NAME: "ES_7-Consumer"
+      KAFKA_URL: ${KAFKA_URL}
+      SECURITY.PROTOCOL: ${KAFKA_SECURITY}
+      SASL.MECHANISM: PLAIN
+      SASL.USERNAME: ${KAFKA_CONSUMER_USER}
+      SASL.PASSWORD: ${KAFKA_CONSUMER_PASSWORD}
+
 
   # ---------------------------------
   # Mock Data Container

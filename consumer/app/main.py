@@ -23,7 +23,7 @@ import signal
 import threading
 from time import sleep
 
-from aet.consumer import KafkaConsumer
+from aet.kafka import KafkaConsumer
 
 from . import config, healthcheck
 from .logger import get_logger
@@ -127,7 +127,9 @@ class AutoConfMaintainer(threading.Thread):
     def find_new_topics(self):
         ignored_topics = set(self.autoconf.get('ignored_topics', []))
         try:
-            topics = [i for i in self.consumer.topics()
+            md = self.consumer.list_topics()
+            topics = [t.topic for t in md.topics.values()]
+            topics = [i for i in topics
                       if i not in ignored_topics and
                       i not in self.configured_topics]
             return topics

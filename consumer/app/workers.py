@@ -24,7 +24,7 @@ from time import sleep
 import threading
 from typing import Any, Mapping
 
-from aet.consumer import KafkaConsumer
+from aet.kafka import KafkaConsumer
 from elasticsearch.exceptions import TransportError
 
 from . import config, connection_handler, index_handler
@@ -44,9 +44,7 @@ ES = connection_handler.ESConnectionManager(add_default=True)
 class ESWorker(threading.Thread):
     # A single consumer subscribed to all tenant topics
     # Runs as a daemon to avoid weird stops
-    tenant_topic_re = re.compile(
-        r'''topic:(?P<tenant>[^\.]*)\.(?P<name>.*)-partition:.*'''
-    )
+
     kafka_group_template = '{tenant}.aether.es_consumer.group-{tenant}.v1'
 
     def __init__(self, tenant):
@@ -157,9 +155,9 @@ class ESWorker(threading.Thread):
     def connect(self):
         # have to get to force env lookups
         args = KAFKA_CONFIG.copy()
-        args['client_id'] = self.group_name
-        args['group_id'] = self.group_name + '_010'  # TODO KILL!
-        args['enable_auto_commit'] = False
+        args['client.id'] = self.group_name
+        args['group.id'] = self.group_name + '_010'  # TODO KILL!
+        args['enable.auto.commit'] = False
         try:
             LOG.debug(
                 f'Kafka CONFIG[{self.tenant}:{self.group_name}]')
@@ -209,8 +207,8 @@ class ESWorker(threading.Thread):
                 # don't fetch messages if we can't post them
                 self.test_es_connection()
                 new_messages = self.consumer.poll_and_deserialize(
-                    timeout_ms=self.consumer_timeout,
-                    max_records=self.consumer_max_records)
+                    timeout=1,
+                    num_messages=self.consumer_max_records)
             except ConnectionError as cer:
                 LOG.debug(f'ES or Kibana not ready: {cer}')
                 new_messages = []
@@ -219,54 +217,89 @@ class ESWorker(threading.Thread):
                     f'Kafka IDLE [{self.tenant}:{self.topics}]')
                 sleep(5)
                 continue
-            for parition_key, packages in new_messages.items():
-
-                m = ESWorker.tenant_topic_re.search(parition_key)
-                tenant = m.group('tenant')
-                name = m.group('name')
-                topic = f'{tenant}.{name}'
+            count = 0
+            for msg in new_messages:
+                topic = msg.topic
                 LOG.debug(f'read PK: {topic}')
+                schema = msg.schema
+                if schema != self.schemas.get(topic):
+                    LOG.info('Schema change on type %s' % topic)
+                    LOG.debug('schema: %s' % schema)
+                    self.update_topic(topic, schema)
+                    self.schemas[topic] = schema
+                else:
+                    LOG.debug('Schema unchanged.')
+                processor = self.processors[topic]
+                index_name = self.indices[topic]['name']
+                doc_type = self.doc_types[topic]
+                route_getter = self.get_route[topic]
+                doc = processor.process(msg.value)
+                LOG.debug(
+                    f'Kafka READ [{topic}:{self.group_name}]'
+                    f' -> {doc.get("id")}')
+                for es_instance in self.es_instances[topic]:
+                    self.submit(
+                        index_name,
+                        doc_type,
+                        doc,
+                        topic,
+                        route_getter,
+                        es_instance
+                    )
+                LOG.debug(
+                    f'Kafka COMMIT [{topic}:{self.group_name}]')
+                self.consumer.commit_async(callback=self.report_commit)
+                count += 1
+            LOG.info('processed %s %s docs in tenant %s' %
+                     ((count), topic, self.tenant))
 
-                for package in packages:
-                    schema = package.get('schema')
-                    messages = package.get('messages')
-                    LOG.debug('messages #%s' % len(messages))
-                    if schema != self.schemas.get(topic):
-                        LOG.info('Schema change on type %s' % topic)
-                        LOG.debug('schema: %s' % schema)
-                        self.update_topic(topic, schema)
-                        self.schemas[topic] = schema
-                    else:
-                        LOG.debug('Schema unchanged.')
-                    count = 0
-                    processor = self.processors[topic]
-                    index_name = self.indices[topic]['name']
-                    doc_type = self.doc_types[topic]
-                    route_getter = self.get_route[topic]
+            # for parition_key, packages in new_messages.items():
 
-                    for x, msg in enumerate(messages):
-                        doc = processor.process(msg)
-                        count = x
-                        LOG.debug(
-                            f'Kafka READ [{topic}:{self.group_name}]'
-                            f' -> {doc.get("id")}')
-                        for es_instance in self.es_instances[topic]:
-                            self.submit(
-                                index_name,
-                                doc_type,
-                                doc,
-                                topic,
-                                route_getter,
-                                es_instance
-                            )
-                    LOG.debug(
-                        f'Kafka COMMIT [{topic}:{self.group_name}]')
-                    self.consumer.commit_async(callback=self.report_commit)
-                    LOG.info('processed %s %s docs in tenant %s' %
-                             ((count + 1), name, self.tenant))
+            #     m = ESWorker.tenant_topic_re.search(parition_key)
+            #     tenant = m.group('tenant')
+            #     name = m.group('name')
+            #     topic = f'{tenant}.{name}'
+            #     LOG.debug(f'read PK: {topic}')
+            #     for package in packages:
+            #         schema = package.get('schema')
+            #         messages = package.get('messages')
+            #         LOG.debug('messages #%s' % len(messages))
+            #         if schema != self.schemas.get(topic):
+            #             LOG.info('Schema change on type %s' % topic)
+            #             LOG.debug('schema: %s' % schema)
+            #             self.update_topic(topic, schema)
+            #             self.schemas[topic] = schema
+            #         else:
+            #             LOG.debug('Schema unchanged.')
+            #         count = 0
+            #         processor = self.processors[topic]
+            #         index_name = self.indices[topic]['name']
+            #         doc_type = self.doc_types[topic]
+            #         route_getter = self.get_route[topic]
+
+            #         for x, msg in enumerate(messages):
+            #             doc = processor.process(msg)
+            #             count = x
+            #             LOG.debug(
+            #                 f'Kafka READ [{topic}:{self.group_name}]'
+            #                 f' -> {doc.get("id")}')
+            #             for es_instance in self.es_instances[topic]:
+            #                 self.submit(
+            #                     index_name,
+            #                     doc_type,
+            #                     doc,
+            #                     topic,
+            #                     route_getter,
+            #                     es_instance
+            #                 )
+            #         LOG.debug(
+            #             f'Kafka COMMIT [{topic}:{self.group_name}]')
+            #         self.consumer.commit_async(callback=self.report_commit)
+            #         LOG.info('processed %s %s docs in tenant %s' %
+            #                  ((count + 1), name, self.tenant))
 
         LOG.info(f'Shutting down consumer {self.tenant}')
-        self.consumer.close(autocommit=True)
+        self.consumer.close()
         return
 
     def report_commit(self, offsets, response):
