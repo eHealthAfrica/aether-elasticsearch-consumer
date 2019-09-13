@@ -248,7 +248,6 @@ class ESWorker(threading.Thread):
                     )
                 LOG.debug(
                     f'Kafka COMMIT [{topic}:{self.group_name}]')
-                self.consumer.commit_async(callback=self.report_commit)
                 count += 1
             LOG.info('processed %s %s docs in tenant %s' %
                      ((count), topic, self.tenant))
@@ -301,9 +300,6 @@ class ESWorker(threading.Thread):
         LOG.info(f'Shutting down consumer {self.tenant}')
         self.consumer.close()
         return
-
-    def report_commit(self, offsets, response):
-        LOG.info(f'Kafka OFFSET CMT {offsets} -> {response}')
 
     def submit(self, index_name, doc_type, doc, topic, route_getter, es):
         parent = doc.get('_parent', None)

@@ -7,25 +7,6 @@ networks:
 
 services:
 
-  elasticsearch:
-    extends:
-      file: docker-compose-base.yml
-      service: elasticsearch-base-7
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    networks:
-      - aether
-
-  kibana:
-    extends:
-      file: docker-compose-base.yml
-      service: kibana-base
-    depends_on:
-      - elasticsearch
-    networks:
-      - aether
-
   elasticsearch-consumer:
     extends:
       file: docker-compose-base.yml
@@ -35,7 +16,5 @@ services:
       ES_CONSUMER_CONFIG_PATH: "/code/conf/consumer/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/conf/consumer/kafka.json"
       LOG_LEVEL: "DEBUG"
-    links:
-      - elasticsearch
     networks:
       - aether
