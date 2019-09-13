@@ -3,30 +3,17 @@ services:
 
   # Elasticsearch Containers
 
-  elasticsearch-test-7:
+  kibana-test-7:
     extends:
       file: docker-compose-base.yml
       service: elasticsearch-base-7
     networks:
       - test_net
 
-  elasticsearch-test-6:
+  elasticsearch-test-7:
     extends:
       file: docker-compose-base.yml
-      service: elasticsearch-base-6
-    ports:
-    - "9400:9200"
-    - "9500:9300"
-    networks:
-      - test_net
-
-  elasticsearch-test-5:
-    extends:
-      file: docker-compose-base.yml
-      service: elasticsearch-base-5
-    ports:
-    - "9400:9200"
-    - "9500:9300"
+      service: elasticsearch-base-7
     networks:
       - test_net
 
@@ -50,33 +37,6 @@ services:
       CONNECT_RETRY_WAIT: 1
       STARTUP_CONNECTION_RETRY: 3
 
-  # ES 5
-
-  elasticsearch-consumer-test-5:
-    extends:
-      service: elasticsearch-consumer-test
-    links:
-      - elasticsearch-test-5
-    environment:
-      ELASTICSEARCH_URL: "elasticsearch-test-5"
-      INDEX_PATH: "/code/tests/test_index/es5"
-      LOG_NAME: "ES_5-Consumer"
-      KAFKA_TOPIC_TEMPLATE: "elastic5_{es_index_name}_{data_type}"
-
-  # ES 6
-
-  elasticsearch-consumer-test-6:
-    extends:
-      service: elasticsearch-consumer-test
-    links:
-      - elasticsearch-test-6
-    environment:
-      ELASTICSEARCH_URL: "elasticsearch-test-6"
-      INDEX_PATH: "/code/tests/test_index/es6"
-      LOG_NAME: "ES_6-Consumer"
-      KAFKA_TOPIC_TEMPLATE: "elastic6_{es_index_name}_{data_type}"
-
-  # ES 6
 
   elasticsearch-consumer-test-7:
     extends:

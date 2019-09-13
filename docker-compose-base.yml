@@ -1,18 +1,7 @@
 version: "2.1"
 services:
   elasticsearch-base-7:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.1.1
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-
-  elasticsearch-base-6:
-    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.3.2
-    environment:
-      discovery.type: single-node
-
-  elasticsearch-base-5:
-    image: docker.elastic.co/elasticsearch/elasticsearch:5.6.4
+    image: amazon/opendistro-for-elasticsearch:1.1.0
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
