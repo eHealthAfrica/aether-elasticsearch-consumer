@@ -24,6 +24,7 @@ import threading
 from time import sleep
 
 from aet.kafka import KafkaConsumer
+import confluent_kafka
 
 from . import config, healthcheck
 from .logger import get_logger
@@ -124,15 +125,48 @@ class AutoConfMaintainer(threading.Thread):
                     return
                 sleep(1)
 
+    def broker_info(self, md):
+        try:
+            res = {'brokers': [], 'topics': []}
+            for b in iter(md.brokers.values()):
+                if b.id == md.controller_id:
+                    res['brokers'].append("{}  (controller)".format(b))
+                else:
+                    res['brokers'].append("{}".format(b))
+            for t in iter(md.topics.values()):
+                t_str = []
+                if t.error is not None:
+                    errstr = ": {}".format(t.error)
+                else:
+                    errstr = ""
+
+                t_str.append("{} with {} partition(s){}".format(t, len(t.partitions), errstr))
+
+                for p in iter(t.partitions.values()):
+                    if p.error is not None:
+                        errstr = ": {}".format(p.error)
+                    else:
+                        errstr = ""
+
+                    t_str.append("partition {} leader: {}, replicas: {}, isrs: {}".format(
+                        p.id, p.leader, p.replicas, p.isrs, errstr))
+                res['topics'].append(t_str)
+            return res
+        except Exception as err:
+            return {'error': f'{err}'}
+
     def find_new_topics(self):
         ignored_topics = set(self.autoconf.get('ignored_topics', []))
         try:
-            md = self.consumer.list_topics()
+            md = self.consumer.list_topics(timeout=10)
+            LOG.debug(f'Cluster metadata: {self.broker_info(md)}')
             topics = [t.topic for t in md.topics.values()]
             topics = [i for i in topics
                       if i not in ignored_topics and
                       i not in self.configured_topics]
             return topics
+        except confluent_kafka.KafkaException as be:
+            LOG.critical(f'Could not get broker metadata: {be}')
         except Exception as ke:
             LOG.error('Autoconfig failed to get available topics \n%s' % (ke))
             return []  # Can't auto-configure if Kafka isn't available
