@@ -34,4 +34,6 @@ def get_module_logger(mod_name):
     logger.addHandler(handler)
     level = logging.getLevelName(consumer_config.get('log_level'))
     logger.setLevel(level)
+    es_logger = logging.getLogger('elasticsearch')
+    es_logger.setLevel(level)
     return logger

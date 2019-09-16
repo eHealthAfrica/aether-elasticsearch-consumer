@@ -537,7 +537,7 @@ class ESConsumer(threading.Thread):
                     doc
                 ]
                 if not all(required):
-                    log.error(f'Missing required value in {required}')
+                    log.debug(f'Missing recommended value in {required}')
                 '''
                 if route:
                     log.debug(doc)
