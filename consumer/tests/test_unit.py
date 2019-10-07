@@ -36,10 +36,10 @@ from app import utils
 
 @pytest.mark.unit
 def test__get_config_alias():
-    assert(KAFKA_CONFIG.get('bootstrap_servers') is not None)
+    assert(KAFKA_CONFIG.get('bootstrap.servers') is not None), KAFKA_CONFIG
     args = KAFKA_CONFIG.copy()
-    assert('bootstrap_servers' in args)
-    assert(args.get('bootstrap_servers') == os.environ.get('KAFKA_URL'))
+    assert('bootstrap.servers' in args)
+    assert(args.get('bootstrap.servers') == os.environ.get('KAFKA_URL'))
     assert(args.get('kafka_url') is None)
     assert(KAFKA_CONFIG.get('kafka_url') is None)
 

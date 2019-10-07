@@ -526,7 +526,8 @@ ANNOTATED_SCHEMA = {
                 'null',
                 'string'
             ],
-            'namespace': 'MySurvey'
+            'namespace': 'MySurvey',
+            '@aether_default_visualization': 'undefined'
         },
         {
             'doc': 'Surveyor',
@@ -640,6 +641,7 @@ ANNOTATED_SCHEMA = {
                 'string'
             ],
             'namespace': 'MySurvey',
+            '@aether_default_visualization': 'pie',
             '@aether_lookup': [
                 {
                     'label': 'Public',
@@ -734,6 +736,7 @@ ANNOTATED_SCHEMA = {
                 'string'
             ],
             'namespace': 'MySurvey',
+            '@aether_default_visualization': 'pie',
             '@aether_lookup': [
                 {
                     'label': 'Operational',

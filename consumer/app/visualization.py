@@ -453,6 +453,14 @@ VIS_MAP = {
 }
 
 
+SCHEMA_VIS_MAP = {
+    'histogram': ('Histogram', get_table_histogram),
+    'pie': ('PieChart', get_pie_chart),
+    'table': ('TableText', get_table_buckets),
+    'map': ('TileMap', get_map)
+}
+
+
 def _vis_for_type(_type: str):
     return VIS_MAP.get(_type, [])
 
@@ -479,7 +487,48 @@ def __default_path_filters() -> List[Callable[[str], bool]]:
     return [_filter_reserved, _filter_underscored]
 
 
-def get_visualizations(
+def schema_defined_visualizations(
+    alias: str,
+    node: Node,
+):
+    visualizations = {}
+    paths = [i for i in node.find_children(
+        {'has_attr': ['__default_visualization']}
+    )]
+    LOG.debug(f'schemas found at paths {paths}')
+    title_template = '{form_name} ({field_name} -> {vis_type})'
+    id_template = '{form_name}_{field_name}_{vis_type}'
+    for path in paths:
+        target_node = node.get_node(path)
+        vis_name = target_node.__default_visualization
+        if vis_name not in SCHEMA_VIS_MAP:
+            LOG.debug(f'@path: {path} has preferred type {vis_name}. No handler found')
+            continue
+        vis_type, fn = SCHEMA_VIS_MAP.get(vis_name)
+        LOG.debug(f'visualizing path -> {path}')
+        form_name = index_handler.get_formname(path)
+        field_name = index_handler.remove_formname(path)
+        title = title_template.format(
+            form_name=form_name,
+            field_name=field_name,
+            vis_type=vis_type.capitalize()
+        )
+        _id = id_template.format(
+            form_name=form_name.lower(),
+            field_name=field_name.lower(),
+            vis_type=vis_type.lower()
+        )
+        res = fn(
+            title=title,
+            alias=alias,
+            field_name=field_name,
+            node=target_node
+        )
+        visualizations[_id] = res
+    return visualizations
+
+
+def auto_visualizations(
     alias: str,
     node: Node,
     path_filters: List[Callable[[str], bool]] = __default_path_filters()

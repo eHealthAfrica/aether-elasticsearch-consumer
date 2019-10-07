@@ -18,17 +18,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import json
 import pytest
 
 from app.logger import get_logger
-from app.visualization import get_visualizations
+from app.visualization import (
+    auto_visualizations,
+    schema_defined_visualizations
+)
+
 from . import *  # noqa  # fixtures
 
 LOG = get_logger('TEST-VIZ')
 
 
 @pytest.mark.unit
-def test__get_visualizations(ComplexSchema):
-    res = get_visualizations('com.example', ComplexSchema)
+def test__get_auto_visualizations(ComplexSchema):
+    res = auto_visualizations('com.example', ComplexSchema)
     LOG.debug(json.dumps(res, indent=2))
     assert(sum([1 for k in res.keys()]) == 67)
+
+
+@pytest.mark.unit
+def test__get_schema_visualizations(ComplexSchema):
+    res = schema_defined_visualizations('com.example', ComplexSchema)
+    LOG.debug(json.dumps(res, indent=2))
+    assert(sum([1 for k in res.keys()]) == 2)

@@ -26,9 +26,10 @@ from time import sleep
 from aet.kafka import KafkaConsumer
 import confluent_kafka
 
-from . import config, healthcheck
+from . import config, healthcheck, connection_handler
 from .logger import get_logger
 from .workers import ESWorker
+
 
 LOG = get_logger('MAIN')
 CONSUMER_CONFIG = config.get_consumer_config()
@@ -37,6 +38,7 @@ KAFKA_CONFIG = config.get_kafka_config()
 CONN_RETRY = int(CONSUMER_CONFIG.get('startup_connection_retry'))
 CONN_RETRY_WAIT_TIME = int(CONSUMER_CONFIG.get('connect_retry_wait'))
 
+ES = None
 MT = CONSUMER_CONFIG.get('multi-tenant', True)
 
 
@@ -45,6 +47,9 @@ class ESConsumerManager(object):
     def __init__(self):
         self.stopped = False
         self.autoconfigured_topics = []
+        global ES
+        if not ES:
+            connection_handler.ESConnectionManager(add_default=True)
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
         self.serve_healthcheck()
@@ -86,7 +91,9 @@ class AutoConfMaintainer(threading.Thread):
         self.parent = parent
         self.autoconf = autoconf
         self.configured_topics = []
+        LOG.debug(f'Autoconf Consumer: {KAFKA_CONFIG.copy()}')
         self.consumer = KafkaConsumer(**KAFKA_CONFIG.copy())
+        LOG.debug('Autoconf Consumer initialized...')
         super(AutoConfMaintainer, self).__init__()
 
     def run(self):
@@ -130,25 +137,25 @@ class AutoConfMaintainer(threading.Thread):
             res = {'brokers': [], 'topics': []}
             for b in iter(md.brokers.values()):
                 if b.id == md.controller_id:
-                    res['brokers'].append("{}  (controller)".format(b))
+                    res['brokers'].append('{}  (controller)'.format(b))
                 else:
-                    res['brokers'].append("{}".format(b))
+                    res['brokers'].append('{}'.format(b))
             for t in iter(md.topics.values()):
                 t_str = []
                 if t.error is not None:
-                    errstr = ": {}".format(t.error)
+                    errstr = ': {}'.format(t.error)
                 else:
-                    errstr = ""
+                    errstr = ''
 
-                t_str.append("{} with {} partition(s){}".format(t, len(t.partitions), errstr))
+                t_str.append('{} with {} partition(s){}'.format(t, len(t.partitions), errstr))
 
                 for p in iter(t.partitions.values()):
                     if p.error is not None:
-                        errstr = ": {}".format(p.error)
+                        errstr = ': {}'.format(p.error)
                     else:
-                        errstr = ""
+                        errstr = ''
 
-                    t_str.append("partition {} leader: {}, replicas: {}, isrs: {}".format(
+                    t_str.append('partition {} leader: {}, replicas: {}, isrs: {}'.format(
                         p.id, p.leader, p.replicas, p.isrs, errstr))
                 res['topics'].append(t_str)
             return res
@@ -184,7 +191,7 @@ class ESConsumerGroup(object):
         LOG.debug(f'Consumer Group started for tenant: {tenant}')
         self.tenant = tenant
         self.topics = []  # configured topics
-        self.worker = ESWorker(self.tenant)
+        self.worker = ESWorker(self.tenant, ES)
         self.worker.start()
 
     def add_topic(self, topic):
@@ -205,7 +212,7 @@ class ESConsumerGroup(object):
         self.worker.stop()
         self.worker.consumer.close()
         self.worker = None
-        self.worker = ESWorker(self.tenant)
+        self.worker = ESWorker(self.tenant, ES)
         self.worker.start()
         sleep(2)
         self.worker.add_topics(self.topics)

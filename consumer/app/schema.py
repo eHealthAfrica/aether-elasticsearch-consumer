@@ -14,6 +14,7 @@ class Node:
         'name',
         'namespace',
         'default',
+        '__default_visualization',
         '__extended_type',
         '__lookup'
     ]

@@ -19,7 +19,6 @@
 # under the License.
 
 import json
-import re
 from time import sleep
 import threading
 from typing import Any, Mapping
@@ -27,7 +26,7 @@ from typing import Any, Mapping
 from aet.kafka import KafkaConsumer
 from elasticsearch.exceptions import TransportError
 
-from . import config, connection_handler, index_handler
+from . import config, index_handler
 from .processor import ESItemProcessor
 from .logger import get_logger
 from .schema import Node
@@ -38,8 +37,6 @@ LOG = get_logger('WORKER')
 CONSUMER_CONFIG = config.get_consumer_config()
 KAFKA_CONFIG = config.get_kafka_config()
 
-ES = connection_handler.ESConnectionManager(add_default=True)
-
 
 class ESWorker(threading.Thread):
     # A single consumer subscribed to all tenant topics
@@ -47,7 +44,7 @@ class ESWorker(threading.Thread):
 
     kafka_group_template = '{tenant}.aether.es_consumer.group-{tenant}.v1'
 
-    def __init__(self, tenant):
+    def __init__(self, tenant, conn: ESConnectionManager):
         LOG.debug(f'Initializing consumer for tenant: {tenant}')
         self.tenant = tenant
         self.group_name = ESWorker.kafka_group_template.format(tenant=tenant)
@@ -65,22 +62,23 @@ class ESWorker(threading.Thread):
         self.sleep_time = 10
         self.stopped = False
         self.consumer = None
+        self.conn = conn
         super(ESWorker, self).__init__()
 
     def add_topic(self, topic):
         LOG.debug(f'Adding {topic} to consumer thread: {self.tenant}')
         self.topics.append(topic)
         # TODO align related ES / Kibana instances
-        self.es_instances[topic] = [ES.get_connection()]
-        self.kibana_instances[topic] = [ES.get_kibana()]
+        self.es_instances[topic] = [self.conn.get_connection()]
+        self.kibana_instances[topic] = [self.conn.get_kibana()]
         self._update_topics()
 
     def add_topics(self, topics):
         LOG.debug(f'Adding {(topics,)} to consumer thread: {self.tenant}')
         self.topics.extend(topics)
         for topic in topics:
-            self.es_instances[topic] = [ES.get_connection()]
-            self.kibana_instances[topic] = [ES.get_kibana()]
+            self.es_instances[topic] = [self.conn.get_connection()]
+            self.kibana_instances[topic] = [self.conn.get_kibana()]
         self._update_topics()
 
     def _update_topics(self):
@@ -251,51 +249,6 @@ class ESWorker(threading.Thread):
                 count += 1
             LOG.info('processed %s %s docs in tenant %s' %
                      ((count), topic, self.tenant))
-
-            # for parition_key, packages in new_messages.items():
-
-            #     m = ESWorker.tenant_topic_re.search(parition_key)
-            #     tenant = m.group('tenant')
-            #     name = m.group('name')
-            #     topic = f'{tenant}.{name}'
-            #     LOG.debug(f'read PK: {topic}')
-            #     for package in packages:
-            #         schema = package.get('schema')
-            #         messages = package.get('messages')
-            #         LOG.debug('messages #%s' % len(messages))
-            #         if schema != self.schemas.get(topic):
-            #             LOG.info('Schema change on type %s' % topic)
-            #             LOG.debug('schema: %s' % schema)
-            #             self.update_topic(topic, schema)
-            #             self.schemas[topic] = schema
-            #         else:
-            #             LOG.debug('Schema unchanged.')
-            #         count = 0
-            #         processor = self.processors[topic]
-            #         index_name = self.indices[topic]['name']
-            #         doc_type = self.doc_types[topic]
-            #         route_getter = self.get_route[topic]
-
-            #         for x, msg in enumerate(messages):
-            #             doc = processor.process(msg)
-            #             count = x
-            #             LOG.debug(
-            #                 f'Kafka READ [{topic}:{self.group_name}]'
-            #                 f' -> {doc.get("id")}')
-            #             for es_instance in self.es_instances[topic]:
-            #                 self.submit(
-            #                     index_name,
-            #                     doc_type,
-            #                     doc,
-            #                     topic,
-            #                     route_getter,
-            #                     es_instance
-            #                 )
-            #         LOG.debug(
-            #             f'Kafka COMMIT [{topic}:{self.group_name}]')
-            #         self.consumer.commit_async(callback=self.report_commit)
-            #         LOG.info('processed %s %s docs in tenant %s' %
-            #                  ((count + 1), name, self.tenant))
 
         LOG.info(f'Shutting down consumer {self.tenant}')
         self.consumer.close()

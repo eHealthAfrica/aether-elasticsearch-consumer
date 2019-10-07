@@ -27,7 +27,9 @@ from .import config
 from .logger import get_logger
 from .processor import ES_RESERVED
 from .schema import Node
-from .visualization import get_visualizations
+from .visualization import (
+    auto_visualizations, schema_defined_visualizations
+)
 from . import utils
 
 from .connection_handler import KibanaConnection
@@ -388,10 +390,16 @@ def merge_kibana_artifacts(
 ):
     schema_name = schema.get('name')
     index_hash = utils.hash(kibana_index)
-    visualizations = get_visualizations(
-        alias,
-        Node(schema)
-    )
+    if consumer_config.get('automatic_visualizations', False):
+        visualizations = auto_visualizations(
+            alias,
+            Node(schema)
+        )
+    else:
+        visualizations = schema_defined_visualizations(
+            alias,
+            Node(schema)
+        )
     vis_hashes = {k: utils.hash(v) for k, v in visualizations.items()}
     if not old_artifact:
         # use the new one since there is no old one

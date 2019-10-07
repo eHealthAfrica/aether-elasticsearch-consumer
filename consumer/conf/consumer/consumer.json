@@ -4,13 +4,14 @@
         "create_kibana_index": true,
 		"index_name_template": "aet_%s_1",
 		"enabled": true,
-		"ignored_topics": ["__confluent.support.metrics"],
+		"ignored_topics": ["__confluent.support.metrics", "__consumer_offsets"],
 		"geo_point_creation": true,
 		"geo_point_name": "geo_point"
 	},
 	"ingest_routes": {
 		"(aet_)(\\w*)(_1)": "route1"
 	},
+    "automatic_visualizations": false,
     "kibana_url": "http://kibana:5601",
     "kibana_auto_timestamp": "aet_ts",
     "elasticsearch_url": ["elasticsearch"],
