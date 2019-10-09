@@ -49,7 +49,7 @@ class ESConsumerManager(object):
         self.autoconfigured_topics = []
         global ES
         if not ES:
-            connection_handler.ESConnectionManager(add_default=True)
+            ES = connection_handler.ESConnectionManager(add_default=True)
         signal.signal(signal.SIGINT, self.stop)
         signal.signal(signal.SIGTERM, self.stop)
         self.serve_healthcheck()
