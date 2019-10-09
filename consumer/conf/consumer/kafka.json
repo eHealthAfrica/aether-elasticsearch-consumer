@@ -1,5 +1,5 @@
 {
-    "auto.offset.reset" : "earliest",
+    "auto.offset.reset" : "latest",
     "group.id": "elasticsearch-metadataonly",
     "enable.auto.commit": true,
     "auto.commit.interval.ms": 2500,

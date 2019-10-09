@@ -154,8 +154,7 @@ class ESWorker(threading.Thread):
         # have to get to force env lookups
         args = KAFKA_CONFIG.copy()
         args['client.id'] = self.group_name
-        args['group.id'] = self.group_name + '_010'  # TODO KILL!
-        args['enable.auto.commit'] = False
+        args['group.id'] = self.group_name + '_010'
         try:
             LOG.debug(
                 f'Kafka CONFIG[{self.tenant}:{self.group_name}]')

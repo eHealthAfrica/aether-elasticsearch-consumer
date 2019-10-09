@@ -391,11 +391,13 @@ def merge_kibana_artifacts(
     schema_name = schema.get('name')
     index_hash = utils.hash(kibana_index)
     if consumer_config.get('automatic_visualizations', False):
+        LOG.info('Creating automatic visualizations')
         visualizations = auto_visualizations(
             alias,
             Node(schema)
         )
     else:
+        LOG.info('Only creating vis from @aether_default_visualization')
         visualizations = schema_defined_visualizations(
             alias,
             Node(schema)
