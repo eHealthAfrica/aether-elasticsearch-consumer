@@ -8,7 +8,8 @@
 #                                                                              					#
 #################################################################################################
 
-aet.consumer
+aet.consumer >=3.0.2
+aether-python
 deepmerge
 eha_jsonpath
 elasticsearch # >=5.0.0,<6.0.0

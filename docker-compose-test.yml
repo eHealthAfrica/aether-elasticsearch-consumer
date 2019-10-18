@@ -3,7 +3,7 @@ services:
 
   # ES Test Containers
 
-  elasticsearch-consumer-test:
+  consumer-test:
     extends:
       file: docker-compose-base.yml
       service: es-consumer-base
@@ -24,7 +24,7 @@ services:
 
   elasticsearch-consumer-test-7:
     extends:
-      service: elasticsearch-consumer-test
+      service: consumer-test
     environment:
       ELASTICSEARCH_URL: "elasticsearch"
       INDEX_PATH: "/code/tests/test_index/es6"
@@ -33,7 +33,7 @@ services:
 
   elasticsearch-consumer-test-cloud:
     extends:
-      service: elasticsearch-consumer-test
+      service: consumer-test
     environment:
       INDEX_PATH: "/code/tests/test_index/es6"
       LOG_NAME: "ES_7-Consumer"
