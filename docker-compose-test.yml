@@ -12,6 +12,12 @@ services:
     volumes:
       - ./consumer/tests:/code/tests
     environment:
+      TENANCY_HEADER: x-tenant
+      REDIS_DB: 0
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: password
+      CONSUMER_NAME: 'ES-TEST'
       ELASTICSEARCH_PORT: 9200
       KAFKA_URL: "kafka-test:29092"
       CONSUMER_PORT: 9099

@@ -18,8 +18,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import json
 import os
+
+from aet.settings import Settings
 
 consumer_config = None
 kafka_config = None
@@ -49,46 +50,6 @@ AETHER_TYPES = [
     ('select1', 'keyword'),
     ('group', 'object')
 ]
-
-
-class Settings(dict):
-    # A container for our settings
-    def __init__(self, file_path=None, alias=None, exclude=None):
-        if not exclude:
-            self.exclude = []
-        else:
-            self.exclude = exclude
-        self.alias = alias
-        self.load(file_path)
-
-    def get(self, key, default=None):
-        if self.exclude is not None and key in self.exclude:
-            return default
-        try:
-            return self.__getitem__(key)
-        except KeyError:
-            return default
-
-    def __getitem__(self, key):
-        if self.alias and key in self.alias:
-            key = self.alias.get(key)
-        result = os.environ.get(key.upper())
-        if result is None:
-            result = super().__getitem__(key)
-
-        return result
-
-    def copy(self):
-        keys = [k for k in self.keys() if k not in self.exclude]
-        for key in self.alias:
-            keys.append(key)
-        return {k: self.get(k) for k in keys}
-
-    def load(self, path):
-        with open(path) as f:
-            obj = json.load(f)
-            for k in obj:
-                self[k] = obj.get(k)
 
 
 def load_config():

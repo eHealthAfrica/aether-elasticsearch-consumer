@@ -13,7 +13,52 @@
 #
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+ES_INSTANCE = {
+    'id': 'es-test',
+    'name': 'Test ES Instance',
+    'url': 'http://elasticsearch',
+    'user': 'admin',
+    'password': 'password',
+    'port': 9200
+}
+
+
+KIBANA_INSTANCE = {
+    'id': 'k-test',
+    'name': 'Test Kibana Instance',
+    'url': 'http://kibana',
+    'user': 'admin',
+    'password': 'password',
+    'port': 5601
+}
+
+LOCAL_ES_INSTANCE = {
+    'id': 'default',
+    'name': 'Test LOCAL ES Instance'
+}
+
+LOCAL_KIBANA_INSTANCE = {
+    'id': 'default',
+    'name': 'Test LOCAL Kibana Instance'
+}
+
+
+'''
+SUBSCRIPTION = {
+    'id': 'sub-test',
+    'name': 'Test Subscription',
+    'topic_pattern'
+ }
+'''
+
+JOB = {
+    'id': 'default',
+    'name': 'Default ES Consumer Job',
+    'local_kibana': 'default',
+    'local_elasticsearch': 'default'
+}

@@ -21,13 +21,67 @@
 import json
 import pytest
 import os
+import requests
+
+import birdisle
+import birdisle.redis
+
+from app import config
 from app.main import ESConsumerManager
 from app.connection_handler import ESConnectionManager
 from app.processor import ESItemProcessor
 from app.schema import Node
 
+from app.new import consumer
+
 # Some of the fixtures are non-compliant so we don't QA this file.
 # flake8: noqa
+
+URL = 'http://localhost:9013'
+
+
+@pytest.mark.v2
+@pytest.fixture(scope='session')
+def birdisle_server():
+    password = config.get_consumer_config().get('REDIS_PASSWORD')
+    server = birdisle.Server(f'requirepass {password}')
+    yield server
+    server.close()
+
+
+@pytest.mark.v2
+@pytest.fixture(scope='session')
+def Birdisle(birdisle_server):
+    birdisle.redis.LocalSocketConnection.health_check_interval = 0
+    password = config.get_consumer_config().get('REDIS_PASSWORD')
+    r = birdisle.redis.StrictRedis(server=birdisle_server, password=password)
+    r.config_set('notify-keyspace-events', 'KEA')
+    return r
+
+
+@pytest.mark.v2
+@pytest.fixture(scope='session')
+def ElasticsearchConsumer(birdisle_server, Birdisle):
+    settings = config.get_consumer_config()
+    c = consumer.ElasticsearchConsumer(settings, None, Birdisle)
+    yield c
+    c.stop()
+
+
+@pytest.mark.v2
+@pytest.fixture(scope='session')
+def RequestClientT1():
+    s = requests.Session()
+    s.headers.update({'x-tenant': 'test-t1'})
+    yield s
+
+
+@pytest.mark.v2
+@pytest.fixture(scope='session')
+def RequestClientT2():
+    s = requests.Session()
+    s.headers.update({'x-tenant': 'test-t2'})
+    yield s
 
 
 class _MockConsumerManager(ESConsumerManager):

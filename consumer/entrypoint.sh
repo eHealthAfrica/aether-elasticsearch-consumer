@@ -37,6 +37,13 @@ test_integration() {
     rm -rf tests/__pycache__
 }
 
+test_v2() {
+    pytest -m v2
+    cat /code/conf/extras/good_job.txt
+    rm -R .pytest_cache
+    rm -rf tests/__pycache__
+}
+
 case "$1" in
     bash )
         bash
@@ -67,6 +74,11 @@ case "$1" in
 
     test_lint)
         test_flake8
+    ;;
+
+    test_v2)
+        test_flake8
+        test_v2 "${@:2}"
     ;;
 
     test_integration)
