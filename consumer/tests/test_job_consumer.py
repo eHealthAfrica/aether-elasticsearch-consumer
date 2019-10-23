@@ -20,6 +20,7 @@
 
 
 import pytest
+import requests
 import json
 
 from . import *  # noqa
@@ -33,7 +34,12 @@ from . import (  # noqa  # for the linter
 from aet.logger import get_logger
 from app.fixtures import examples
 
-LOG = get_logger('UNIT')
+LOG = get_logger('TEST')
+
+
+'''
+    API Tests
+'''
 
 
 @pytest.mark.v2
@@ -100,3 +106,42 @@ def test__api_describe_assets(ElasticsearchConsumer, RequestClientT1, endpoint):
 def test__api_get_schema(ElasticsearchConsumer, RequestClientT1, endpoint):
     res = RequestClientT1.get(f'{URL}/{endpoint}/get_schema')
     assert(res.json() is not None), str(res.text)
+
+
+@pytest.mark.v2
+def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestClientT2):
+    doc_id = examples.KIBANA_INSTANCE.get("id")
+    res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
+    assert(res.json() is True)
+    res = RequestClientT1.get(f'{URL}/kibana/list')
+    assert(doc_id in res.json())
+    res = RequestClientT1.get(f'{URL}/kibana/test_connection?id={doc_id}')
+    try:
+        res.raise_for_status()
+    except requests.HTTPError:
+        assert(res.status_code == 500), res.content
+    else:
+        assert(False), 'Asset should be in-accessible as it does not exist'
+    res = RequestClientT2.get(f'{URL}/kibana/test_connection?id={doc_id}')
+    try:
+        res.raise_for_status()
+    except requests.HTTPError:
+        assert(res.status_code == 404)
+    else:
+        assert(False), 'Asset should be missing for this tenant'
+    res = RequestClientT1.delete(f'{URL}/kibana/delete?id={examples.KIBANA_INSTANCE.get("id")}')
+    assert(res.json() is True)
+
+
+@pytest.mark.v2
+def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
+    doc_id = examples.ES_INSTANCE.get("id")
+    res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
+    assert(res.json() is True)
+    res = RequestClientT1.get(f'{URL}/elasticsearch/list')
+    assert(doc_id in res.json())
+    res = RequestClientT1.get(f'{URL}/elasticsearch/test_connection?id={doc_id}')
+    try:
+        res.raise_for_status()
+    except requests.HTTPError:
+        assert(res.status_code == 500)

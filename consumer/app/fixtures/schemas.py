@@ -30,8 +30,7 @@ ES_INSTANCE = '''
     "name",
     "url",
     "user",
-    "password",
-    "port"
+    "password"
   ],
   "properties": {
     "id": {
@@ -83,15 +82,6 @@ ES_INSTANCE = '''
         "password for auth"
       ],
       "pattern": "^(.*)$"
-    },
-    "port": {
-      "$id": "#/properties/port",
-      "type": "integer",
-      "title": "The Port Schema",
-      "default": 0,
-      "examples": [
-        9200
-      ]
     }
   }
 }
@@ -109,8 +99,7 @@ KIBANA_INSTANCE = '''
     "name",
     "url",
     "user",
-    "password",
-    "port"
+    "password"
   ],
   "properties": {
     "id": {
@@ -162,15 +151,6 @@ KIBANA_INSTANCE = '''
         "password for auth"
       ],
       "pattern": "^(.*)$"
-    },
-    "port": {
-      "$id": "#/properties/port",
-      "type": "integer",
-      "title": "The Port Schema",
-      "default": 0,
-      "examples": [
-        5601
-      ]
     }
   }
 }

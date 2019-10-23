@@ -18,13 +18,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# ES_INSTANCE = {
+#     'id': 'es-test',
+#     'name': 'Test ES Instance',
+#     'url': 'http://elasticsearch',
+#     'user': 'admin',
+#     'password': 'password'
+# }
+
 ES_INSTANCE = {
     'id': 'es-test',
     'name': 'Test ES Instance',
-    'url': 'http://elasticsearch',
-    'user': 'admin',
-    'password': 'password',
-    'port': 9200
+    'url': 'https://alpha.eha.im/dev/elasticsearch/',
+    'user': 'user',
+    'password': 'password'
 }
 
 
@@ -33,9 +40,17 @@ KIBANA_INSTANCE = {
     'name': 'Test Kibana Instance',
     'url': 'http://kibana',
     'user': 'admin',
-    'password': 'password',
-    'port': 5601
+    'password': 'password'
 }
+
+# KIBANA_INSTANCE = {
+#     'id': 'k-test',
+#     'name': 'Test Kibana Instance',
+#     'url': 'https://alpha.eha.im/dev/kibana/kibana-app',
+#     'user': 'user',
+#     'password': 'password'
+# }
+
 
 LOCAL_ES_INSTANCE = {
     'id': 'default',
