@@ -18,21 +18,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# ES_INSTANCE = {
-#     'id': 'es-test',
-#     'name': 'Test ES Instance',
-#     'url': 'http://elasticsearch',
-#     'user': 'admin',
-#     'password': 'password'
-# }
-
 ES_INSTANCE = {
     'id': 'es-test',
     'name': 'Test ES Instance',
-    'url': 'https://alpha.eha.im/dev/elasticsearch/',
-    'user': 'user',
+    'url': 'http://elasticsearch',
+    'user': 'admin',
     'password': 'password'
 }
+
+# ES_INSTANCE = {
+#     'id': 'es-test',
+#     'name': 'Test ES Instance',
+#     'url': 'https://alpha.eha.im/dev/elasticsearch/',
+#     'user': 'user',
+#     'password': 'password'
+# }
 
 
 KIBANA_INSTANCE = {
@@ -76,4 +76,11 @@ JOB = {
     'name': 'Default ES Consumer Job',
     'local_kibana': 'default',
     'local_elasticsearch': 'default'
+}
+
+JOB_FOREIGN = {
+    'id': 'j-test-foreign',
+    'name': 'Default ES Consumer Job',
+    'kibana': 'k-test',
+    'elasticsearch': 'es-test'
 }

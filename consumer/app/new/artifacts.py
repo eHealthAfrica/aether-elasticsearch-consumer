@@ -19,7 +19,9 @@
 # under the License.
 
 import json
+import logging
 import requests
+from time import sleep
 from urllib3.exceptions import NewConnectionError
 from uuid import uuid4
 
@@ -28,16 +30,21 @@ from elasticsearch.exceptions import ConnectionError as ESConnectionError
 
 from aet.exceptions import ConsumerHttpException
 from aet.job import BaseJob
+from aet.kafka import KafkaConsumer
 from aet.logger import get_logger
 from aet.resource import BaseResource, Draft7Validator, lock
 
 
-from ..config import get_consumer_config
+from ..config import get_consumer_config, get_kafka_config
 from ..fixtures import schemas
 
 
 LOG = get_logger('artifacts')
 CONSUMER_CONFIG = get_consumer_config()
+KAFKA_CONFIG = get_kafka_config()
+
+es_logger = logging.getLogger('elasticsearch')
+es_logger.setLevel(logging.ERROR)
 
 
 class ESInstance(BaseResource):
@@ -77,7 +84,7 @@ class ESInstance(BaseResource):
             ConnectionRefusedError,
             ESConnectionError
         ) as nce:
-            return ConsumerHttpException(nce, 500)
+            raise ConsumerHttpException(nce, 500)
 
 
 class LocalESInstance(ESInstance):
@@ -203,3 +210,55 @@ class ESJob(BaseJob):
     # Any type here needs to be registered in the API as APIServer._allowed_types
     _resources = [ESInstance, LocalESInstance, KibanaInstance, LocalKibanaInstance, Subscription]
     schema = schemas.ES_JOB
+
+    public_actions = BaseResource.public_actions + [
+        'list_topics'
+    ]
+
+    consumer: KafkaConsumer = None
+
+    def _get_messages(self, config):
+        LOG.debug('getting messages')
+        sleep(.25)
+
+    def _handle_messages(self, config):
+        LOG.debug('handling messages')
+
+    def _setup(self):
+        # TODO Fix the bootstrap.servers issue
+        LOG.debug(json.dumps(KAFKA_CONFIG.copy(), indent=2))
+        args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
+        self.consumer = KafkaConsumer(**args)
+        md = self.consumer.list_topics(timeout=10)
+        LOG.debug(json.dumps(self.broker_info(md), indent=2))
+        LOG.debug('setup complete')
+
+    def broker_info(self, md):
+        try:
+            res = {'brokers': [], 'topics': []}
+            for b in iter(md.brokers.values()):
+                if b.id == md.controller_id:
+                    res['brokers'].append('{}  (controller)'.format(b))
+                else:
+                    res['brokers'].append('{}'.format(b))
+            for t in iter(md.topics.values()):
+                t_str = []
+                if t.error is not None:
+                    errstr = ': {}'.format(t.error)
+                else:
+                    errstr = ''
+
+                t_str.append('{} with {} partition(s){}'.format(t, len(t.partitions), errstr))
+
+                for p in iter(t.partitions.values()):
+                    if p.error is not None:
+                        errstr = ': {}'.format(p.error)
+                    else:
+                        errstr = ''
+
+                    t_str.append('partition {} leader: {}, replicas: {}, isrs: {}'.format(
+                        p.id, p.leader, p.replicas, p.isrs, errstr))
+                res['topics'].append(t_str)
+            return res
+        except Exception as err:
+            return {'error': f'{err}'}

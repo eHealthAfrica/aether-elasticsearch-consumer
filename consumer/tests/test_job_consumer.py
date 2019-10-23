@@ -22,6 +22,7 @@
 import pytest
 import requests
 import json
+from time import sleep
 
 from . import *  # noqa
 from . import (  # noqa  # for the linter
@@ -145,3 +146,41 @@ def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
         res.raise_for_status()
     except requests.HTTPError:
         assert(res.status_code == 500)
+
+
+# # This was to test a foreign ES instance, refactor into integration test
+
+# @pytest.mark.v2
+# def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
+#     doc_id = examples.ES_INSTANCE.get("id")
+#     res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
+#     assert(res.json() is True)
+#     res = RequestClientT1.get(f'{URL}/elasticsearch/list')
+#     assert(doc_id in res.json())
+#     res = RequestClientT1.get(f'{URL}/elasticsearch/test_connection?id={doc_id}')
+#     try:
+#         res.raise_for_status()
+#     except requests.HTTPError:
+#         assert(res.status_code == 500)
+
+
+@pytest.mark.v2
+def test__api_job_and_resource(ElasticsearchConsumer, RequestClientT1):
+    doc_id = examples.JOB_FOREIGN.get("id")
+    res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
+    assert(res.json() is True)
+    res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
+    assert(res.json() is True)
+
+    res = RequestClientT1.post(f'{URL}/job/add', json=examples.JOB_FOREIGN)
+    assert(res.json() is True)
+
+    sleep(1)
+
+    res = RequestClientT1.delete(f'{URL}/kibana/delete?id={examples.KIBANA_INSTANCE.get("id")}')
+    assert(res.json() is True)
+    res = RequestClientT1.delete(f'{URL}/elasticsearch/delete?id={examples.ES_INSTANCE.get("id")}')
+    assert(res.json() is True)
+
+    res = RequestClientT1.post(f'{URL}/job/delete?id={doc_id}', json=examples.JOB_FOREIGN)
+    assert(res.json() is True)
