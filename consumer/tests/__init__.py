@@ -74,23 +74,14 @@ def ElasticsearchConsumer(birdisle_server, Birdisle):
 
 
 @pytest.mark.v2_integration
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='session', autouse=True)
 def check_local_es_readyness():
     CC = config.get_consumer_config()
     url = CC.get('elasticsearch_url')
     user = CC.get('elasticsearch_user')
     password = CC.get('elasticsearch_password')
-    print('Waiting for Elasticsearch.', end='')
     for x in range(60):
         try:
-            print('.', end='')
-            res = requests.head(f'http://{url}', auth=(user, password))
-            break
-        except Exception:
-            sleep(.5)
-    for x in range(60):
-        try:
-            print('!.', end='')
             res = requests.get(f'http://{url}', auth=(user, password))
             res.raise_for_status()
             return

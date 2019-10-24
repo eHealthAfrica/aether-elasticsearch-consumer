@@ -152,7 +152,7 @@ def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
 
 
 @pytest.mark.v2_integration
-def test__api_resource_es(check_local_es_readyness, ElasticsearchConsumer, RequestClientT1):
+def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.LOCAL_ES_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/local_elasticsearch/add', json=examples.LOCAL_ES_INSTANCE)
     assert(res.json() is True)
