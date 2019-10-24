@@ -24,12 +24,15 @@ import requests
 import json
 from time import sleep
 
+from elasticmock import elasticmock
+
 from . import *  # noqa
 from . import (  # noqa  # for the linter
     ElasticsearchConsumer,
     RequestClientT1,
     RequestClientT2,
-    URL
+    URL,
+    check_local_es_readyness
 )
 
 from aet.logger import get_logger
@@ -148,6 +151,17 @@ def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
         assert(res.status_code == 500)
 
 
+@pytest.mark.v2_integration
+def test__api_resource_es(check_local_es_readyness, ElasticsearchConsumer, RequestClientT1):
+    doc_id = examples.LOCAL_ES_INSTANCE.get("id")
+    res = RequestClientT1.post(f'{URL}/local_elasticsearch/add', json=examples.LOCAL_ES_INSTANCE)
+    assert(res.json() is True)
+    res = RequestClientT1.get(f'{URL}/local_elasticsearch/list')
+    assert(doc_id in res.json())
+    res = RequestClientT1.get(f'{URL}/local_elasticsearch/test_connection?id={doc_id}')
+    LOG.error(res.content)
+    assert(res.json().get('cluster_name') is not None)
+
 # # This was to test a foreign ES instance, refactor into integration test
 
 # @pytest.mark.v2
@@ -175,7 +189,11 @@ def test__api_job_and_resource(ElasticsearchConsumer, RequestClientT1):
     res = RequestClientT1.post(f'{URL}/job/add', json=examples.JOB_FOREIGN)
     assert(res.json() is True)
 
-    sleep(1)
+    sleep(.25)  # take a few MS for the job to be started
+
+    res = RequestClientT1.post(f'{URL}/job/list_topics?id={doc_id}', json=examples.JOB_FOREIGN)
+    LOG.debug(res.content)
+    assert(isinstance(res.json(), list))
 
     res = RequestClientT1.delete(f'{URL}/kibana/delete?id={examples.KIBANA_INSTANCE.get("id")}')
     assert(res.json() is True)

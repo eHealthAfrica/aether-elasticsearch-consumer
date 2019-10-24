@@ -25,6 +25,7 @@ from time import sleep
 from urllib3.exceptions import NewConnectionError
 from uuid import uuid4
 
+from confluent_kafka import KafkaException
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 
@@ -225,13 +226,19 @@ class ESJob(BaseJob):
         LOG.debug('handling messages')
 
     def _setup(self):
-        # TODO Fix the bootstrap.servers issue
-        LOG.debug(json.dumps(KAFKA_CONFIG.copy(), indent=2))
         args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
+        LOG.debug(json.dumps(args, indent=2))
         self.consumer = KafkaConsumer(**args)
-        md = self.consumer.list_topics(timeout=10)
-        LOG.debug(json.dumps(self.broker_info(md), indent=2))
-        LOG.debug('setup complete')
+
+    # public
+    def list_topics(self, *args, **kwargs):
+        timeout = 5
+        try:
+            md = self.consumer.list_topics(timeout=timeout)
+        except (KafkaException) as ker:
+            raise ConsumerHttpException(str(ker) + f'@timeout: {timeout}', 500)
+        topics = [str(t) for t in iter(md.topics.values())]
+        return topics
 
     def broker_info(self, md):
         try:

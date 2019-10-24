@@ -1,7 +1,6 @@
 {
     
     "auto.offset.reset" : "earliest",
-    "bootstrap.servers": "pkc-4r297.europe-west1.gcp.confluent.cloud:9092",
     "group.id": "dev.temporary",
     "enable.auto.commit": false,
     "auto.commit.interval.ms": 2500,

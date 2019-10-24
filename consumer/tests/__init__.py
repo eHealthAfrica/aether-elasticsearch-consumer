@@ -22,17 +22,21 @@ import json
 import pytest
 import os
 import requests
+from time import sleep
 
 import birdisle
 import birdisle.redis
 
 from app import config
+from app.logger import get_logger
 from app.main import ESConsumerManager
 from app.connection_handler import ESConnectionManager
 from app.processor import ESItemProcessor
 from app.schema import Node
 
 from app.new import consumer
+
+LOG = get_logger('FIXTURE')
 
 # Some of the fixtures are non-compliant so we don't QA this file.
 # flake8: noqa
@@ -60,6 +64,7 @@ def Birdisle(birdisle_server):
 
 
 @pytest.mark.v2
+@pytest.mark.v2_integration
 @pytest.fixture(scope='session')
 def ElasticsearchConsumer(birdisle_server, Birdisle):
     settings = config.get_consumer_config()
@@ -68,11 +73,37 @@ def ElasticsearchConsumer(birdisle_server, Birdisle):
     c.stop()
 
 
+@pytest.mark.v2_integration
+@pytest.fixture(scope='session')
+def check_local_es_readyness():
+    CC = config.get_consumer_config()
+    url = CC.get('elasticsearch_url')
+    user = CC.get('elasticsearch_user')
+    password = CC.get('elasticsearch_password')
+    print('Waiting for Elasticsearch.', end='')
+    for x in range(60):
+        try:
+            print('.', end='')
+            res = requests.head(f'http://{url}', auth=(user, password))
+            break
+        except Exception:
+            sleep(.5)
+    for x in range(60):
+        try:
+            print('!.', end='')
+            res = requests.get(f'http://{url}', auth=(user, password))
+            res.raise_for_status()
+            return
+        except Exception:
+            sleep(.5)
+    raise TimeoutError('Could not connect to elasticsearch for integration test')
+
 @pytest.mark.v2
+@pytest.mark.v2_integration
 @pytest.fixture(scope='session')
 def RequestClientT1():
     s = requests.Session()
-    s.headers.update({'x-tenant': 'test-t1'})
+    s.headers.update({'x-oauth-realm': 'dev'})
     yield s
 
 
@@ -80,7 +111,7 @@ def RequestClientT1():
 @pytest.fixture(scope='session')
 def RequestClientT2():
     s = requests.Session()
-    s.headers.update({'x-tenant': 'test-t2'})
+    s.headers.update({'x-oauth-realm': 'dev-t2'})
     yield s
 
 
