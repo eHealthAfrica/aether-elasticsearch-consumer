@@ -194,16 +194,23 @@ class ESConnectionManager:
             CONSUMER_CONFIG.get('elasticsearch_password'),
             CONSUMER_CONFIG.get('elasticsearch_port')
         )
-        default_kibana = KibanaConfig(
-            kibana_url=CONSUMER_CONFIG.get('kibana_url'),
-            kibana_header_template='''
-            {
-                "x-forwarded-for": "255.0.0.1",
-                "x-oauth-preferred_username":"aether-consumer",
-                "x-oauth-realm": "%s",
-                "kbn-xsrf": "f"
-            }'''
-        )
+        if CONSUMER_CONFIG.get('kibana_password'):
+            default_kibana = KibanaConfig(
+                kibana_url=CONSUMER_CONFIG.get('kibana_url'),
+                kibana_user=CONSUMER_CONFIG.get('kibana_user'),
+                kibana_password=CONSUMER_CONFIG.get('kibana_password')
+            )
+        else:
+            default_kibana = KibanaConfig(
+                kibana_url=CONSUMER_CONFIG.get('kibana_url'),
+                kibana_header_template='''
+                {
+                    "x-forwarded-for": "255.0.0.1",
+                    "x-oauth-preferred_username":"aether-consumer",
+                    "x-oauth-realm": "%s",
+                    "kbn-xsrf": "f"
+                }'''
+            )
         self.add_connection(default_es, kibana_config=default_kibana)
 
     def get_connection(self, tenant=DEFAULT_TENANT, instance='default'):
