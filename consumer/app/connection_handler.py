@@ -80,6 +80,10 @@ class KibanaConnection:
             return json.loads(
                 (self.config.kibana_header_template % tenant)
             )
+        else:
+            return {
+                'kbn-xsrf': 'f'
+            }
 
         elif self.config.kibana_headers:
             return self.config.kibana_headers
