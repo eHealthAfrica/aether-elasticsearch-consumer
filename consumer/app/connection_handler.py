@@ -80,14 +80,12 @@ class KibanaConnection:
             return json.loads(
                 (self.config.kibana_header_template % tenant)
             )
+        elif self.config.kibana_headers:
+            return self.config.kibana_headers
         else:
             return {
                 'kbn-xsrf': 'f'
             }
-
-        elif self.config.kibana_headers:
-            return self.config.kibana_headers
-        return {}
 
     def request(self, tenant, method, url, **kwargs):
         session = self._make_session()
