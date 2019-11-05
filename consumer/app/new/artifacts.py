@@ -141,6 +141,7 @@ class KibanaInstance(BaseResource):
             self.definition.user,
             self.definition.password
         )
+        self.session.headers.update({'kbn-xsrf': 'f'})  # required header
         return self.session
 
     @lock
@@ -200,10 +201,8 @@ class LocalKibanaInstance(KibanaInstance):
 
 class Subscription(BaseResource):
     schema = schemas.SUBSCRIPTION
-    jobs_path = '$.subscription'
+    jobs_path = '$.subscriptions'
     name = 'subscription'
-    # public_actions = BaseResource.public_actions + [
-    # ]
 
 
 class ESJob(BaseJob):
@@ -213,19 +212,63 @@ class ESJob(BaseJob):
     schema = schemas.ES_JOB
 
     public_actions = BaseResource.public_actions + [
-        'list_topics'
+        'list_topics',
+        'subscribed_topics'
     ]
-
+    subscribed_topics: dict
     consumer: KafkaConsumer = None
 
+    def _handle_new_topics(self, subs):
+        old_subs = list(sorted(self.subscribed_topics.values()))
+        for sub in subs:
+            self.subscribed_topics[sub.id] = sub.definition.topic_pattern
+        new_subs = list(sorted(self.subscribed_topics.values()))
+        if old_subs != new_subs:
+            LOG.debug(f'{self.tenant} subscribed on topics: {new_subs}')
+            self.consumer.subscribe(new_subs)
+
+    def _test_connections(self, config):
+        es = self.get_resources('local_elasticsearch', config) + \
+            self.get_resources('elasticsearch', config)
+        if not es:
+            raise ConsumerHttpException('No ES associated with Job', 400)
+        es[0].test_connection()  # raises CHE
+        kibana = self.get_resources('local_kibana', config) + \
+            self.get_resources('kibana', config)
+        if not kibana:
+            raise ConsumerHttpException('No Kibana associated with Job', 400)
+        kibana[0].test_connection()  # raises CHE
+        return True
+
     def _get_messages(self, config):
-        LOG.debug('getting messages')
-        sleep(.25)
+        LOG.debug(f'Job {self._id} getting messages')
+        subs = self.get_resources('subscription', config)
+        if not subs:
+            LOG.debug(f'Job {self._id} has no subscriptions...')
+            sleep(.25)
+            return []
+        self._handle_new_topics(subs)
+        try:
+            self._test_connections(config)
+            return self.consumer.poll_and_deserialize(
+                timeout=1,
+                num_messages=1000)  # max
+        except ConsumerHttpException as cer:
+            # don't fetch messages if we can't post them
+            LOG.debug(f'ES or Kibana not ready: {cer}')
+            sleep(.25)
+            return []
+        except Exception as err:
+            LOG.debug(f'unhandled error: {err}')
+            raise err
+            sleep(.25)
+            return []
 
     def _handle_messages(self, config):
         LOG.debug('handling messages')
 
     def _setup(self):
+        self.subscribed_topics = {}
         args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
         LOG.debug(json.dumps(args, indent=2))
         self.consumer = KafkaConsumer(**args)
@@ -237,8 +280,15 @@ class ESJob(BaseJob):
             md = self.consumer.list_topics(timeout=timeout)
         except (KafkaException) as ker:
             raise ConsumerHttpException(str(ker) + f'@timeout: {timeout}', 500)
-        topics = [str(t) for t in iter(md.topics.values())]
+        topics = [
+            str(t) for t in iter(md.topics.values())
+            if str(t).startswith(self.tenant)
+        ]
         return topics
+
+    # public
+    def subscribed_topics(self, *arg, **kwargs):
+        return self.subscribed_topics
 
     def broker_info(self, md):
         try:

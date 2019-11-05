@@ -24,8 +24,6 @@ import requests
 import json
 from time import sleep
 
-from elasticmock import elasticmock
-
 from . import *  # noqa
 from . import (  # noqa  # for the linter
     ElasticsearchConsumer,
@@ -185,6 +183,8 @@ def test__api_job_and_resource(ElasticsearchConsumer, RequestClientT1):
     assert(res.json() is True)
     res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
     assert(res.json() is True)
+    res = RequestClientT1.post(f'{URL}/subscription/add', json=examples.SUBSCRIPTION)
+    assert(res.json() is True)
 
     res = RequestClientT1.post(f'{URL}/job/add', json=examples.JOB_FOREIGN)
     assert(res.json() is True)
@@ -198,6 +198,8 @@ def test__api_job_and_resource(ElasticsearchConsumer, RequestClientT1):
     res = RequestClientT1.delete(f'{URL}/kibana/delete?id={examples.KIBANA_INSTANCE.get("id")}')
     assert(res.json() is True)
     res = RequestClientT1.delete(f'{URL}/elasticsearch/delete?id={examples.ES_INSTANCE.get("id")}')
+    assert(res.json() is True)
+    res = RequestClientT1.post(f'{URL}/subscription/delete?id={examples.SUBSCRIPTION.get("id")}')
     assert(res.json() is True)
 
     res = RequestClientT1.post(f'{URL}/job/delete?id={doc_id}', json=examples.JOB_FOREIGN)

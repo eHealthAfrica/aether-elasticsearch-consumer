@@ -73,9 +73,11 @@ def ElasticsearchConsumer(birdisle_server, Birdisle):
     c.stop()
 
 
-@pytest.mark.v2_integration
 @pytest.fixture(scope='session', autouse=True)
-def check_local_es_readyness():
+def check_local_es_readyness(request):
+    # @mark annotation does not work with autouse=True.
+    if 'v2_integration' not in request.keywords:
+        return
     CC = config.get_consumer_config()
     url = CC.get('elasticsearch_url')
     user = CC.get('elasticsearch_user')

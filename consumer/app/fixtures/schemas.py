@@ -238,7 +238,6 @@ SUBSCRIPTION = '''
   "required": [
     "id",
     "name",
-    "job_id",
     "topic_pattern",
     "es_alias_name",
     "visualizations"
@@ -369,7 +368,7 @@ SUBSCRIPTION = '''
 '''
 
 ES_JOB = '''
-    {
+{
   "definitions": {},
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "http://example.com/root.json",
@@ -422,8 +421,22 @@ ES_JOB = '''
           "id of the local elasticsearch to use"
         ],
         "pattern": "^(.*)$"
+      },
+      "subscriptions": {
+      "$id": "#/properties/subscriptions",
+      "type": "array",
+      "title": "The Subscriptions Schema",
+      "items": {
+        "$id": "#/properties/subscriptions/items",
+        "type": "string",
+        "title": "The Items Schema",
+        "default": "",
+        "examples": [
+          "id-of-sub"
+        ],
+        "pattern": "^(.*)$"
       }
-    }
+    }}
   }, {
     "required": [
       "id",
@@ -471,8 +484,22 @@ ES_JOB = '''
           "id of the foreign elasticsearch to use"
         ],
         "pattern": "^(.*)$"
+      },
+      "subscriptions": {
+      "$id": "#/properties/subscriptions",
+      "type": "array",
+      "title": "The Subscriptions Schema",
+      "items": {
+        "$id": "#/properties/subscriptions/items",
+        "type": "string",
+        "title": "The Items Schema",
+        "default": "",
+        "examples": [
+          "id-of-sub"
+        ],
+        "pattern": "^(.*)$"
       }
-    }
+    }}
   }]
 }
 '''

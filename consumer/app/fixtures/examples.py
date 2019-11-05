@@ -63,13 +63,12 @@ LOCAL_KIBANA_INSTANCE = {
 }
 
 
-'''
 SUBSCRIPTION = {
     'id': 'sub-test',
     'name': 'Test Subscription',
-    'topic_pattern'
- }
-'''
+    'topic_pattern': '*',
+    'es_alias_name': 'test'
+}
 
 JOB = {
     'id': 'default',
@@ -82,5 +81,6 @@ JOB_FOREIGN = {
     'id': 'j-test-foreign',
     'name': 'Default ES Consumer Job',
     'kibana': 'k-test',
-    'elasticsearch': 'es-test'
+    'elasticsearch': 'es-test',
+    'subscriptions': ['sub-test']
 }
