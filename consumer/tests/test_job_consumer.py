@@ -120,15 +120,15 @@ def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestC
     res = RequestClientT1.get(f'{URL}/kibana/test_connection?id={doc_id}')
     try:
         res.raise_for_status()
-    except requests.HTTPError:
-        assert(res.status_code == 500), res.content
+    except requests.HTTPError as her:
+        assert(res.status_code == 500), (her, res.content)
     else:
         assert(False), 'Asset should be in-accessible as it does not exist'
     res = RequestClientT2.get(f'{URL}/kibana/test_connection?id={doc_id}')
     try:
         res.raise_for_status()
-    except requests.HTTPError:
-        assert(res.status_code == 404)
+    except requests.HTTPError as her:
+        assert(res.status_code == 404), (her, res.content)
     else:
         assert(False), 'Asset should be missing for this tenant'
     res = RequestClientT1.delete(f'{URL}/kibana/delete?id={examples.KIBANA_INSTANCE.get("id")}')

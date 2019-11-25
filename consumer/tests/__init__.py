@@ -23,6 +23,7 @@ import pytest
 import os
 import requests
 from time import sleep
+from uuid import uuid4
 
 import birdisle
 import birdisle.redis
@@ -43,6 +44,10 @@ LOG = get_logger('FIXTURE')
 
 URL = 'http://localhost:9013'
 
+
+# pick a random tenant for each run so we don't need to wipe ES.
+TS = str(uuid4()).replace('-', '')[:8]
+TENANT = f'TEN{TS}'
 
 @pytest.mark.v2
 @pytest.fixture(scope='session')
@@ -74,10 +79,12 @@ def ElasticsearchConsumer(birdisle_server, Birdisle):
 
 
 @pytest.fixture(scope='session', autouse=True)
-def check_local_es_readyness(request):
+def check_local_es_readyness(request, *args):
     # @mark annotation does not work with autouse=True.
-    if 'v2_integration' not in request.keywords:
+    if 'v2_integration' not in list(request.config.invocation_params.args):
+        LOG.debug(f'NOT Checking for LocalES')
         return
+    LOG.debug('Checking for LocalES')
     CC = config.get_consumer_config()
     url = CC.get('elasticsearch_url')
     user = CC.get('elasticsearch_user')
@@ -96,7 +103,7 @@ def check_local_es_readyness(request):
 @pytest.fixture(scope='session')
 def RequestClientT1():
     s = requests.Session()
-    s.headers.update({'x-oauth-realm': 'dev'})
+    s.headers.update({'x-oauth-realm': TENANT})
     yield s
 
 
@@ -104,7 +111,7 @@ def RequestClientT1():
 @pytest.fixture(scope='session')
 def RequestClientT2():
     s = requests.Session()
-    s.headers.update({'x-oauth-realm': 'dev-t2'})
+    s.headers.update({'x-oauth-realm': f'{TENANT}-2'})
     yield s
 
 
