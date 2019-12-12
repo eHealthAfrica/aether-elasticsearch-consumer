@@ -81,15 +81,15 @@ def ElasticsearchConsumer(birdisle_server, Birdisle):
 @pytest.fixture(scope='session', autouse=True)
 def check_local_es_readyness(request, *args):
     # @mark annotation does not work with autouse=True.
-    if 'v2_integration' not in list(request.config.invocation_params.args):
+    if 'v2_integration' not in request.config.invocation_params.args:
         LOG.debug(f'NOT Checking for LocalES')
         return
-    LOG.debug('Checking for LocalES')
+    LOG.debug('Waiting for LocalES')
     CC = config.get_consumer_config()
     url = CC.get('elasticsearch_url')
     user = CC.get('elasticsearch_user')
     password = CC.get('elasticsearch_password')
-    for x in range(60):
+    for x in range(120):
         try:
             res = requests.get(f'http://{url}', auth=(user, password))
             res.raise_for_status()
@@ -97,6 +97,26 @@ def check_local_es_readyness(request, *args):
         except Exception:
             sleep(.5)
     raise TimeoutError('Could not connect to elasticsearch for integration test')
+
+@pytest.fixture(scope='session', autouse=True)
+def check_local_kibana_readyness(request, *args):
+    # @mark annotation does not work with autouse=True.
+    if 'v2_integration' not in request.config.invocation_params.args:
+        LOG.debug(f'NOT Checking for Kibana')
+        return
+    LOG.debug('Waiting for LocalKibana')
+    CC = config.get_consumer_config()
+    url = CC.get('kibana_url')
+    user = CC.get('elasticsearch_user')
+    password = CC.get('elasticsearch_password')
+    for x in range(120):
+        try:
+            res = requests.get(f'{url}', auth=(user, password))
+            res.raise_for_status()
+            return
+        except Exception:
+            sleep(.5)
+    raise TimeoutError('Could not connect to kibana for integration test')
 
 @pytest.mark.v2
 @pytest.mark.v2_integration

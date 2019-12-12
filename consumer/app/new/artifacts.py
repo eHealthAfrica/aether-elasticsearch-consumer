@@ -28,6 +28,7 @@ from uuid import uuid4
 from confluent_kafka import KafkaException
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
+from elasticsearch.exceptions import AuthenticationException as ESAuthenticationException
 
 from aet.exceptions import ConsumerHttpException
 from aet.job import BaseJob
@@ -64,13 +65,19 @@ class ESInstance(BaseResource):
             return self.session
         url = self.definition.url
         conn_info = {
-            'http_auth': [
-                self.definition.user,
-                self.definition.password
-            ],
             'sniff_on_start': False
         }
-        self.session = Elasticsearch(url, **conn_info)
+        try:
+            conn_info['http_auth'] = [
+                self.definition.user,
+                self.definition.password
+            ]
+        except AttributeError:
+            pass
+        try:
+            self.session = Elasticsearch(url, **conn_info)
+        except Exception as err:
+            raise err
         # add an _id so we can check the instance
         setattr(self.session, 'instance_id', str(uuid4()))
         return self.session
@@ -83,9 +90,13 @@ class ESInstance(BaseResource):
         except (
             NewConnectionError,
             ConnectionRefusedError,
-            ESConnectionError
+            ESConnectionError,
         ) as nce:
             raise ConsumerHttpException(nce, 500)
+        except ESAuthenticationException as esa:
+            raise ConsumerHttpException(str(esa.error), esa.status_code)
+        except Exception as err:
+            raise ConsumerHttpException(err, 500)
 
 
 class LocalESInstance(ESInstance):
@@ -137,18 +148,23 @@ class KibanaInstance(BaseResource):
         if self.session:
             return self.session
         self.session = requests.Session()
-        self.session.auth = (
-            self.definition.user,
-            self.definition.password
-        )
+        try:
+            self.session.auth = (
+                self.definition.user,
+                self.definition.password
+            )
+        except AttributeError:
+            pass  # may not need creds
         self.session.headers.update({'kbn-xsrf': 'f'})  # required header
         return self.session
 
     @lock
     def request(self, method, url, **kwargs):
-        session = self.get_session()
+        try:
+            session = self.get_session()
+        except Exception as err:
+            raise ConsumerHttpException(str(err), 500)
         full_url = f'{self.definition.url}{url}'
-        LOG.debug([method, full_url, kwargs])
         return session.request(method, full_url, **kwargs)
 
     # public
@@ -160,13 +176,16 @@ class KibanaInstance(BaseResource):
         '''
         try:
             res = self.request('head', '')
+        except requests.exceptions.ConnectionError as her:
+            raise ConsumerHttpException(str(her), 500)
         except Exception as err:
-            raise ConsumerHttpException(err, 404)
+            LOG.debug(f'Error testing kibana connection {err}, {type(err)}')
+            raise ConsumerHttpException(err, 500)
         try:
             res.raise_for_status()
         except requests.exceptions.HTTPError as her:
-            LOG.debug(f'Error testing kibana connection [{self.tenant}:{self.name}] : {her}')
-            raise ConsumerHttpException(her, 500)
+            LOG.debug(f'Error testing kibana connection {her}')
+            raise ConsumerHttpException(her, her.response.status_code)
         return True
 
 
@@ -192,7 +211,7 @@ class LocalKibanaInstance(KibanaInstance):
         headers = {
             'x-forwarded-for': '255.0.0.1',
             'x-oauth-preferred_username': 'aether-consumer',
-            'x-oauth-realm': self.realm,
+            'x-oauth-realm': self.tenant,
             'kbn-xsrf': 'f'
         }
         self.session.headers.update(headers)

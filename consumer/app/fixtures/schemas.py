@@ -28,9 +28,7 @@ ES_INSTANCE = '''
   "required": [
     "id",
     "name",
-    "url",
-    "user",
-    "password"
+    "url"
   ],
   "properties": {
     "id": {
@@ -97,9 +95,7 @@ KIBANA_INSTANCE = '''
   "required": [
     "id",
     "name",
-    "url",
-    "user",
-    "password"
+    "url"
   ],
   "properties": {
     "id": {

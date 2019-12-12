@@ -22,7 +22,8 @@ class Node:
     # fields we have to derrive from the original
     calculated_fields = [
         'avro_type',
-        'optional'
+        'optional',
+        '__extended_type'
     ]
 
     doc: str

@@ -150,30 +150,53 @@ def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
 
 
 @pytest.mark.v2_integration
-def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
+def test__api_resource_es_local(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.LOCAL_ES_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/local_elasticsearch/add', json=examples.LOCAL_ES_INSTANCE)
     assert(res.json() is True)
     res = RequestClientT1.get(f'{URL}/local_elasticsearch/list')
     assert(doc_id in res.json())
     res = RequestClientT1.get(f'{URL}/local_elasticsearch/test_connection?id={doc_id}')
-    LOG.error(res.content)
     assert(res.json().get('cluster_name') is not None)
 
-# # This was to test a foreign ES instance, refactor into integration test
 
-# @pytest.mark.v2
-# def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
-#     doc_id = examples.ES_INSTANCE.get("id")
-#     res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
-#     assert(res.json() is True)
-#     res = RequestClientT1.get(f'{URL}/elasticsearch/list')
-#     assert(doc_id in res.json())
-#     res = RequestClientT1.get(f'{URL}/elasticsearch/test_connection?id={doc_id}')
-#     try:
-#         res.raise_for_status()
-#     except requests.HTTPError:
-#         assert(res.status_code == 500)
+@pytest.mark.v2_integration
+def test__api_resource_es_foreign(ElasticsearchConsumer, RequestClientT1):
+    doc_id = examples.ES_INSTANCE.get("id")
+    res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
+    assert(res.json() is True)
+    res = RequestClientT1.get(f'{URL}/elasticsearch/list')
+    assert(doc_id in res.json())
+    res = RequestClientT1.get(f'{URL}/elasticsearch/test_connection?id={doc_id}')
+    res.raise_for_status()
+    assert(res.json().get('cluster_name') is not None)
+
+
+@pytest.mark.v2_integration
+def test__api_resource_kibana_local(ElasticsearchConsumer, RequestClientT1):
+    doc_id = examples.LOCAL_KIBANA_INSTANCE.get("id")
+    res = RequestClientT1.post(f'{URL}/local_kibana/add', json=examples.LOCAL_KIBANA_INSTANCE)
+    assert(res.json() is True)
+    res = RequestClientT1.get(f'{URL}/local_kibana/list')
+    assert(doc_id in res.json())
+    res = RequestClientT1.get(f'{URL}/local_kibana/test_connection?id={doc_id}')
+    res.raise_for_status()
+    assert(res.content is not None), res.content
+
+
+@pytest.mark.v2_integration
+def test__api_resource_kibana_foreign(ElasticsearchConsumer, RequestClientT1):
+    doc_id = examples.KIBANA_INSTANCE.get("id")
+    res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
+    assert(res.json() is True)
+    res = RequestClientT1.get(f'{URL}/kibana/list')
+    assert(doc_id in res.json())
+    res = RequestClientT1.get(f'{URL}/kibana/test_connection?id={doc_id}')
+    try:
+        res.raise_for_status()
+    except Exception:
+        LOG.error([res.status_code, res.content])
+    assert(res.content is not None), res.content
 
 
 @pytest.mark.v2

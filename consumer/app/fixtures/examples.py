@@ -23,7 +23,7 @@ ES_INSTANCE = {
     'name': 'Test ES Instance',
     'url': 'http://elasticsearch',
     'user': 'admin',
-    'password': 'password'
+    'password': 'admin'
 }
 
 # ES_INSTANCE = {
@@ -38,9 +38,9 @@ ES_INSTANCE = {
 KIBANA_INSTANCE = {
     'id': 'k-test',
     'name': 'Test Kibana Instance',
-    'url': 'http://kibana',
+    'url': 'http://kibana:5601/kibana-app',
     'user': 'admin',
-    'password': 'password'
+    'password': 'admin'
 }
 
 # KIBANA_INSTANCE = {
