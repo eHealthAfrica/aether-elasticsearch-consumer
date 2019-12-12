@@ -26,8 +26,7 @@ setup(
     decription='Aether Elasticsearch Kafka consumer',
     version='3.0.0',
     setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'requests',
-                   'aet.consumer==3.2.0', 'aether_elasticsearch_consumer', 'aether.python'],
+    tests_require=['pytest'],
     url='https://github.com/eHealthAfrica/aether-elasticsearch-consumer',
     keywords=['aet', 'aether', 'kafka', 'consumer', 'elasticsearch'],
     classifiers=[]

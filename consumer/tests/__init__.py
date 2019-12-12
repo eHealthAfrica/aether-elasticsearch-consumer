@@ -61,8 +61,8 @@ URL = 'http://localhost:9013'
 
 # pick a random tenant for each run so we don't need to wipe ES.
 TS = str(uuid4()).replace('-', '')[:8]
-# TENANT = f'TEN{TS}'
-TENANT = f'TENative'
+TENANT = f'TEN{TS}'
+TEST_TOPIC = 'es_test_topic'
 
 
 @pytest.mark.v2
@@ -104,7 +104,7 @@ def create_remote_kafka_assets(request, sample_generator, *args):
     LOG.debug(f'Creating Kafka Assets')
     kafka_security = config.get_kafka_admin_config()
     kadmin = get_admin_client(kafka_security)
-    new_topic = f'{TENANT}.es_test_topic'
+    new_topic = f'{TENANT}.{TEST_TOPIC}'
     create_topic(kadmin, new_topic)
     producer = get_producer(kafka_security)
     schema = parse(json.dumps(ANNOTATED_SCHEMA))

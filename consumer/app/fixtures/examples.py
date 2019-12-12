@@ -26,15 +26,6 @@ ES_INSTANCE = {
     'password': 'admin'
 }
 
-# ES_INSTANCE = {
-#     'id': 'es-test',
-#     'name': 'Test ES Instance',
-#     'url': 'https://alpha.eha.im/dev/elasticsearch/',
-#     'user': 'user',
-#     'password': 'password'
-# }
-
-
 KIBANA_INSTANCE = {
     'id': 'k-test',
     'name': 'Test Kibana Instance',
@@ -42,15 +33,6 @@ KIBANA_INSTANCE = {
     'user': 'admin',
     'password': 'admin'
 }
-
-# KIBANA_INSTANCE = {
-#     'id': 'k-test',
-#     'name': 'Test Kibana Instance',
-#     'url': 'https://alpha.eha.im/dev/kibana/kibana-app',
-#     'user': 'user',
-#     'password': 'password'
-# }
-
 
 LOCAL_ES_INSTANCE = {
     'id': 'default',
@@ -61,7 +43,6 @@ LOCAL_KIBANA_INSTANCE = {
     'id': 'default',
     'name': 'Test LOCAL Kibana Instance'
 }
-
 
 SUBSCRIPTION = {
     'id': 'sub-test',

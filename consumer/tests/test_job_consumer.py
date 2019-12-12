@@ -199,8 +199,8 @@ def test__api_resource_kibana_foreign(ElasticsearchConsumer, RequestClientT1):
     assert(res.content is not None), res.content
 
 
-@pytest.mark.v2
-def test__api_job_and_resource(ElasticsearchConsumer, RequestClientT1):
+@pytest.mark.v2_integration
+def test__api_job_and_resource_create(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.JOB_FOREIGN.get("id")
     res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
     assert(res.json() is True)
@@ -214,10 +214,25 @@ def test__api_job_and_resource(ElasticsearchConsumer, RequestClientT1):
 
     sleep(.25)  # take a few MS for the job to be started
 
-    res = RequestClientT1.post(f'{URL}/job/list_topics?id={doc_id}', json=examples.JOB_FOREIGN)
-    LOG.debug(res.content)
-    assert(isinstance(res.json(), list))
 
+@pytest.mark.v2_integration
+def test__api_job_and_resource_public_endpoints(ElasticsearchConsumer, RequestClientT1):
+    doc_id = examples.JOB_FOREIGN.get("id")
+    res = RequestClientT1.get(f'{URL}/job/list_topics?id={doc_id}')
+    LOG.debug(res.content)
+    topics = res.json()
+    assert(len(topics) == 1 and TEST_TOPIC in topics)
+    res = RequestClientT1.get(f'{URL}/job/list_subscribed_topics?id={doc_id}')
+    res.raise_for_status()
+    topics = res.json()
+    LOG.debug(topics)
+    assert(TEST_TOPIC not in topics)
+    sleep(10)
+
+
+@pytest.mark.v2_integration
+def test__api_job_and_resource_delete(ElasticsearchConsumer, RequestClientT1):
+    doc_id = examples.JOB_FOREIGN.get("id")
     res = RequestClientT1.delete(f'{URL}/kibana/delete?id={examples.KIBANA_INSTANCE.get("id")}')
     assert(res.json() is True)
     res = RequestClientT1.delete(f'{URL}/elasticsearch/delete?id={examples.ES_INSTANCE.get("id")}')

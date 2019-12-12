@@ -232,16 +232,21 @@ class ESJob(BaseJob):
 
     public_actions = BaseResource.public_actions + [
         'list_topics',
-        'subscribed_topics'
+        'list_subscribed_topics'
     ]
     subscribed_topics: dict
     consumer: KafkaConsumer = None
 
     def _handle_new_topics(self, subs):
-        old_subs = list(sorted(self.subscribed_topics.values()))
+        old_subs = list(sorted(set(self.subscribed_topics.values())))
         for sub in subs:
-            self.subscribed_topics[sub.id] = sub.definition.topic_pattern
-        new_subs = list(sorted(self.subscribed_topics.values()))
+            pattern = sub.definition.topic_pattern
+            # only allow regex on the end of patterns
+            if pattern.endswith('*'):
+                self.subscribed_topics[sub.id] = f'^{self.tenant}.{pattern}'
+            else:
+                self.subscribed_topics[sub.id] = f'{self.tenant}.{pattern}'
+        new_subs = list(sorted(set(self.subscribed_topics.values())))
         if old_subs != new_subs:
             LOG.debug(f'{self.tenant} subscribed on topics: {new_subs}')
             self.consumer.subscribe(new_subs)
@@ -269,22 +274,27 @@ class ESJob(BaseJob):
         self._handle_new_topics(subs)
         try:
             self._test_connections(config)
+            assignment = self.consumer.assignment()
+            LOG.debug(f'assigned to {assignment}')
             return self.consumer.poll_and_deserialize(
-                timeout=1,
-                num_messages=1000)  # max
+                timeout=5,
+                num_messages=1)  # max
         except ConsumerHttpException as cer:
             # don't fetch messages if we can't post them
             LOG.debug(f'ES or Kibana not ready: {cer}')
             sleep(.25)
             return []
         except Exception as err:
-            LOG.debug(f'unhandled error: {err}')
+            import traceback
+            traceback_str = ''.join(traceback.format_tb(err.__traceback__))
+            LOG.critical(f'unhandled error: {str(err)} | {traceback_str}')
             raise err
             sleep(.25)
             return []
 
-    def _handle_messages(self, config):
-        LOG.debug('handling messages')
+    def _handle_messages(self, config, messages):
+        for msg in messages:
+            LOG.critical(msg)
 
     def _setup(self):
         self.subscribed_topics = {}
@@ -300,14 +310,14 @@ class ESJob(BaseJob):
         except (KafkaException) as ker:
             raise ConsumerHttpException(str(ker) + f'@timeout: {timeout}', 500)
         topics = [
-            str(t) for t in iter(md.topics.values())
+            str(t).split(f'{self.tenant}.')[1] for t in iter(md.topics.values())
             if str(t).startswith(self.tenant)
         ]
         return topics
 
     # public
-    def subscribed_topics(self, *arg, **kwargs):
-        return self.subscribed_topics
+    def list_subscribed_topics(self, *arg, **kwargs):
+        return list(self.subscribed_topics.values())
 
     def broker_info(self, md):
         try:
