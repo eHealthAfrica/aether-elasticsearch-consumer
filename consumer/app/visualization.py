@@ -21,11 +21,12 @@
 import json
 from typing import List, Callable
 
+from aether.python.avro.schema import Node
+
 from . import config
 from . import index_handler
 from .logger import get_logger
 from .processor import ES_RESERVED
-from .schema import Node
 
 consumer_config = config.get_consumer_config()
 LOG = get_logger('VIZ')

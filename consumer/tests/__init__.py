@@ -27,13 +27,27 @@ from uuid import uuid4
 
 import birdisle
 import birdisle.redis
+from spavro.schema import parse
+
+from aet.kafka import KafkaConsumer
+from aet.kafka_utils import (
+    create_topic,
+    delete_topic,
+    get_producer,
+    get_admin_client,
+    get_broker_info,
+    is_kafka_available,
+    produce
+)
+from aet.helpers import chunk_iterable
+from aether.python.avro import generation
+from aether.python.avro.schema import Node
 
 from app import config
 from app.logger import get_logger
 from app.main import ESConsumerManager
 from app.connection_handler import ESConnectionManager
 from app.processor import ESItemProcessor
-from app.schema import Node
 
 from app.new import consumer
 
@@ -47,7 +61,9 @@ URL = 'http://localhost:9013'
 
 # pick a random tenant for each run so we don't need to wipe ES.
 TS = str(uuid4()).replace('-', '')[:8]
-TENANT = f'TEN{TS}'
+# TENANT = f'TEN{TS}'
+TENANT = f'TENative'
+
 
 @pytest.mark.v2
 @pytest.fixture(scope='session')
@@ -78,9 +94,31 @@ def ElasticsearchConsumer(birdisle_server, Birdisle):
     c.stop()
 
 
+# @pytest.mark.v2_integration
+@pytest.fixture(scope='session', autouse=True)
+def create_remote_kafka_assets(request, sample_generator, *args):
+    # @mark annotation does not work with autouse=True.
+    if 'v2_integration' not in request.config.invocation_params.args:
+        LOG.debug(f'NOT creating Kafka Assets')
+        # return
+    LOG.debug(f'Creating Kafka Assets')
+    kafka_security = config.get_kafka_admin_config()
+    kadmin = get_admin_client(kafka_security)
+    new_topic = f'{TENANT}.es_test_topic'
+    create_topic(kadmin, new_topic)
+    producer = get_producer(kafka_security)
+    schema = parse(json.dumps(ANNOTATED_SCHEMA))
+    for subset in sample_generator(max=100, chunk=10):
+        produce(subset, schema, new_topic, producer)
+    yield None  # end of work before clean-up
+    LOG.debug(f'deleting topic: {new_topic}')
+    delete_topic(kadmin, new_topic)
+
+
+# @pytest.mark.v2_integration
 @pytest.fixture(scope='session', autouse=True)
 def check_local_es_readyness(request, *args):
-    # @mark annotation does not work with autouse=True.
+    # @mark annotation does not work with autouse=True
     if 'v2_integration' not in request.config.invocation_params.args:
         LOG.debug(f'NOT Checking for LocalES')
         return
@@ -98,6 +136,8 @@ def check_local_es_readyness(request, *args):
             sleep(.5)
     raise TimeoutError('Could not connect to elasticsearch for integration test')
 
+
+# @pytest.mark.v2_integration
 @pytest.fixture(scope='session', autouse=True)
 def check_local_kibana_readyness(request, *args):
     # @mark annotation does not work with autouse=True.
@@ -117,6 +157,37 @@ def check_local_kibana_readyness(request, *args):
         except Exception:
             sleep(.5)
     raise TimeoutError('Could not connect to kibana for integration test')
+
+
+@pytest.mark.v2
+@pytest.mark.v2_integration
+@pytest.fixture(scope='session')
+def sample_generator():
+    t = generation.SampleGenerator(ANNOTATED_SCHEMA)
+    t.set_overrides('geometry.latitude', {'min': 44.754512, 'max': 53.048971})
+    t.set_overrides('geometry.longitude', {'min': 8.013135, 'max': 28.456375})
+    t.set_overrides('url', {'constant': 'http://ehealthafrica.org'})
+    for field in ['beds', 'staff_doctors', 'staff_nurses']:
+        t.set_overrides(field, {'min': 0, 'max': 50})
+
+    def _gen(max=None, chunk=None):
+
+        def _single(max):
+            if not max:
+                while True:
+                    yield t.make_sample()
+            for x in range(max):
+                yield t.make_sample()
+
+        def _chunked(max, chunk):
+            return chunk_iterable(_single(max), chunk)
+
+        if chunk:
+            yield from _chunked(max, chunk)
+        else:
+            yield from _single(max)
+    yield _gen
+
 
 @pytest.mark.v2
 @pytest.mark.v2_integration

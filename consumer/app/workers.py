@@ -24,12 +24,12 @@ import threading
 from typing import Any, Mapping
 
 from aet.kafka import KafkaConsumer
+from aether.python.avro.schema import Node
 from elasticsearch.exceptions import TransportError
 
 from . import config, index_handler
 from .processor import ESItemProcessor
 from .logger import get_logger
-from .schema import Node
 
 from .connection_handler import KibanaConnection, ESConnectionManager
 

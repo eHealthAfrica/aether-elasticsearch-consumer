@@ -23,10 +23,11 @@ from typing import Any, Mapping
 
 from requests.exceptions import HTTPError
 
+from aether.python.avro.schema import Node
+
 from .import config
 from .logger import get_logger
 from .processor import ES_RESERVED
-from .schema import Node
 from .visualization import (
     auto_visualizations, schema_defined_visualizations
 )

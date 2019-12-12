@@ -25,6 +25,13 @@ from aet.settings import Settings
 consumer_config = None
 kafka_config = None
 
+kafka_admin_uses = [
+    'bootstrap.servers',
+    'security.protocol',
+    'sasl.mechanism',
+    'sasl.username',
+    'sasl.password'
+]
 
 # Mappings types to ES equivalents
 AVRO_TYPES = [
@@ -77,6 +84,18 @@ def get_kafka_config():
         ]:
             kafka_config[i] = kafka_config.get(i)
     return kafka_config
+
+
+def get_kafka_admin_config():
+    kafka_security = get_kafka_config().copy()
+    ks_keys = list(kafka_security.keys())
+    for i in ks_keys:
+        if i.lower() not in kafka_admin_uses:
+            del kafka_security[i]
+        else:
+            kafka_security[i.lower()] = kafka_security[i]
+            del kafka_security[i]
+    return kafka_security
 
 
 def get_consumer_config():
