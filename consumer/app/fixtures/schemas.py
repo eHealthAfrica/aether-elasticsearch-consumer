@@ -234,9 +234,7 @@ SUBSCRIPTION = '''
   "required": [
     "id",
     "name",
-    "topic_pattern",
-    "es_alias_name",
-    "visualizations"
+    "topic_pattern"
   ],
   "properties": {
     "id": {
@@ -269,15 +267,145 @@ SUBSCRIPTION = '''
       ],
       "pattern": "^(.*)$"
     },
-    "es_alias_name": {
-      "$id": "#/properties/es_alias_name",
-      "type": "string",
-      "title": "The Es_alias_name Schema",
-      "default": "",
-      "examples": [
-        "alias in elasticsearch for this set of topics"
+    "topic_options": {
+      "$id": "#/properties/topic_options",
+      "type": "object",
+      "title": "The Topic_options Schema",
+      "required": [
       ],
-      "pattern": "^(.*)$"
+      "properties": {
+        "masking_annotation": {
+          "$id": "#/properties/topic_options/properties/masking_annotation",
+          "type": "string",
+          "title": "The Masking_annotation Schema",
+          "default": "",
+          "examples": [
+            "@aether_masking"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "masking_levels": {
+          "$id": "#/properties/topic_options/properties/masking_levels",
+          "type": "array",
+          "title": "The Masking_levels Schema",
+          "items": {
+            "$id": "#/properties/topic_options/properties/masking_levels/items",
+            "title": "The Items Schema",
+            "examples": [
+              "private",
+              "public"
+            ],
+            "pattern": "^(.*)$"
+          }
+        },
+        "masking_emit_level": {
+          "$id": "#/properties/topic_options/properties/masking_emit_level",
+          "type": "string",
+          "title": "The Masking_emit_level Schema",
+          "default": "",
+          "examples": [
+            "public"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "filter_required": {
+          "$id": "#/properties/topic_options/properties/filter_required",
+          "type": "boolean",
+          "title": "The Filter_required Schema",
+          "default": false,
+          "examples": [
+            false
+          ]
+        },
+        "filter_field_path": {
+          "$id": "#/properties/topic_options/properties/filter_field_path",
+          "type": "string",
+          "title": "The Filter_field_path Schema",
+          "default": "",
+          "examples": [
+            "some.json.path"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "filter_pass_values": {
+          "$id": "#/properties/topic_options/properties/filter_pass_values",
+          "type": "array",
+          "title": "The Filter_pass_values Schema",
+          "items": {
+            "$id": "#/properties/topic_options/properties/filter_pass_values/items",
+            "title": "The Items Schema",
+            "examples": [
+              false
+            ]
+          }
+        }
+      }
+    },
+    "es_options": {
+      "$id": "#/properties/es_options",
+      "type": "object",
+      "title": "The Es_options Schema",
+      "required": [
+      ],
+      "properties": {
+        "alias_name": {
+          "$id": "#/properties/es_options/properties/alias_name",
+          "type": "string",
+          "title": "The Alias_name Schema",
+          "default": "",
+          "examples": [
+            "test"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "auto_timestamp": {
+          "$id": "#/properties/es_options/properties/auto_timestamp",
+          "type": "boolean",
+          "title": "The Auto_timestamp Schema",
+          "default": false,
+          "examples": [
+            true
+          ]
+        },
+        "geo_point_creation": {
+          "$id": "#/properties/es_options/properties/geo_point_creation",
+          "type": "boolean",
+          "title": "The Geo_point_creation Schema",
+          "default": false,
+          "examples": [
+            true
+          ]
+        },
+        "geo_point_name": {
+          "$id": "#/properties/es_options/properties/geo_point_name",
+          "type": "string",
+          "title": "The Geo_point_name Schema",
+          "default": "",
+          "examples": [
+            "geopoint"
+          ],
+          "pattern": "^(.*)$"
+        }
+      }
+    },
+    "kibana_options": {
+      "$id": "#/properties/kibana_options",
+      "type": "object",
+      "title": "The Kibana_options Schema",
+      "required": [
+      ],
+      "properties": {
+        "auto_vizualization": {
+          "$id": "#/properties/kibana_options/properties/auto_vizualization",
+          "type": "string",
+          "title": "The Auto_vizualization Schema",
+          "enum": ["full", "schema", "none"],
+          "examples": [
+            "full"
+          ],
+          "pattern": "^(.*)$"
+        }
+      }
     },
     "visualizations": {
       "$id": "#/properties/visualizations",

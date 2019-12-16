@@ -48,7 +48,24 @@ SUBSCRIPTION = {
     'id': 'sub-test',
     'name': 'Test Subscription',
     'topic_pattern': '*',
-    'es_alias_name': 'test'
+    'topic_options': {
+        'masking_annotation': '@aether_masking',  # schema key for mask level of a field
+        'masking_levels': ['private', 'public'],  # classifications
+        'masking_emit_level': 'public',           # emit from this level ->
+        'filter_required': False,                 # filter on a message value?
+        'filter_field_path': 'some.json.path',    # which field?
+        'filter_pass_values': [True],             # what are the passing values?
+    },
+    'es_options': {
+        'alias_name': 'test',
+        'auto_timestamp': True,
+        'geo_point_creation': True,
+        'geo_point_name': 'geopoint'
+    },
+    'kibana_options': {
+        'auto_vizualization': 'full'  # enum ['full', 'schema', 'none']
+    },
+    'visualizations': []  # manual visualizations
 }
 
 JOB = {
