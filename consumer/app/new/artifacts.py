@@ -25,6 +25,7 @@ import requests
 from time import sleep
 from typing import (
     Any,
+    Callable,
     List,
     Mapping
 )
@@ -41,7 +42,7 @@ from elasticsearch.exceptions import TransportError as ESTransportError
 from aet.exceptions import ConsumerHttpException
 from aet.job import BaseJob
 from aet.kafka import KafkaConsumer
-from aet.logger import get_logger
+# from aet.logger import callback_logger, get_logger
 from aet.resource import BaseResource, Draft7Validator, lock
 
 # Aether python lib
@@ -49,6 +50,7 @@ from aether.python.avro.schema import Node
 
 from .. import index_handler
 from ..config import get_consumer_config, get_kafka_config
+from ..logger import callback_logger, get_logger
 from ..fixtures import schemas
 from ..processor import ESItemProcessor
 
@@ -249,11 +251,14 @@ class ESJob(BaseJob):
     schema = schemas.ES_JOB
 
     public_actions = BaseResource.public_actions + [
+        'get_logs',
         'list_topics',
         'list_subscribed_topics'
     ]
     # publicly available list of topics
     subscribed_topics: dict
+    log_stack: list
+    log: Callable  # each job instance has it's own log object to keep log_stacks -> user reportable
 
     consumer: KafkaConsumer = None
     # processing artifacts
@@ -277,7 +282,7 @@ class ESJob(BaseJob):
                 self.subscribed_topics[sub.id] = f'{self.tenant}.{pattern}'
         new_subs = list(sorted(set(self.subscribed_topics.values())))
         if old_subs != new_subs:
-            LOG.debug(f'{self.tenant} subscribed on topics: {new_subs}')
+            self.log.debug(f'{self.tenant} subscribed on topics: {new_subs}')
             self.consumer.subscribe(new_subs)
 
     def _job_elasticsearch(self, config=None) -> ESInstance:
@@ -314,25 +319,25 @@ class ESJob(BaseJob):
 
     def _get_messages(self, config):
         try:
-            LOG.debug(f'{self._id} checking configurations...')
+            self.log.debug(f'{self._id} checking configurations...')
             self._test_connections(config)
             subs = self._job_subscriptions()
             self._handle_new_topics(subs)
-            LOG.debug(f'Job {self._id} getting messages')
+            self.log.debug(f'Job {self._id} getting messages')
             assignment = self.consumer.assignment()
-            LOG.debug(f'assigned to {assignment}')
+            self.log.debug(f'assigned to {assignment}')
             return self.consumer.poll_and_deserialize(
                 timeout=5,
                 num_messages=1)  # max
         except ConsumerHttpException as cer:
             # don't fetch messages if we can't post them
-            LOG.debug(f'Job not ready: {cer}')
+            self.log.debug(f'Job not ready: {cer}')
             sleep(.25)
             return []
         except Exception as err:
             import traceback
             traceback_str = ''.join(traceback.format_tb(err.__traceback__))
-            LOG.critical(f'unhandled error: {str(err)} | {traceback_str}')
+            self.log.critical(f'unhandled error: {str(err)} | {traceback_str}')
             raise err
             sleep(.25)
             return []
@@ -341,21 +346,21 @@ class ESJob(BaseJob):
         count = 0
         for msg in messages:
             topic = msg.topic
-            LOG.debug(f'read PK: {topic}')
+            self.log.debug(f'read PK: {topic}')
             schema = msg.schema
             if schema != self._schemas.get(topic):
-                LOG.info('Schema change on type %s' % topic)
-                LOG.debug('schema: %s' % schema)
+                self.log.info('Schema change on type %s' % topic)
+                self.log.debug('schema: %s' % schema)
                 self._update_topic(topic, schema)
                 self._schemas[topic] = schema
             else:
-                LOG.debug('Schema unchanged.')
+                self.log.debug('Schema unchanged.')
             processor = self._processors[topic]
             index_name = self._indices[topic]['name']
             doc_type = self._doc_types[topic]
             route_getter = self._routes[topic]
             doc = processor.process(msg.value)
-            LOG.debug(
+            self.log.debug(
                 f'Kafka READ [{topic}:{self.group_name}]'
                 f' -> {doc.get("id")}')
             self.submit(
@@ -365,14 +370,13 @@ class ESJob(BaseJob):
                 topic,
                 route_getter,
             )
-            LOG.debug(
+            self.log.debug(
                 f'Kafka COMMIT [{topic}:{self.group_name}]')
             count += 1
-        LOG.info('processed %s %s docs in tenant %s' %
-                 ((count), topic, self.tenant))
+        self.log.info(f'processed {count} {topic} docs in tenant {self.tenant}')
 
     def _update_topic(self, topic, schema: Mapping[Any, Any]):
-        LOG.debug(f'{self.tenant} is updating topic: {topic}')
+        self.log.debug(f'{self.tenant} is updating topic: {topic}')
 
         node: Node = Node(schema)
         es_index = index_handler.get_es_index_from_autoconfig(
@@ -386,14 +390,14 @@ class ESJob(BaseJob):
         )
         # Try to add the indices / ES alias
         es_instance = self._job_elasticsearch().get_session()
-        LOG.debug(f'registering ES index:\n{json.dumps(es_index, indent=2)}')
+        self.log.debug(f'registering ES index:\n{json.dumps(es_index, indent=2)}')
         updated = index_handler.register_es_index(
             es_instance,
             es_index,
             alias
         )
         if updated:
-            LOG.debug(f'{self.tenant} updated schema for {topic}')
+            self.log.debug(f'{self.tenant} updated schema for {topic}')
         conn: KibanaInstance = self._job_kibana()
 
         old_schema = self.schemas.get(topic)
@@ -408,16 +412,16 @@ class ESJob(BaseJob):
         )
 
         if updated_kibana:
-            LOG.info(
+            self.log.info(
                 f'Registered kibana index {alias} for {self.tenant}'
             )
         else:
-            LOG.info(
+            self.log.info(
                 f'Kibana index {alias} did not need update.'
             )
 
         self._indices[topic] = es_index
-        LOG.debug(f'{self.tenant}:{topic} | idx: {es_index}')
+        self.log.debug(f'{self.tenant}:{topic} | idx: {es_index}')
         # update processor for type
         doc_type, instr = list(es_index['body']['mappings'].items())[0]
         self._doc_types[topic] = doc_type
@@ -439,12 +443,12 @@ class ESJob(BaseJob):
                 doc_type=doc_type,
                 body=doc
             )
-            LOG.debug(
+            self.log.debug(
                 f'ES CREATE-OK [{index_name}:{self.group_name}]'
                 f' -> {doc.get("id")}')
 
         except (Exception, ESTransportError) as ese:
-            LOG.info('Could not create doc because of error: %s\nAttempting update.' % ese)
+            self.log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
                 route = self. _routes[topic](doc)
                 es.update(
@@ -454,12 +458,11 @@ class ESJob(BaseJob):
                     doc_type=doc_type,
                     body=doc
                 )
-                LOG.debug(
+                self.log.debug(
                     f'ES UPDATE-OK [{index_name}:{self.group_name}]'
                     f' -> {doc.get("id")}')
             except ESTransportError:
-                LOG.debug('conflict exists, ignoring document with id %s' %
-                          doc.get('id', 'unknown'))
+                self.log.debug(f'''conflict!, ignoring doc with id {doc.get('id', 'unknown')}''')
 
     def _setup(self):
         self.subscribed_topics = {}
@@ -469,8 +472,9 @@ class ESJob(BaseJob):
         self._doc_types = {}
         self._routes = {}
         self._subscriptions = []
+        self.log_stack = []
+        self.log = callback_logger('JOB', self.log_stack, 100)
         args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
-        LOG.debug(json.dumps(args, indent=2))
         self.consumer = KafkaConsumer(**args)
 
     # public
@@ -489,3 +493,7 @@ class ESJob(BaseJob):
     # public
     def list_subscribed_topics(self, *arg, **kwargs):
         return list(self.subscribed_topics.values())
+
+    # public
+    def get_logs(self, *arg, **kwargs):
+        return self.log_stack[:]

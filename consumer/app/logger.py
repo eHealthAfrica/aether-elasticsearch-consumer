@@ -77,6 +77,8 @@ def callback_logger(
         'info'
     ]
 ):
+    if not isinstance(callback_list, list):
+        raise AttributeError('Callback must be a list')
     _logger = get_logger(name)
     stack_decorator = _make_stack_decorator(callback_list, max_held, logged_events)
     wrapper = _for_all_methods(stack_decorator)
