@@ -26,8 +26,9 @@ from time import sleep
 from aet.kafka import KafkaConsumer
 import confluent_kafka
 
+from aet.logger import get_logger
+
 from . import config, healthcheck, connection_handler
-from .logger import get_logger
 from .workers import ESWorker
 
 

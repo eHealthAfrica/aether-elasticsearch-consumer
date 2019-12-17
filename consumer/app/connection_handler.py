@@ -32,8 +32,9 @@ from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 import requests
 
+from aet.logger import get_logger
+
 from . import config, utils
-from .logger import get_logger
 
 # Feature flag for future non-default ES instances
 # JOBS_ENABLED = False

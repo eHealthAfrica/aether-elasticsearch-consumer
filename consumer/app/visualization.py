@@ -21,11 +21,11 @@
 import json
 from typing import List, Callable
 
+from aet.logger import get_logger
 from aether.python.avro.schema import Node
 
 from . import config
 from . import index_handler
-from .logger import get_logger
 from .processor import ES_RESERVED
 
 consumer_config = config.get_consumer_config()

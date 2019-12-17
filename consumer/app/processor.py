@@ -22,9 +22,10 @@ from datetime import datetime
 import json
 import spavro
 
+from aet.logger import get_logger
+
 from .config import get_consumer_config
 from .jsonpath import CachedParser
-from .logger import get_logger
 
 LOG = get_logger('PROCESS')
 CONSUMER_CONFIG = get_consumer_config()

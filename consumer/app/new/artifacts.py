@@ -282,6 +282,9 @@ class ESJob(BaseJob):
         self._previous_topics = []
         self.log_stack = []
         self.log = callback_logger('JOB', self.log_stack, 100)
+        # self.group_name = f'{self.tenant}.{self.id}'
+        # args['group.id'] = self.group_name  # TODO
+        self.group_name = 'something'
         args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
         self.consumer = KafkaConsumer(**args)
 
@@ -381,6 +384,18 @@ class ESJob(BaseJob):
             doc_type = self._doc_types[topic]
             route_getter = self._routes[topic]
             doc = processor.process(msg.value)
+            # except Exception as err:
+            #     self.log.critical(err)
+            #     import sys
+            #     import traceback
+            #     exc_type, exc_value, exc_tb = sys.exc_info()
+            #     self.log.critical(
+            #         json.dumps(
+            #             [traceback.format_exception(exc_type, exc_value, exc_tb)],
+            #             indent=4)
+            #     )
+            #     raise err
+            self.log.critical('passed.')
             self.log.debug(
                 f'Kafka READ [{topic}:{self.group_name}]'
                 f' -> {doc.get("id")}')
@@ -440,16 +455,21 @@ class ESJob(BaseJob):
         except AttributeError as aer:
             self.log.error(f'No topic options for {subscription.id}| {aer}')
 
+    def _name_from_topic(self, topic):
+        return topic.lstrip(f'{self.tenant}.')
+
     def _update_topic(self, topic, schema: Mapping[Any, Any]):
         self.log.debug(f'{self.tenant} is updating topic: {topic}')
-
+        subscription = self._job_subscription_for_topic(topic)
         node: Node = Node(schema)
-        es_index = index_handler.get_es_index_from_autoconfig(
-            self.autoconf,
-            name=self.name_from_topic(topic),
+        self.log.debug('getting index')
+        es_index = index_handler.get_es_index_from_subscription(
+            subscription.definition.get('es_options'),
+            name=self._name_from_topic(topic),
             tenant=self.tenant,
             schema=node
         )
+        self.log.debug(f'index {es_index}')
         alias = index_handler.get_alias_from_namespace(
             self.tenant, node.namespace
         )
@@ -465,7 +485,7 @@ class ESJob(BaseJob):
             self.log.debug(f'{self.tenant} updated schema for {topic}')
         conn: KibanaInstance = self._job_kibana()
 
-        old_schema = self.schemas.get(topic)
+        old_schema = self._schemas.get(topic)
         updated_kibana = index_handler.kibana_handle_schema_change(
             self.tenant,
             alias,
@@ -492,7 +512,7 @@ class ESJob(BaseJob):
         self._doc_types[topic] = doc_type
         self._processors[topic] = ESItemProcessor(topic, instr)
         self._processors[topic].load_avro(schema)
-        self. _routes[topic] = self.processors[topic].create_route()
+        self. _routes[topic] = self._processors[topic].create_route()
 
     def submit(self, index_name, doc_type, doc, topic, route_getter):
         es = self._job_elasticsearch().get_session()

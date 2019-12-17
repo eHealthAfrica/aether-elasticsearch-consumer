@@ -23,8 +23,9 @@ import pytest
 import requests
 import responses
 
+from aet.logger import get_logger
+
 from app import index_handler
-from app.logger import get_logger
 from app.jsonpath import first
 
 from . import *  # noqa  # fixtures

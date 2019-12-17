@@ -23,10 +23,10 @@ from typing import Any, Mapping
 
 from requests.exceptions import HTTPError
 
+from aet.logger import get_logger
 from aether.python.avro.schema import Node
 
 from .import config
-from .logger import get_logger
 from .processor import ES_RESERVED
 from .visualization import (
     auto_visualizations, schema_defined_visualizations
@@ -44,21 +44,20 @@ def handle_http(req):
     req.raise_for_status()
 
 
-def get_es_index_from_autoconfig(
-    autoconf,
+def get_es_index_from_subscription(
+    es_options,
     name=None,
     tenant=None,
     schema: Node = None
 ):
     geo_point = (
-        autoconf.get('geo_point_name', None)
-        if autoconf.get('geo_point_creation', False)
+        es_options.get('geo_point_name', None)
+        if es_options.get('geo_point_creation', False)
         else None
     )
-    auto_ts = autoconf.get('auto_timestamp', None)
-    index_name = (autoconf.get('index_name_template') % name).lower()
+    auto_ts = es_options.get('auto_timestamp', None)
     topic_name = f'{tenant}.{name}'
-    index_name = f'{tenant}.{index_name}'.lower()
+    index_name = f'{tenant}.{name}'.lower()
     index = {
         'name': index_name,
         'body': get_index_for_topic(
@@ -325,7 +324,7 @@ def _find_timestamp(schema: Node):
         return remove_formname(fields[0])
     else:
         return consumer_config.get(
-            'autoconfig_settings', {}).get(
+            'es_optionsig_settings', {}).get(
             'auto_timestamp', None)
 
 
@@ -545,7 +544,7 @@ def handle_kibana_artifact(
         payload = index
     pattern = f'{name}'
     index_url = f'/api/saved_objects/{_type}/{pattern}'
-    res = conn.request(tenant, operation, index_url, json=payload)
+    res = conn.request(operation, index_url, json=payload)
     try:
         handle_http(res)
     except HTTPError as her:
@@ -564,7 +563,7 @@ def handle_kibana_artifact(
 def get_default_index(tenant, conn: KibanaConnection):
     url = '/api/kibana/settings'
     op = 'get'
-    res = conn.request(tenant, op, url)
+    res = conn.request(op, url)
     try:
         handle_http(res)
         default = res.json().get('settings', {}) \
@@ -579,7 +578,7 @@ def get_default_index(tenant, conn: KibanaConnection):
 def set_default_index(tenant, conn: KibanaConnection, index_name):
     url = '/api/kibana/settings/defaultIndex'
     op = 'post'
-    res = conn.request(tenant, op, url, json={'value': index_name})
+    res = conn.request(op, url, json={'value': index_name})
     try:
         handle_http(res)
         return True

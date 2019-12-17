@@ -10,7 +10,7 @@ opendistro_security.multitenancy.enabled: true
 elasticsearch.requestHeadersWhitelist: ["securitytenant","Authorization", "x-forwarded-for", "x-forwarded-by", "x-oauth-preferred_username", "x-oauth-realm"]
 opendistro_security.multitenancy.tenants.enable_private: false
 opendistro_security.multitenancy.tenants.enable_global: false
-opendistro_security.auth.type: "proxy"
+opendistro_security.auth.type: "basicauth"
 
 console.enabled: false
 

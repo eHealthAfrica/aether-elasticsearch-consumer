@@ -22,6 +22,8 @@ from . import *  # get all test assets from test/__init__.py
 import requests
 from time import sleep
 
+from aet.logger import get_logger
+
 from app.main import CONSUMER_CONFIG
 
 # Test Suite contains both unit and integration tests

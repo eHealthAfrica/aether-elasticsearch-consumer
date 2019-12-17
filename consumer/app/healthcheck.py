@@ -23,8 +23,9 @@ from socketserver import TCPServer
 import sys
 import threading
 
+from aet.logger import get_logger
+
 from . import config
-from .logger import get_logger
 
 consumer_config = config.get_consumer_config()
 

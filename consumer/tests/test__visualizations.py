@@ -21,7 +21,8 @@
 import json
 import pytest
 
-from app.logger import get_logger
+from aet.logger import get_logger
+
 from app.visualization import (
     auto_visualizations,
     schema_defined_visualizations

@@ -40,11 +40,12 @@ from aet.kafka_utils import (
     produce
 )
 from aet.helpers import chunk_iterable
+from aet.logger import get_logger
+
 from aether.python.avro import generation
 from aether.python.avro.schema import Node
 
 from app import config
-from app.logger import get_logger
 from app.main import ESConsumerManager
 from app.connection_handler import ESConnectionManager
 from app.processor import ESItemProcessor

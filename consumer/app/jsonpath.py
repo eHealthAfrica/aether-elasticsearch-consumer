@@ -18,8 +18,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from aet.logger import get_logger
 from eha_jsonpath import parse
-from .logger import get_logger
 
 LOG = get_logger('JSON')
 

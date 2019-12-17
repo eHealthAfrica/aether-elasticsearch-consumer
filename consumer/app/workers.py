@@ -27,9 +27,10 @@ from aet.kafka import KafkaConsumer
 from aether.python.avro.schema import Node
 from elasticsearch.exceptions import TransportError
 
+from aet.logger import get_logger
+
 from . import config, index_handler
 from .processor import ESItemProcessor
-from .logger import get_logger
 
 from .connection_handler import KibanaConnection, ESConnectionManager
 

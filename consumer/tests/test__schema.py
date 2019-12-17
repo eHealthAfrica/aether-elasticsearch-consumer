@@ -21,7 +21,8 @@
 from copy import deepcopy
 import pytest
 
-from app.logger import get_logger
+from aet.logger import get_logger
+
 LOG = get_logger('TEST-SCH')
 
 from . import *  # noqa  # fixtures
