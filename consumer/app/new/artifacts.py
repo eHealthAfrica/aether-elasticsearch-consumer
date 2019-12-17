@@ -234,7 +234,7 @@ class LocalKibanaInstance(KibanaInstance):
 
 class Subscription(BaseResource):
     schema = schemas.SUBSCRIPTION
-    jobs_path = '$.subscriptions'
+    jobs_path = '$.subscription'
     name = 'subscription'
 
     def _handles_topic(self, topic, tenant):
@@ -267,59 +267,24 @@ class ESJob(BaseJob):
     _processors: dict
     _doc_types: dict
     _routes: dict
+    _previous_topics: list
     _kibana: KibanaInstance
     _elasticsearch: ESInstance
     _subscriptions: List[Subscription]
 
-    def _handle_new_topics(self, subs):
-        old_subs = list(sorted(set(self.subscribed_topics.values())))
-        for sub in subs:
-            pattern = sub.definition.topic_pattern
-            # only allow regex on the end of patterns
-            if pattern.endswith('*'):
-                self.subscribed_topics[sub.id] = f'^{self.tenant}.{pattern}'
-            else:
-                self.subscribed_topics[sub.id] = f'{self.tenant}.{pattern}'
-        new_subs = list(sorted(set(self.subscribed_topics.values())))
-        _diff = list(set(old_subs).symmetric_difference(set(new_subs)))
-        if _diff:
-            self.log.debug(f'{self.tenant} added subs to topics: {_diff}')
-            for topic in _diff:
-                self._apply_consumer_filters(topic)
-            self.consumer.subscribe(new_subs)
-
-    def _apply_consumer_filters(self, topic):
-        self.log.error(f'Applying filter for new topic {topic}')
-        subscription = next(
-            [i for i in self._job_subscriptions() if i._handles_topic(topic)],
-            None)
-        if not subscription:
-            self.log.error(f'Could not find subscription for topic {topic}')
-            return
-        try:
-            opts = subscription.topic_options
-            _flt = opts.get('filter_required', False)
-            if _flt:
-                self.consumer.set_topic_filter_config(
-                    topic,
-                    FilterConfig(
-                        check_condition_path=opts.get('filter_field_path', ''),
-                        pass_conitions=opts.get('filter_pass_values', []),
-                        requires_approval=True
-                    )
-                )
-            mask_annotation = opts.get('masking_annotation', None)
-            if mask_annotation:
-                self.consumer.set_topic_mask_config(
-                    topic,
-                    MaskConfig(
-                        mask_query=mask_annotation,
-                        mask_levels=opts.get('masking_levels', []),
-                        emit_level=opts.get('masking_emit_level')
-                    )
-                )
-        except AttributeError:
-            self.log.debug(f'No topic options for {subscription.id}')
+    def _setup(self):
+        self.subscribed_topics = {}
+        self._indices = {}
+        self._schemas = {}
+        self._processors = {}
+        self._doc_types = {}
+        self._routes = {}
+        self._subscriptions = []
+        self._previous_topics = []
+        self.log_stack = []
+        self.log = callback_logger('JOB', self.log_stack, 100)
+        args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
+        self.consumer = KafkaConsumer(**args)
 
     def _job_elasticsearch(self, config=None) -> ESInstance:
         if config:
@@ -339,9 +304,9 @@ class ESJob(BaseJob):
             self._kibana = kibana[0]
         return self._kibana
 
-    def _job_subscriptions(self, config):
+    def _job_subscriptions(self, config=None) -> List[Subscription]:
         if config:
-            subs = self.get_resources('subscriptions', config)
+            subs = self.get_resources('subscription', config)
             if not subs:
                 raise ConsumerHttpException('No Subscriptions associated with Job', 400)
             self._subscriptions = subs
@@ -358,10 +323,8 @@ class ESJob(BaseJob):
             self.log.debug(f'{self._id} checking configurations...')
             self._test_connections(config)
             subs = self._job_subscriptions()
-            self._handle_new_topics(subs)
+            self._handle_new_subscriptions(subs)
             self.log.debug(f'Job {self._id} getting messages')
-            assignment = self.consumer.assignment()
-            self.log.debug(f'assigned to {assignment}')
             return self.consumer.poll_and_deserialize(
                 timeout=5,
                 num_messages=1)  # max
@@ -378,11 +341,27 @@ class ESJob(BaseJob):
             sleep(.25)
             return []
 
+    def _handle_new_subscriptions(self, subs):
+        old_subs = list(sorted(set(self.subscribed_topics.values())))
+        for sub in subs:
+            pattern = sub.definition.topic_pattern
+            # only allow regex on the end of patterns
+            if pattern.endswith('*'):
+                self.subscribed_topics[sub.id] = f'^{self.tenant}.{pattern}'
+            else:
+                self.subscribed_topics[sub.id] = f'{self.tenant}.{pattern}'
+        new_subs = list(sorted(set(self.subscribed_topics.values())))
+        _diff = list(set(old_subs).symmetric_difference(set(new_subs)))
+        if _diff:
+            self.log.info(f'{self.tenant} added subs to topics: {_diff}')
+            self.consumer.subscribe(new_subs, on_assign=self._on_assign)
+
     def _handle_messages(self, config, messages):
         count = 0
         for msg in messages:
             topic = msg.topic
-            self.log.debug(f'read PK: {topic}')
+            self.log.debug(f'read PK: {topic} {msg.value.get("staff_doctors")}')
+            '''
             schema = msg.schema
             if schema != self._schemas.get(topic):
                 self.log.info('Schema change on type %s' % topic)
@@ -408,8 +387,58 @@ class ESJob(BaseJob):
             )
             self.log.debug(
                 f'Kafka COMMIT [{topic}:{self.group_name}]')
+            '''
             count += 1
         self.log.info(f'processed {count} {topic} docs in tenant {self.tenant}')
+
+    def _on_assign(self, *args, **kwargs):
+        assignment = args[1]
+        for _part in assignment:
+            if _part.topic not in self._previous_topics:
+                self.log.info(f'New topic to configure: {_part.topic}')
+                self._apply_consumer_filters(_part.topic)
+                self._previous_topics.append(_part.topic)
+
+    def _apply_consumer_filters(self, topic):
+        self.log.debug(f'Applying filter for new topic {topic}')
+        subscription = next(iter(
+            [
+                i for i in self._job_subscriptions()
+                if i._handles_topic(topic, self.tenant)
+            ]),
+            None)
+        if not subscription:
+            self.log.error(f'Could not find subscription for topic {topic}')
+            return
+        try:
+            opts = subscription.definition.topic_options
+            _flt = opts.get('filter_required', False)
+            if _flt:
+                _filter_options = {
+                    'check_condition_path': opts.get('filter_field_path', ''),
+                    'pass_conditions': opts.get('filter_pass_values', []),
+                    'requires_approval': _flt
+                }
+                self.log.info(_filter_options)
+                self.consumer.set_topic_filter_config(
+                    topic,
+                    FilterConfig(**_filter_options)
+                )
+            mask_annotation = opts.get('masking_annotation', None)
+            if mask_annotation:
+                _mask_options = {
+                    'mask_query': mask_annotation,
+                    'mask_levels': opts.get('masking_levels', []),
+                    'emit_level': opts.get('masking_emit_level')
+                }
+                self.log.info(_mask_options)
+                self.consumer.set_topic_mask_config(
+                    topic,
+                    MaskConfig(**_mask_options)
+                )
+            self.log.info(f'Filters applied for topic {topic}')
+        except AttributeError as aer:
+            self.log.error(f'No topic options for {subscription.id}| {aer}')
 
     def _update_topic(self, topic, schema: Mapping[Any, Any]):
         self.log.debug(f'{self.tenant} is updating topic: {topic}')
@@ -499,19 +528,6 @@ class ESJob(BaseJob):
                     f' -> {doc.get("id")}')
             except ESTransportError:
                 self.log.debug(f'''conflict!, ignoring doc with id {doc.get('id', 'unknown')}''')
-
-    def _setup(self):
-        self.subscribed_topics = {}
-        self._indices = {}
-        self._schemas = {}
-        self._processors = {}
-        self._doc_types = {}
-        self._routes = {}
-        self._subscriptions = []
-        self.log_stack = []
-        self.log = callback_logger('JOB', self.log_stack, 100)
-        args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
-        self.consumer = KafkaConsumer(**args)
 
     # public
     def list_topics(self, *args, **kwargs):

@@ -50,11 +50,11 @@ SUBSCRIPTION = {
     'topic_pattern': '*',
     'topic_options': {
         'masking_annotation': '@aether_masking',  # schema key for mask level of a field
-        'masking_levels': ['private', 'public'],  # classifications
+        'masking_levels': ['public', 'private'],  # classifications
         'masking_emit_level': 'public',           # emit from this level ->
-        'filter_required': False,                 # filter on a message value?
-        'filter_field_path': 'some.json.path',    # which field?
-        'filter_pass_values': [True],             # what are the passing values?
+        'filter_required': True,                 # filter on a message value?
+        'filter_field_path': 'operational_status',    # which field?
+        'filter_pass_values': ['operational'],             # what are the passing values?
     },
     'es_options': {
         'alias_name': 'test',
@@ -80,5 +80,5 @@ JOB_FOREIGN = {
     'name': 'Default ES Consumer Job',
     'kibana': 'k-test',
     'elasticsearch': 'es-test',
-    'subscriptions': ['sub-test']
+    'subscription': ['sub-test']
 }

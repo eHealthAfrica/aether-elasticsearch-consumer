@@ -556,12 +556,12 @@ ES_JOB = '''
         ],
         "pattern": "^(.*)$"
       },
-      "subscriptions": {
-      "$id": "#/properties/subscriptions",
+      "subscription": {
+      "$id": "#/properties/subscription",
       "type": "array",
       "title": "The Subscriptions Schema",
       "items": {
-        "$id": "#/properties/subscriptions/items",
+        "$id": "#/properties/subscription/items",
         "type": "string",
         "title": "The Items Schema",
         "default": "",

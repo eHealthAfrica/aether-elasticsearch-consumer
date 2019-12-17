@@ -1377,7 +1377,8 @@ ANNOTATED_SCHEMA = {
                 'int'
             ],
             'namespace': 'MySurvey',
-            '@aether_extended_type': 'int'
+            '@aether_extended_type': 'int',
+            '@aether_masking': 'private'
         },
         {
             'doc': 'Number of Doctors',
@@ -1387,7 +1388,8 @@ ANNOTATED_SCHEMA = {
                 'int'
             ],
             'namespace': 'MySurvey',
-            '@aether_extended_type': 'int'
+            '@aether_extended_type': 'int',
+            '@aether_masking': 'private'
         },
         {
             'doc': 'Number of Nurses',
@@ -1397,7 +1399,8 @@ ANNOTATED_SCHEMA = {
                 'int'
             ],
             'namespace': 'MySurvey',
-            '@aether_extended_type': 'int'
+            '@aether_extended_type': 'int',
+            '@aether_masking': 'private'
         },
         {
             'doc': 'Types of insurance accepted?',
@@ -1428,7 +1431,8 @@ ANNOTATED_SCHEMA = {
                     'value': 'unknown'
                 }
             ],
-            '@aether_extended_type': 'select'
+            '@aether_extended_type': 'select',
+            '@aether_masking': 'public'
         },
         {
             'doc': 'Is this facility wheelchair accessible?',
