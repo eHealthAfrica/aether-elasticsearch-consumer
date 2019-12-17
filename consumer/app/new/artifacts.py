@@ -42,7 +42,7 @@ from elasticsearch.exceptions import TransportError as ESTransportError
 from aet.exceptions import ConsumerHttpException
 from aet.job import BaseJob
 from aet.kafka import KafkaConsumer, FilterConfig, MaskConfig
-# from aet.logger import callback_logger, get_logger
+from aet.logger import callback_logger, get_logger
 from aet.resource import BaseResource, Draft7Validator, lock
 
 # Aether python lib
@@ -50,7 +50,6 @@ from aether.python.avro.schema import Node
 
 from .. import index_handler
 from ..config import get_consumer_config, get_kafka_config
-from ..logger import callback_logger, get_logger
 from ..fixtures import schemas
 from ..processor import ESItemProcessor
 
@@ -312,6 +311,14 @@ class ESJob(BaseJob):
             self._subscriptions = subs
         return self._subscriptions
 
+    def _job_subscription_for_topic(self, topic):
+        return next(iter(
+            sorted([
+                i for i in self._job_subscriptions()
+                if i._handles_topic(topic, self.tenant)
+            ])),
+            None)
+
     def _test_connections(self, config):
         self._job_subscriptions(config)
         self._job_elasticsearch(config).test_connection()  # raises CHE
@@ -361,7 +368,6 @@ class ESJob(BaseJob):
         for msg in messages:
             topic = msg.topic
             self.log.debug(f'read PK: {topic} {msg.value.get("staff_doctors")}')
-            '''
             schema = msg.schema
             if schema != self._schemas.get(topic):
                 self.log.info('Schema change on type %s' % topic)
@@ -387,7 +393,6 @@ class ESJob(BaseJob):
             )
             self.log.debug(
                 f'Kafka COMMIT [{topic}:{self.group_name}]')
-            '''
             count += 1
         self.log.info(f'processed {count} {topic} docs in tenant {self.tenant}')
 
@@ -401,12 +406,7 @@ class ESJob(BaseJob):
 
     def _apply_consumer_filters(self, topic):
         self.log.debug(f'Applying filter for new topic {topic}')
-        subscription = next(iter(
-            [
-                i for i in self._job_subscriptions()
-                if i._handles_topic(topic, self.tenant)
-            ]),
-            None)
+        subscription = self._job_subscription_for_topic(topic)
         if not subscription:
             self.log.error(f'Could not find subscription for topic {topic}')
             return
