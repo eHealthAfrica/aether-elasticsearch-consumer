@@ -271,8 +271,18 @@ SUBSCRIPTION = '''
       "$id": "#/properties/topic_options",
       "type": "object",
       "title": "The Topic_options Schema",
-      "required": [
+      "anyOf": [
+        {"required": [
+          "masking_annotation"
+      ]},
+        {"required": [
+          "filter_required"
+      ]}
       ],
+      "dependencies":{
+        "filter_required": ["filter_field_path", "filter_pass_values"],
+        "masking_annotation": ["masking_levels", "masking_emit_level"]
+      },
       "properties": {
         "masking_annotation": {
           "$id": "#/properties/topic_options/properties/masking_annotation",

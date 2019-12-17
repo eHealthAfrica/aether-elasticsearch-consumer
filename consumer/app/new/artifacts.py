@@ -41,7 +41,7 @@ from elasticsearch.exceptions import TransportError as ESTransportError
 # Consumer SDK
 from aet.exceptions import ConsumerHttpException
 from aet.job import BaseJob
-from aet.kafka import KafkaConsumer
+from aet.kafka import KafkaConsumer, FilterConfig, MaskConfig
 # from aet.logger import callback_logger, get_logger
 from aet.resource import BaseResource, Draft7Validator, lock
 
@@ -240,8 +240,8 @@ class Subscription(BaseResource):
     def _handles_topic(self, topic, tenant):
         topic_str = self.definition.topic_pattern
         # remove tenant information
-        topic.lstrip(f'{tenant}.')
-        return fnmatch.fnmatch(topic, topic_str)
+        no_tenant = topic.lstrip(f'{tenant}.')
+        return fnmatch.fnmatch(no_tenant, topic_str)
 
 
 class ESJob(BaseJob):
@@ -281,9 +281,45 @@ class ESJob(BaseJob):
             else:
                 self.subscribed_topics[sub.id] = f'{self.tenant}.{pattern}'
         new_subs = list(sorted(set(self.subscribed_topics.values())))
-        if old_subs != new_subs:
-            self.log.debug(f'{self.tenant} subscribed on topics: {new_subs}')
+        _diff = list(set(old_subs).symmetric_difference(set(new_subs)))
+        if _diff:
+            self.log.debug(f'{self.tenant} added subs to topics: {_diff}')
+            for topic in _diff:
+                self._apply_consumer_filters(topic)
             self.consumer.subscribe(new_subs)
+
+    def _apply_consumer_filters(self, topic):
+        self.log.error(f'Applying filter for new topic {topic}')
+        subscription = next(
+            [i for i in self._job_subscriptions() if i._handles_topic(topic)],
+            None)
+        if not subscription:
+            self.log.error(f'Could not find subscription for topic {topic}')
+            return
+        try:
+            opts = subscription.topic_options
+            _flt = opts.get('filter_required', False)
+            if _flt:
+                self.consumer.set_topic_filter_config(
+                    topic,
+                    FilterConfig(
+                        check_condition_path=opts.get('filter_field_path', ''),
+                        pass_conitions=opts.get('filter_pass_values', []),
+                        requires_approval=True
+                    )
+                )
+            mask_annotation = opts.get('masking_annotation', None)
+            if mask_annotation:
+                self.consumer.set_topic_mask_config(
+                    topic,
+                    MaskConfig(
+                        mask_query=mask_annotation,
+                        mask_levels=opts.get('masking_levels', []),
+                        emit_level=opts.get('masking_emit_level')
+                    )
+                )
+        except AttributeError:
+            self.log.debug(f'No topic options for {subscription.id}')
 
     def _job_elasticsearch(self, config=None) -> ESInstance:
         if config:
@@ -479,6 +515,11 @@ class ESJob(BaseJob):
 
     # public
     def list_topics(self, *args, **kwargs):
+        '''
+        Get a list of topics to which the job can subscribe.
+        You can also use a wildcard at the end of names like:
+        Name* which would capture both Name1 && Name2, etc
+        '''
         timeout = 5
         try:
             md = self.consumer.list_topics(timeout=timeout)
@@ -492,8 +533,19 @@ class ESJob(BaseJob):
 
     # public
     def list_subscribed_topics(self, *arg, **kwargs):
+        '''
+        A List of topics currently subscribed to by this job
+        '''
         return list(self.subscribed_topics.values())
 
     # public
     def get_logs(self, *arg, **kwargs):
+        '''
+        A list of the last 100 log entries from this job in format
+        [
+            (timestamp, log_level, message),
+            (timestamp, log_level, message),
+            ...
+        ]
+        '''
         return self.log_stack[:]
