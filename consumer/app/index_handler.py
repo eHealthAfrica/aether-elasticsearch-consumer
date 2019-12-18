@@ -141,11 +141,11 @@ def register_es_index(es, index, alias=None):
         return True
 
 
-def get_alias_from_namespace(tenant: str, namespace: str):
+def get_alias_from_namespace(namespace: str):
     parts = namespace.split('_')
     if len(parts) < 2:
-        return f'{tenant}.{namespace}'
-    return f'{tenant}.' + '_'.join(parts[:-1])
+        return f'{namespace}'
+    return '_'.join(parts[:-1])
 
 
 def make_kibana_index(name, schema: Node):
@@ -165,15 +165,16 @@ def make_kibana_index(name, schema: Node):
 
 def kibana_handle_schema_change(
     tenant: str,
-    alias: str,
+    alias_name: str,
     schema_old: Mapping[Any, Any],
     schema_new: Mapping[Any, Any],
+    subscription: Mapping[str, Any],  # Subscription.definition
     es_index: Mapping[Any, Any],
     es_conn,
     kibana_conn
 ):
     node_new = Node(schema_new)
-    kibana_index = make_kibana_index(alias, node_new)
+    kibana_index = make_kibana_index(alias_name, node_new)
     schema_name = schema_new.get('name')
     if schema_old is not None:
         if schema_old.get('name'):
@@ -184,7 +185,8 @@ def kibana_handle_schema_change(
     if not check_for_kibana_update(
             schema_name,
             tenant,
-            alias,
+            alias_name,
+            subscription,
             kibana_index,
             es_index,
             es_conn,
@@ -193,8 +195,9 @@ def kibana_handle_schema_change(
 
     return update_kibana_index(
         tenant,
-        alias,
+        alias_name,
         schema_new,
+        subscription,
         kibana_index,
         es_index,
         es_conn,
@@ -206,6 +209,7 @@ def check_for_kibana_update(
     schema_name: str,
     tenant: str,
     alias: str,
+    subscription: Mapping[str, Any],  # Subscription.definition
     kibana_index: Mapping[Any, Any],
     es_index: Mapping[Any, Any],
     es_conn,
@@ -245,8 +249,9 @@ def check_for_kibana_update(
 
 def update_kibana_index(
     tenant: str,
-    alias: str,
+    alias_name: str,
     schema: Mapping[Any, Any],
+    subscription: Mapping[str, Any],  # Subscription.definition
     kibana_index: Mapping[Any, Any],
     es_index: Mapping[Any, Any],
     es_conn,
@@ -255,11 +260,12 @@ def update_kibana_index(
     # find differences between indices
     # create new asset
 
-    old_artifact = get_es_artifact_for_alias(alias, tenant, es_conn)
+    old_artifact = get_es_artifact_for_alias(alias_name, tenant, es_conn)
     merged_index, new_artifact, updated_visuals = merge_kibana_artifacts(
         tenant,
-        alias,
+        alias_name,
         schema,
+        subscription,
         kibana_index,
         kibana_conn,
         old_artifact
@@ -269,7 +275,7 @@ def update_kibana_index(
         return
     try:
         update_kibana_artifact(
-            alias,
+            alias_name,
             tenant,
             kibana_conn,
             merged_index,
@@ -285,11 +291,11 @@ def update_kibana_index(
             )
         # save the new hashes last in case of partial failure
         # on restart, it should try again
-        put_es_artifact_for_alias(alias, tenant, new_artifact, es_conn)
+        put_es_artifact_for_alias(alias_name, tenant, new_artifact, es_conn)
         default_index = get_default_index(tenant, kibana_conn)
         if not default_index:
-            LOG.debug(f'No default index is set, using: {alias}')
-            set_default_index(tenant, kibana_conn, alias)
+            LOG.debug(f'No default index is set, using: {alias_name}')
+            set_default_index(tenant, kibana_conn, alias_name)
         else:
             LOG.debug(
                 f'default index {default_index} already set. Ignoring.')
@@ -382,26 +388,35 @@ def _make_artifact(index=None, visualization=None, old_artifact=None):
 
 def merge_kibana_artifacts(
     tenant: str,
-    alias: str,
+    alias_name: str,
     schema: Mapping[Any, Any],
+    subscription: Mapping[str, Any],  # Subscription.definition
     kibana_index: Mapping[Any, Any],  # individual kibana index contribution
     kibana_conn,
     old_artifact: Mapping[Any, Any] = None  # artifact describes multiple types
 ):
     schema_name = schema.get('name')
     index_hash = utils.hash(kibana_index)
-    if consumer_config.get('automatic_visualizations', False):
+    # TODO
+    alias_index = f'{tenant}.{alias_name}'
+    auto_viz_flag = subscription.get('kibana_options', {}).get('auto_vizualization')
+    if auto_viz_flag == 'full':
         LOG.info('Creating automatic visualizations')
         visualizations = auto_visualizations(
-            alias,
+            alias_name,
+            alias_index,
+            Node(schema)
+        )
+    elif auto_viz_flag == 'schema':
+        LOG.info('Only creating vis from @aether_default_visualization')
+        visualizations = schema_defined_visualizations(
+            alias_name,
+            alias_index,
             Node(schema)
         )
     else:
-        LOG.info('Only creating vis from @aether_default_visualization')
-        visualizations = schema_defined_visualizations(
-            alias,
-            Node(schema)
-        )
+        LOG.info('Not creating visualizations')
+        visualizations = {}
     vis_hashes = {k: utils.hash(v) for k, v in visualizations.items()}
     if not old_artifact:
         # use the new one since there is no old one
@@ -432,7 +447,7 @@ def merge_kibana_artifacts(
 
     # we need to reconcile the update
     old_kibana_index = handle_kibana_artifact(
-        alias,
+        alias_name,
         tenant,
         kibana_conn,
         mode='READ',
@@ -495,7 +510,7 @@ def put_es_artifact_for_alias(name, tenant, doc, es):
 
 
 def update_kibana_artifact(
-    alias,
+    alias_name,
     tenant,
     conn:
     KibanaConnection,
@@ -504,7 +519,7 @@ def update_kibana_artifact(
 ):
     try:
         handle_kibana_artifact(
-            alias,
+            alias_name,
             tenant,
             conn,
             index,
@@ -513,7 +528,7 @@ def update_kibana_artifact(
         )
     except HTTPError:
         handle_kibana_artifact(
-            alias,
+            alias_name,
             tenant,
             conn,
             index,
@@ -523,7 +538,7 @@ def update_kibana_artifact(
 
 
 def handle_kibana_artifact(
-    name,
+    alias_name,
     tenant,
     conn: KibanaConnection,
     index=None,
@@ -542,13 +557,13 @@ def handle_kibana_artifact(
     payload = None
     if mode in ['CREATE', 'UPDATE']:
         payload = index
-    pattern = f'{name}'
+    pattern = f'{tenant}.{alias_name}'
     index_url = f'/api/saved_objects/{_type}/{pattern}'
     res = conn.request(operation, index_url, json=payload)
     try:
         handle_http(res)
     except HTTPError as her:
-        LOG.debug(f'Kibana index handle failed op: {operation}')
+        LOG.info(f'Kibana index handle failed op: {operation}:{res.status_code}')
         LOG.debug(res.text)
         LOG.debug(f'index: {json.dumps(index, indent=2)}')
         raise her

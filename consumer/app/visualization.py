@@ -19,7 +19,7 @@
 # under the License.
 
 import json
-from typing import List, Callable
+from typing import Any, Callable, Dict, List
 
 from aet.logger import get_logger
 from aether.python.avro.schema import Node
@@ -489,16 +489,17 @@ def __default_path_filters() -> List[Callable[[str], bool]]:
 
 
 def schema_defined_visualizations(
-    alias: str,
+    alias_name: str,
+    alias_index: str,
     node: Node,
-):
+) -> Dict[str, Any]:
     visualizations = {}
     paths = [i for i in node.find_children(
         {'has_attr': ['__default_visualization']}
     )]
     LOG.debug(f'schemas found at paths {paths}')
-    title_template = '{form_name} ({field_name} -> {vis_type})'
-    id_template = '{form_name}_{field_name}_{vis_type}'
+    title_template = '{alias} {form_name} ({field_name} -> {vis_type})'
+    id_template = '{alias}_{form_name}_{field_name}_{vis_type}'
     for path in paths:
         target_node = node.get_node(path)
         vis_name = target_node.__default_visualization
@@ -510,18 +511,20 @@ def schema_defined_visualizations(
         form_name = index_handler.get_formname(path)
         field_name = index_handler.remove_formname(path)
         title = title_template.format(
+            alias=alias_name.capitalize(),
             form_name=form_name,
             field_name=field_name,
             vis_type=vis_type.capitalize()
         )
         _id = id_template.format(
+            alias=alias_name,
             form_name=form_name.lower(),
             field_name=field_name.lower(),
             vis_type=vis_type.lower()
         )
         res = fn(
             title=title,
-            alias=alias,
+            alias=alias_index,
             field_name=field_name,
             node=target_node
         )
@@ -530,11 +533,12 @@ def schema_defined_visualizations(
 
 
 def auto_visualizations(
-    alias: str,
+    alias_name: str,
+    alias_index: str,
     node: Node,
     path_filters: List[Callable[[str], bool]] = __default_path_filters()
-):
-    LOG.debug(f'Getting visualizations for {alias}')
+) -> Dict[str, Any]:
+    LOG.debug(f'Getting visualizations for {alias_name}')
     visualizations = {}
     for _type in _supported_types():
         handlers = _vis_for_type(_type)
@@ -548,8 +552,8 @@ def auto_visualizations(
                     {'attr_contains': [{'avro_type': _type}]}
                 )]
 
-            title_template = '{form_name} ({field_name} -> {vis_type})'
-            id_template = '{form_name}_{field_name}_{vis_type}'
+            title_template = '{alias} {form_name} ({field_name} -> {vis_type})'
+            id_template = '{alias}_{form_name}_{field_name}_{vis_type}'
 
             for path in paths:
                 if path_filters and not all([fn(path) for fn in path_filters]):
@@ -559,18 +563,20 @@ def auto_visualizations(
                 form_name = index_handler.get_formname(path)
                 field_name = index_handler.remove_formname(path)
                 title = title_template.format(
+                    alias=alias_name.capitalize(),
                     form_name=form_name,
                     field_name=field_name,
                     vis_type=vis_type.capitalize()
                 )
                 _id = id_template.format(
+                    alias=alias_name,
                     form_name=form_name.lower(),
                     field_name=field_name.lower(),
                     vis_type=vis_type.lower()
                 )
                 res = fn(
                     title=title,
-                    alias=alias,
+                    alias=alias_index,
                     field_name=field_name,
                     node=node.get_node(path)
                 )

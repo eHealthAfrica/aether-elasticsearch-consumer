@@ -178,7 +178,14 @@ class KibanaInstance(BaseResource):
         except Exception as err:
             raise ConsumerHttpException(str(err), 500)
         full_url = f'{self.definition.url}{url}'
-        return session.request(method, full_url, **kwargs)
+        LOG.warn(json.dumps([method, full_url, kwargs], indent=2))
+        res = session.request(method, full_url, **kwargs)
+        try:
+            res.raise_for_status()
+        except Exception:
+            LOG.error([res.status_code, res.content])
+            # raise ConsumerHttpException(str(err), res.status_code)
+        return res
 
     # public
     def test_connection(self, *args, **kwargs) -> bool:
@@ -384,18 +391,6 @@ class ESJob(BaseJob):
             doc_type = self._doc_types[topic]
             route_getter = self._routes[topic]
             doc = processor.process(msg.value)
-            # except Exception as err:
-            #     self.log.critical(err)
-            #     import sys
-            #     import traceback
-            #     exc_type, exc_value, exc_tb = sys.exc_info()
-            #     self.log.critical(
-            #         json.dumps(
-            #             [traceback.format_exception(exc_type, exc_value, exc_tb)],
-            #             indent=4)
-            #     )
-            #     raise err
-            self.log.critical('passed.')
             self.log.debug(
                 f'Kafka READ [{topic}:{self.group_name}]'
                 f' -> {doc.get("id")}')
@@ -411,6 +406,7 @@ class ESJob(BaseJob):
             count += 1
         self.log.info(f'processed {count} {topic} docs in tenant {self.tenant}')
 
+    # called when a subscription causes a new assignment to be given to the consumer
     def _on_assign(self, *args, **kwargs):
         assignment = args[1]
         for _part in assignment:
@@ -466,13 +462,15 @@ class ESJob(BaseJob):
         es_index = index_handler.get_es_index_from_subscription(
             subscription.definition.get('es_options'),
             name=self._name_from_topic(topic),
-            tenant=self.tenant,
+            tenant=self.tenant.lower(),
             schema=node
         )
         self.log.debug(f'index {es_index}')
-        alias = index_handler.get_alias_from_namespace(
-            self.tenant, node.namespace
-        )
+        alias_request = subscription.definition.get('es_options', {}).get('alias_name')
+        if alias_request:
+            alias = f'{alias_request}'.lower()
+        else:
+            alias = index_handler.get_alias_from_namespace(node.namespace)
         # Try to add the indices / ES alias
         es_instance = self._job_elasticsearch().get_session()
         self.log.debug(f'registering ES index:\n{json.dumps(es_index, indent=2)}')
@@ -487,10 +485,11 @@ class ESJob(BaseJob):
 
         old_schema = self._schemas.get(topic)
         updated_kibana = index_handler.kibana_handle_schema_change(
-            self.tenant,
+            self.tenant.lower(),
             alias,
             old_schema,
             schema,
+            subscription.definition,
             es_index,
             es_instance,
             conn
@@ -533,7 +532,7 @@ class ESJob(BaseJob):
                 f' -> {doc.get("id")}')
 
         except (Exception, ESTransportError) as ese:
-            self.log.info('Could not create doc because of error: %s\nAttempting update.' % ese)
+            self.log.debug('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
                 route = self. _routes[topic](doc)
                 es.update(
@@ -547,7 +546,7 @@ class ESJob(BaseJob):
                     f'ES UPDATE-OK [{index_name}:{self.group_name}]'
                     f' -> {doc.get("id")}')
             except ESTransportError:
-                self.log.debug(f'''conflict!, ignoring doc with id {doc.get('id', 'unknown')}''')
+                self.log.info(f'''conflict!, ignoring doc with id {doc.get('id', 'unknown')}''')
 
     # public
     def list_topics(self, *args, **kwargs):

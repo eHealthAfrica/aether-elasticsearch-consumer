@@ -228,7 +228,7 @@ def test__api_job_and_resource_public_endpoints(ElasticsearchConsumer, RequestCl
     topics = res.json()
     LOG.debug(topics)
     assert(TEST_TOPIC not in topics)
-    sleep(30)
+    sleep(60)
     res = RequestClientT1.get(f'{URL}/job/get_logs?id={doc_id}')
     res.raise_for_status()
     logs = res.json()
