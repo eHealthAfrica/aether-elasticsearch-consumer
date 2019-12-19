@@ -48,10 +48,10 @@ from aet.resource import BaseResource, Draft7Validator, lock
 # Aether python lib
 from aether.python.avro.schema import Node
 
-from .. import index_handler
-from ..config import get_consumer_config, get_kafka_config
-from ..fixtures import schemas
-from ..processor import ESItemProcessor
+from app import index_handler
+from app.config import get_consumer_config, get_kafka_config
+from app.fixtures import schemas
+from app.processor import ESItemProcessor
 
 
 LOG = get_logger('artifacts')

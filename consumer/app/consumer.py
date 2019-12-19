@@ -21,7 +21,7 @@
 from aet.consumer import BaseConsumer
 from aet.logger import get_logger
 
-from . import artifacts
+from app import artifacts
 
 LOG = get_logger('MAIN')
 

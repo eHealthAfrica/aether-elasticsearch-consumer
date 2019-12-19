@@ -50,7 +50,7 @@ from app import config
 from app.fixtures import examples
 from app.processor import ESItemProcessor
 
-from app.new import consumer
+from app import consumer
 
 CONSUMER_CONFIG = config.consumer_config
 KAFKA_CONFIG = config.get_kafka_config()
