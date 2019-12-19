@@ -88,7 +88,7 @@ def get_index_for_topic(
     mappings['_doc']['properties'] = get_es_types_from_schema(schema)
     if geo_point:
         mappings['_doc']['_meta']['aet_geopoint'] = geo_point
-        mappings['_doc']['properties']['geo_point'] = {'type': 'geo_point'}
+        mappings['_doc']['properties'][geo_point] = {'type': 'geo_point'}
     if auto_ts:
         mappings['_doc']['_meta']['aet_auto_ts'] = auto_ts
     LOG.debug('created mappings: %s' % mappings)
@@ -599,13 +599,3 @@ def set_default_index(tenant, conn: Session, index_name):
     except HTTPError as her:
         LOG.debug(f'Could not set default index to {index_name}: {her}')
         return False
-
-
-def index_from_file(index_path, index_file):
-    index_name = index_file.split('.')[0]
-    path = '%s/%s' % (index_path, index_file)
-    with open(path) as f:
-        return {
-            'name': index_name,
-            'body': json.load(f)
-        }

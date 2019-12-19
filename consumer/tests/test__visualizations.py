@@ -35,13 +35,13 @@ LOG = get_logger('TEST-VIZ')
 
 @pytest.mark.unit
 def test__get_auto_visualizations(ComplexSchema):
-    res = auto_visualizations('com.example', ComplexSchema)
+    res = auto_visualizations('test.example', 'test', ComplexSchema)
     LOG.debug(json.dumps(res, indent=2))
     assert(sum([1 for k in res.keys()]) == 67)
 
 
 @pytest.mark.unit
 def test__get_schema_visualizations(ComplexSchema):
-    res = schema_defined_visualizations('com.example', ComplexSchema)
+    res = schema_defined_visualizations('test.example', 'example', ComplexSchema)
     LOG.debug(json.dumps(res, indent=2))
     assert(sum([1 for k in res.keys()]) == 2)

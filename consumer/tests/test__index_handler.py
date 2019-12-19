@@ -51,27 +51,27 @@ def test__handle_http():
 
 
 @pytest.mark.unit
-def test__get_es_index_from_autoconfig(AutoConfigSettings, ComplexSchema):
-    ACS = AutoConfigSettings
+def test__get_es_index_from_autoconfig(SubscriptionDefinition, ComplexSchema):
+    es_options = SubscriptionDefinition.get('es_options')
     tenant = 'dev'
     name = 'a-topic'
-    LOG.debug(json.dumps(ACS, indent=2))
-    index = index_handler.get_es_index_from_autoconfig(
-        ACS, name, tenant, ComplexSchema
+    alias = es_options.get('alias_name')
+    index = index_handler.get_es_index_from_subscription(
+        es_options, name, tenant, ComplexSchema
     )
     LOG.debug(json.dumps(index, indent=2))
-    idx_tmp = ACS['index_name_template']
-    assert(first('$.name', index) == f'{tenant}.' + (idx_tmp % name))
-    geo_name = ACS['geo_point_name']
+    assert(first('$.name', index) == f'{tenant}.{name}')
+    geo_name = es_options['geo_point_name']
     assert(first(
         f'$.body.mappings._doc.properties.{geo_name}', index) is not None)
 
 
 @pytest.mark.unit
-def test__get_index_for_topic(AutoConfigSettings, ComplexSchema):
+def test__get_index_for_topic(SubscriptionDefinition, ComplexSchema):
     name = 'Person'
-    geo_name = AutoConfigSettings.get('geo_point_name')
-    auto_ts = AutoConfigSettings.get('auto_timestamp')
+    es_options = SubscriptionDefinition.get('es_options')
+    geo_name = es_options.get('geo_point_name')
+    auto_ts = es_options.get('auto_timestamp')
     index = index_handler.get_index_for_topic(name, geo_name, auto_ts, ComplexSchema)
     index = index.get('mappings', None)
     assert(len(index) == 1)
@@ -91,11 +91,11 @@ def test__get_es_types_from_schema(ComplexSchema):
     assert(len(list(res.keys())) == 54)
 
 
-@pytest.mark.integration
-def test__register_es_index():
-    # TODO add test
-    # Only ES functionality
-    pass
+# @pytest.mark.integration
+# def test__register_es_index():
+#     # TODO add test
+#     # Only ES functionality
+#     pass
 
 
 @pytest.mark.unit
@@ -135,36 +135,8 @@ def test___format_single_lookup(ComplexSchema):
     )
 
 
-def test__index_from_file(index_path, index_file):
-    pass
-    # def index_from_file(index_path, index_file):
-    #     index_name = index_file.split('.')[0]
-    #     path = '%s/%s' % (index_path, index_file)
-    #     with open(path) as f:
-    #         return {
-    #             'name': index_name,
-    #             'body': json.load(f)
-    #         }
-
-
-def test__static_from_lookups(schema, fieldname, default="Other"):
-    pass
-    # def static_from_lookups(schema, fieldname, default="Other"):
-    #     pass
-
-
-def test__add_alias():
-    pass
-    # def add_alias():
-    #     '''
-    #     "aliases" : {}
-    #     '''
-    pass
-
-
 @pytest.mark.unit
 def test__get_alias_from_namespace():
-    tenant = 'test'
     namespace = 'A_Gather_Form_V1'
-    res = index_handler.get_alias_from_namespace(tenant, namespace)
-    assert(res == 'test.A_Gather_Form')
+    res = index_handler.get_alias_from_namespace(namespace)
+    assert(res == 'A_Gather_Form')

@@ -47,6 +47,7 @@ from aether.python.avro import generation
 from aether.python.avro.schema import Node
 
 from app import config
+from app.fixtures import examples
 from app.processor import ESItemProcessor
 
 from app.new import consumer
@@ -244,6 +245,13 @@ def AutoConfigSettings():
     with open(path) as f:
         obj = json.load(f)
         return obj.get('autoconfig_settings')
+
+
+@pytest.mark.unit
+@pytest.mark.integration
+@pytest.fixture(scope='session')
+def SubscriptionDefinition():
+    return examples.SUBSCRIPTION
 
 
 @pytest.mark.unit
