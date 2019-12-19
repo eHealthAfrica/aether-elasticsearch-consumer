@@ -41,16 +41,18 @@ from aet.kafka_utils import (
 )
 from aet.helpers import chunk_iterable
 from aet.logger import get_logger
+from aet.jsonpath import CachedParser
 
 from aether.python.avro import generation
 from aether.python.avro.schema import Node
 
 from app import config
-from app.main import ESConsumerManager
-from app.connection_handler import ESConnectionManager
 from app.processor import ESItemProcessor
 
 from app.new import consumer
+
+CONSUMER_CONFIG = config.consumer_config
+KAFKA_CONFIG = config.get_kafka_config()
 
 LOG = get_logger('FIXTURE')
 
@@ -64,6 +66,12 @@ URL = 'http://localhost:9013'
 TS = str(uuid4()).replace('-', '')[:8]
 TENANT = f'TEN{TS}'
 TEST_TOPIC = 'es_test_topic'
+
+
+# convenience function for jsonpath (used in test_index_handler)
+def first(path, obj):
+    m = CachedParser.find(path, obj)
+    return [i.value for i in m][0]
 
 
 @pytest.mark.v2
@@ -207,16 +215,6 @@ def RequestClientT2():
     yield s
 
 
-class _MockConsumerManager(ESConsumerManager):
-
-    def __init__(self, start_healthcheck=False):
-        self.stopped = False
-        self.autoconfigured_topics = []
-        self.consumer_groups = {}
-        if start_healthcheck:
-            self.serve_healthcheck()
-
-
 # We can use 'mark' distinctions to chose which tests are run and which assets are built
 # @pytest.mark.integration
 # @pytest.mark.unit
@@ -236,12 +234,6 @@ def ElasticSearch():
 @pytest.fixture(scope='function')
 def MockConsumerManager():
     return _MockConsumerManager
-
-
-@pytest.mark.integration
-@pytest.fixture(scope='function')
-def ConsumerManager(ElasticSearch):
-    return ESConsumerManager
 
 
 @pytest.mark.unit

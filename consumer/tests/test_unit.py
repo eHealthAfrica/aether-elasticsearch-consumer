@@ -21,7 +21,6 @@
 import os
 
 from . import *  # noqa # get all test assets from test/__init__.py
-from app.main import KAFKA_CONFIG
 from app import utils
 
 # Test Suite contains both unit and integration tests

@@ -25,14 +25,16 @@ import responses
 
 from aet.logger import get_logger
 
+
 from app import index_handler
-from app.jsonpath import first
 
 from . import *  # noqa  # fixtures
 
 
 LOG = get_logger('TEST-IDX')
 
+
+# convenience function for jsonpath
 
 @responses.activate
 @pytest.mark.unit

@@ -21,6 +21,7 @@
 import json
 from typing import Any, Mapping
 
+from requests import Session
 from requests.exceptions import HTTPError
 
 from aet.logger import get_logger
@@ -32,8 +33,6 @@ from .visualization import (
     auto_visualizations, schema_defined_visualizations
 )
 from . import utils
-
-from .connection_handler import KibanaConnection
 
 LOG = get_logger('INDEX')
 consumer_config = config.get_consumer_config()
@@ -513,7 +512,7 @@ def update_kibana_artifact(
     alias_name,
     tenant,
     conn:
-    KibanaConnection,
+    Session,
     index=None,
     _type='index-pattern'
 ):
@@ -540,7 +539,7 @@ def update_kibana_artifact(
 def handle_kibana_artifact(
     alias_name,
     tenant,
-    conn: KibanaConnection,
+    conn: Session,
     index=None,
     mode='CREATE',
     _type=None
@@ -575,7 +574,7 @@ def handle_kibana_artifact(
     return res
 
 
-def get_default_index(tenant, conn: KibanaConnection):
+def get_default_index(tenant, conn: Session):
     url = '/api/kibana/settings'
     op = 'get'
     res = conn.request(op, url)
@@ -590,7 +589,7 @@ def get_default_index(tenant, conn: KibanaConnection):
         return None
 
 
-def set_default_index(tenant, conn: KibanaConnection, index_name):
+def set_default_index(tenant, conn: Session, index_name):
     url = '/api/kibana/settings/defaultIndex'
     op = 'post'
     res = conn.request(op, url, json={'value': index_name})

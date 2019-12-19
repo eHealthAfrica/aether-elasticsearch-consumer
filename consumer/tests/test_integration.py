@@ -24,8 +24,6 @@ from time import sleep
 
 from aet.logger import get_logger
 
-from app.main import CONSUMER_CONFIG
-
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
 # enter the bash environment for the version of python you want to test
