@@ -35,34 +35,6 @@ services:
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
       STARTUP_CONNECTION_RETRY: 3
-
-
-  elasticsearch-consumer-test-7:
-    extends:
-      service: consumer-test
-    environment:
-      ELASTICSEARCH_URL: "elasticsearch"
-      INDEX_PATH: "/code/tests/test_index/es6"
-      LOG_NAME: "ES_7-Consumer"
-      KAFKA_TOPIC_TEMPLATE: "elastic7_{es_index_name}_{data_type}"
-
-  elasticsearch-consumer-test-cloud:
-    extends:
-      service: consumer-test
-    environment:
-      INDEX_PATH: "/code/tests/test_index/es6"
-      LOG_NAME: "ES_7-Consumer"
-      KAFKA_URL: ${KAFKA_URL}
-      SECURITY.PROTOCOL: SASL_SSL
-      SASL.MECHANISM: PLAIN
-      SASL.USERNAME: ${KAFKA_CONSUMER_USER}
-      SASL.PASSWORD: ${KAFKA_CONSUMER_PASSWORD}
-      KIBANA_URL: http://kibana:5601/kibana-app
-
-      ELASTICSEARCH_URL: elasticsearch
-      ELASTICSEARCH_PORT: 9200
-      ELASTICSEARCH_USER: admin
-      ELASTICSEARCH_PASSWORD: admin
     
 
   elasticsearch:

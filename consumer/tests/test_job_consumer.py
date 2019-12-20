@@ -44,7 +44,7 @@ LOG = get_logger('TEST')
 '''
 
 
-@pytest.mark.v2
+@pytest.mark.unit
 def test__consumer_add_delete_respect_tenants(ElasticsearchConsumer, RequestClientT1, RequestClientT2):
     res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
     assert(res.json() is True)
@@ -65,7 +65,7 @@ def test__consumer_add_delete_respect_tenants(ElasticsearchConsumer, RequestClie
     (examples.LOCAL_KIBANA_INSTANCE, 'local_kibana'),
     (examples.JOB, 'job')
 ])
-@pytest.mark.v2
+@pytest.mark.unit
 def test__api_validate(ElasticsearchConsumer, RequestClientT1, example, endpoint):
     res = RequestClientT1.post(f'{URL}/{endpoint}/validate', json=example)
     assert(res.json().get('valid') is True), str(res.text)
@@ -78,7 +78,7 @@ def test__api_validate(ElasticsearchConsumer, RequestClientT1, example, endpoint
     (examples.LOCAL_KIBANA_INSTANCE, 'local_kibana'),
     (examples.JOB, 'job')
 ])
-@pytest.mark.v2
+@pytest.mark.unit
 def test__api_validate_pretty(ElasticsearchConsumer, RequestClientT1, example, endpoint):
     res = RequestClientT1.post(f'{URL}/{endpoint}/validate_pretty', json=example)
     assert(res.json().get('valid') is True), str(res.text)
@@ -91,7 +91,7 @@ def test__api_validate_pretty(ElasticsearchConsumer, RequestClientT1, example, e
     ('local_kibana'),
     ('job')
 ])
-@pytest.mark.v2
+@pytest.mark.unit
 def test__api_describe_assets(ElasticsearchConsumer, RequestClientT1, endpoint):
     res = RequestClientT1.get(f'{URL}/{endpoint}/describe')
     assert(res.json() is not None), str(res.text)
@@ -104,13 +104,13 @@ def test__api_describe_assets(ElasticsearchConsumer, RequestClientT1, endpoint):
     ('local_kibana'),
     ('job')
 ])
-@pytest.mark.v2
+@pytest.mark.unit
 def test__api_get_schema(ElasticsearchConsumer, RequestClientT1, endpoint):
     res = RequestClientT1.get(f'{URL}/{endpoint}/get_schema')
     assert(res.json() is not None), str(res.text)
 
 
-@pytest.mark.v2
+@pytest.mark.unit
 def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestClientT2):
     doc_id = examples.KIBANA_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
@@ -135,7 +135,7 @@ def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestC
     assert(res.json() is True)
 
 
-@pytest.mark.v2
+@pytest.mark.unit
 def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.ES_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
@@ -149,7 +149,7 @@ def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
         assert(res.status_code == 500)
 
 
-@pytest.mark.v2_integration
+@pytest.mark.integration
 def test__api_resource_es_local(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.LOCAL_ES_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/local_elasticsearch/add', json=examples.LOCAL_ES_INSTANCE)
@@ -160,7 +160,7 @@ def test__api_resource_es_local(ElasticsearchConsumer, RequestClientT1):
     assert(res.json().get('cluster_name') is not None)
 
 
-@pytest.mark.v2_integration
+@pytest.mark.integration
 def test__api_resource_es_foreign(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.ES_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
@@ -172,7 +172,7 @@ def test__api_resource_es_foreign(ElasticsearchConsumer, RequestClientT1):
     assert(res.json().get('cluster_name') is not None)
 
 
-@pytest.mark.v2_integration
+@pytest.mark.integration
 def test__api_resource_kibana_local(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.LOCAL_KIBANA_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/local_kibana/add', json=examples.LOCAL_KIBANA_INSTANCE)
@@ -184,7 +184,7 @@ def test__api_resource_kibana_local(ElasticsearchConsumer, RequestClientT1):
     assert(res.content is not None), res.content
 
 
-@pytest.mark.v2_integration
+@pytest.mark.integration
 def test__api_resource_kibana_foreign(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.KIBANA_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
@@ -199,7 +199,7 @@ def test__api_resource_kibana_foreign(ElasticsearchConsumer, RequestClientT1):
     assert(res.content is not None), res.content
 
 
-@pytest.mark.v2_integration
+@pytest.mark.integration
 def test__api_job_and_resource_create(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.JOB_FOREIGN.get("id")
     res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
@@ -215,7 +215,7 @@ def test__api_job_and_resource_create(ElasticsearchConsumer, RequestClientT1):
     sleep(.25)  # take a few MS for the job to be started
 
 
-@pytest.mark.v2_integration
+@pytest.mark.integration
 def test__api_job_and_resource_public_endpoints(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.JOB_FOREIGN.get("id")
     res = RequestClientT1.get(f'{URL}/job/list_topics?id={doc_id}')
@@ -235,7 +235,7 @@ def test__api_job_and_resource_public_endpoints(ElasticsearchConsumer, RequestCl
     assert(len(logs) > 0)
 
 
-@pytest.mark.v2_integration
+@pytest.mark.integration
 def test__api_job_and_resource_delete(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.JOB_FOREIGN.get("id")
     res = RequestClientT1.delete(f'{URL}/kibana/delete?id={examples.KIBANA_INSTANCE.get("id")}')

@@ -34,83 +34,83 @@ from aet.logger import get_logger
 # to run integration tests / all tests run the test_all.sh script from the /tests directory.
 
 
-@pytest.mark.integration
-def test_consumer_manager__get_indexes_for_auto_config(MockConsumerManager, AutoConfigSettings):
-    MockConsumerManager = MockConsumerManager()
-    res = MockConsumerManager.get_indexes_for_auto_config(**AutoConfigSettings)
-    assert(len(res) == 4), f'There should be 4 available indexes in this set: {res}'
+# @pytest.mark.integration
+# def test_consumer_manager__get_indexes_for_auto_config(MockConsumerManager, AutoConfigSettings):
+#     MockConsumerManager = MockConsumerManager()
+#     res = MockConsumerManager.get_indexes_for_auto_config(**AutoConfigSettings)
+#     assert(len(res) == 4), f'There should be 4 available indexes in this set: {res}'
 
 
-@pytest.mark.integration
-def test_consumer_manager__test_healthcheck(MockConsumerManager, ElasticSearch):
-    ConsumerManager = MockConsumerManager(start_healthcheck=True)
-    try:
-        sleep(1)
-        url = 'http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port')
-        r = requests.head(url)
-        assert(r.status_code == 200)
-        r = requests.head(url + '/healthcheck')
-        assert(r.status_code == 200)
-    except Exception as err:
-        raise(err)
-    finally:
-        ConsumerManager.stop()
-        sleep(1)
-        with pytest.raises(requests.exceptions.ConnectionError):
-            r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
-            assert(r.status_code != 200)
+# @pytest.mark.integration
+# def test_consumer_manager__test_healthcheck(MockConsumerManager, ElasticSearch):
+#     ConsumerManager = MockConsumerManager(start_healthcheck=True)
+#     try:
+#         sleep(1)
+#         url = 'http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port')
+#         r = requests.head(url)
+#         assert(r.status_code == 200)
+#         r = requests.head(url + '/healthcheck')
+#         assert(r.status_code == 200)
+#     except Exception as err:
+#         raise(err)
+#     finally:
+#         ConsumerManager.stop()
+#         sleep(1)
+#         with pytest.raises(requests.exceptions.ConnectionError):
+#             r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
+#             assert(r.status_code != 200)
 
 
-@pytest.mark.integration
-def test_consumer_manager__init(ConsumerManager, ElasticSearch):
-    ConsumerManager = ConsumerManager(ElasticSearch)
-    try:
-        # wait for connection to ES
-        sleep(20)
-        groups = [name for name in ConsumerManager.consumer_groups]
-        assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
-    except Exception as err:
-        raise(err)
-    finally:
-        ConsumerManager.stop()
-        sleep(1)
-        with pytest.raises(requests.exceptions.ConnectionError):
-            r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
-            assert(r.status_code != 200)
+# @pytest.mark.integration
+# def test_consumer_manager__init(ConsumerManager, ElasticSearch):
+#     ConsumerManager = ConsumerManager(ElasticSearch)
+#     try:
+#         # wait for connection to ES
+#         sleep(20)
+#         groups = [name for name in ConsumerManager.consumer_groups]
+#         assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
+#     except Exception as err:
+#         raise(err)
+#     finally:
+#         ConsumerManager.stop()
+#         sleep(1)
+#         with pytest.raises(requests.exceptions.ConnectionError):
+#             r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
+#             assert(r.status_code != 200)
 
 
-@pytest.mark.integration
-def test_consumer_manager__reconnect(ConsumerManager, ElasticSearch):
-    ConsumerManager = ConsumerManager(ElasticSearch)
-    try:
-        # wait for connection to ES
-        sleep(5)
-        r = requests.head('http://localhost:%s/healthcheck' % CONSUMER_CONFIG.get('consumer_port'))
-        assert(r.status_code == 200)
-        groups = [name for name in ConsumerManager.consumer_groups]
-        assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
-    except Exception as err:
-        raise(err)
-    finally:
-        ConsumerManager.stop()
-        sleep(5)
-        with pytest.raises(requests.exceptions.ConnectionError):
-            r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
-            assert(r.status_code != 200)
+# @pytest.mark.integration
+# def test_consumer_manager__reconnect(ConsumerManager, ElasticSearch):
+#     ConsumerManager = ConsumerManager(ElasticSearch)
+#     try:
+#         # wait for connection to ES
+#         sleep(5)
+#         r = requests.head('http://localhost:%s/healthcheck' % CONSUMER_CONFIG.get('consumer_port'))
+#         assert(r.status_code == 200)
+#         groups = [name for name in ConsumerManager.consumer_groups]
+#         assert(len(groups) is 5)  # one each for 4 autoconfig, 1 for combined.json
+#     except Exception as err:
+#         raise(err)
+#     finally:
+#         ConsumerManager.stop()
+#         sleep(5)
+#         with pytest.raises(requests.exceptions.ConnectionError):
+#             r = requests.head('http://localhost:%s' % CONSUMER_CONFIG.get('consumer_port'))
+#             assert(r.status_code != 200)
 
 
-@pytest.mark.integration
-def test_consumer_manager__elasticsearch_index_consistency(ElasticSearch):
-    registered_indices = ElasticSearch.indices.get_alias('*')
-    assert(len(registered_indices) >= 5)
+# @pytest.mark.integration
+# def test_consumer_manager__elasticsearch_index_consistency(ElasticSearch):
+#     registered_indices = ElasticSearch.indices.get_alias('*')
+#     assert(len(registered_indices) >= 5)
 
 
-@pytest.mark.integration
-def test_consumer_manager__elasticsearch_doc_consistency(ElasticSearch):
-    page = ElasticSearch.search(
-        index='combined',
-        scroll='2m',
-        size=1000
-    )
-    hits = page.get('hits').get('hits')
-    assert(len(hits) == 40)
+# @pytest.mark.integration
+# def test_consumer_manager__elasticsearch_doc_consistency(ElasticSearch):
+#     page = ElasticSearch.search(
+#         index='combined',
+#         scroll='2m',
+#         size=1000
+#     )
+#     hits = page.get('hits').get('hits')
+#     assert(len(hits) == 40)

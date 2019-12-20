@@ -20,28 +20,7 @@
 #
 set -Eeuo pipefail
 
-{
-    docker network create aether_test
-} || { # catch
-    echo "aether_test is ready."
-}
-{
-    docker network create aether_internal
-} || { # catch
-    echo "aether_internal is ready."
-}
-pushd aether-bootstrap
-scripts/initialise_docker_environment.sh
-cp .env ..
-popd
-
 scripts/run_unit_tests.sh
-sleep 1
-pushd aether-bootstrap
+docker-compose -f docker-compose-test.yml up -d elasticsearch kibana
+scripts/local_integration.sh
 docker-compose -f docker-compose-test.yml down
-sleep 5
-scripts/initialise_docker_environment.sh
-cp .env ..
-popd
-
-scripts/run_integration_tests.sh

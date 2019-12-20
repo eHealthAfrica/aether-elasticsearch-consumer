@@ -16,6 +16,7 @@ elasticsearch # >=5.0.0,<6.0.0
 flake8
 flake8-quotes
 pytest
+pytest-cov
 pytest-runner
 requests
 responses

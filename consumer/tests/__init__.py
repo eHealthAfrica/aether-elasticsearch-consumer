@@ -68,6 +68,9 @@ TS = str(uuid4()).replace('-', '')[:8]
 TENANT = f'TEN{TS}'
 TEST_TOPIC = 'es_test_topic'
 
+# instances of samples pushed to Kafka
+GENERATED_SAMPLES = {}
+
 
 # convenience function for jsonpath (used in test_index_handler)
 def first(path, obj):
@@ -75,7 +78,7 @@ def first(path, obj):
     return [i.value for i in m][0]
 
 
-@pytest.mark.v2
+@pytest.mark.unit
 @pytest.fixture(scope='session')
 def birdisle_server():
     password = config.get_consumer_config().get('REDIS_PASSWORD')
@@ -84,7 +87,7 @@ def birdisle_server():
     server.close()
 
 
-@pytest.mark.v2
+@pytest.mark.unit
 @pytest.fixture(scope='session')
 def Birdisle(birdisle_server):
     birdisle.redis.LocalSocketConnection.health_check_interval = 0
@@ -94,8 +97,8 @@ def Birdisle(birdisle_server):
     return r
 
 
-@pytest.mark.v2
-@pytest.mark.v2_integration
+@pytest.mark.unit
+@pytest.mark.integration
 @pytest.fixture(scope='session')
 def ElasticsearchConsumer(birdisle_server, Birdisle):
     settings = config.get_consumer_config()
@@ -104,11 +107,11 @@ def ElasticsearchConsumer(birdisle_server, Birdisle):
     c.stop()
 
 
-# @pytest.mark.v2_integration
+# @pytest.mark.integration
 @pytest.fixture(scope='session', autouse=True)
 def create_remote_kafka_assets(request, sample_generator, *args):
     # @mark annotation does not work with autouse=True.
-    if 'v2_integration' not in request.config.invocation_params.args:
+    if 'integration' not in request.config.invocation_params.args:
         LOG.debug(f'NOT creating Kafka Assets')
         # return
     LOG.debug(f'Creating Kafka Assets')
@@ -116,20 +119,21 @@ def create_remote_kafka_assets(request, sample_generator, *args):
     kadmin = get_admin_client(kafka_security)
     new_topic = f'{TENANT}.{TEST_TOPIC}'
     create_topic(kadmin, new_topic)
+    GENERATED_SAMPLES[new_topic] = []
     producer = get_producer(kafka_security)
     schema = parse(json.dumps(ANNOTATED_SCHEMA))
     for subset in sample_generator(max=100, chunk=10):
+        GENERATED_SAMPLES[new_topic].extend(subset)
         produce(subset, schema, new_topic, producer)
     yield None  # end of work before clean-up
     LOG.debug(f'deleting topic: {new_topic}')
     delete_topic(kadmin, new_topic)
 
 
-# @pytest.mark.v2_integration
 @pytest.fixture(scope='session', autouse=True)
 def check_local_es_readyness(request, *args):
     # @mark annotation does not work with autouse=True
-    if 'v2_integration' not in request.config.invocation_params.args:
+    if 'integration' not in request.config.invocation_params.args:
         LOG.debug(f'NOT Checking for LocalES')
         return
     LOG.debug('Waiting for LocalES')
@@ -147,11 +151,11 @@ def check_local_es_readyness(request, *args):
     raise TimeoutError('Could not connect to elasticsearch for integration test')
 
 
-# @pytest.mark.v2_integration
+# @pytest.mark.integration
 @pytest.fixture(scope='session', autouse=True)
 def check_local_kibana_readyness(request, *args):
     # @mark annotation does not work with autouse=True.
-    if 'v2_integration' not in request.config.invocation_params.args:
+    if 'integration' not in request.config.invocation_params.args:
         LOG.debug(f'NOT Checking for Kibana')
         return
     LOG.debug('Waiting for LocalKibana')
@@ -169,8 +173,8 @@ def check_local_kibana_readyness(request, *args):
     raise TimeoutError('Could not connect to kibana for integration test')
 
 
-@pytest.mark.v2
-@pytest.mark.v2_integration
+@pytest.mark.unit
+@pytest.mark.integration
 @pytest.fixture(scope='session')
 def sample_generator():
     t = generation.SampleGenerator(ANNOTATED_SCHEMA)
@@ -199,8 +203,8 @@ def sample_generator():
     yield _gen
 
 
-@pytest.mark.v2
-@pytest.mark.v2_integration
+@pytest.mark.unit
+@pytest.mark.integration
 @pytest.fixture(scope='session')
 def RequestClientT1():
     s = requests.Session()
@@ -208,7 +212,7 @@ def RequestClientT1():
     yield s
 
 
-@pytest.mark.v2
+@pytest.mark.unit
 @pytest.fixture(scope='session')
 def RequestClientT2():
     s = requests.Session()
@@ -221,30 +225,6 @@ def RequestClientT2():
 # @pytest.mark.unit
 # When possible use fixtures for reusable test assets
 # @pytest.fixture(scope='session')
-
-
-@pytest.mark.integration
-@pytest.fixture(scope='session')
-def ElasticSearch():
-    es = ESConnectionManager()
-    return es.get_connection()
-
-
-@pytest.mark.integration
-@pytest.mark.unit
-@pytest.fixture(scope='function')
-def MockConsumerManager():
-    return _MockConsumerManager
-
-
-@pytest.mark.unit
-@pytest.mark.integration
-@pytest.fixture(scope='session')
-def AutoConfigSettings():
-    path = os.environ['ES_CONSUMER_CONFIG_PATH']
-    with open(path) as f:
-        obj = json.load(f)
-        return obj.get('autoconfig_settings')
 
 
 @pytest.mark.unit
