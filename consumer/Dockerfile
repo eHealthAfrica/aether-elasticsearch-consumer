@@ -22,6 +22,8 @@ WORKDIR /code
 
 COPY ./conf/pip/requirements.txt /code/conf/pip/requirements.txt
 RUN pip3 install -r /code/conf/pip/requirements.txt
+COPY ./conf/pip/wheels /code/conf/pip/wheels
+RUN pip3 install /code/conf/pip/wheels/* || true
 
 COPY ./ /code
 

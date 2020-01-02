@@ -19,16 +19,16 @@
 # under the License.
 
 from time import sleep
-from app.main import ESConsumerManager
+from app.consumer import ElasticsearchConsumer
+from app.config import consumer_config, kafka_config
 
 if __name__ == '__main__':
-    manager = ESConsumerManager()
+    manager = ElasticsearchConsumer(consumer_config, kafka_config)
     while True:
         try:
-            if not manager.stopped:
-                for x in range(10):
-                    sleep(1)
+            for x in range(10):
+                sleep(1)
             else:
                 break
         except KeyboardInterrupt:
-            break
+            manager.stop()

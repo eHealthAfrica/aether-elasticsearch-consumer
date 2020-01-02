@@ -178,13 +178,11 @@ class KibanaInstance(BaseResource):
         except Exception as err:
             raise ConsumerHttpException(str(err), 500)
         full_url = f'{self.definition.url}{url}'
-        LOG.warn(json.dumps([method, full_url, kwargs], indent=2))
         res = session.request(method, full_url, **kwargs)
         try:
             res.raise_for_status()
         except Exception:
-            LOG.error([res.status_code, res.content])
-            # raise ConsumerHttpException(str(err), res.status_code)
+            raise ConsumerHttpException(str(res.content), res.status_code)
         return res
 
     # public
@@ -256,7 +254,7 @@ class ESJob(BaseJob):
     _resources = [ESInstance, LocalESInstance, KibanaInstance, LocalKibanaInstance, Subscription]
     schema = schemas.ES_JOB
 
-    public_actions = BaseResource.public_actions + [
+    public_actions = BaseJob.public_actions + [
         'get_logs',
         'list_topics',
         'list_subscribed_topics'
@@ -289,10 +287,9 @@ class ESJob(BaseJob):
         self._previous_topics = []
         self.log_stack = []
         self.log = callback_logger('JOB', self.log_stack, 100)
-        # self.group_name = f'{self.tenant}.{self.id}'
-        # args['group.id'] = self.group_name  # TODO
-        self.group_name = 'something'
+        self.group_name = f'{self.tenant}.{self._id}'
         args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
+        args['group.id'] = self.group_name
         self.consumer = KafkaConsumer(**args)
 
     def _job_elasticsearch(self, config=None) -> ESInstance:
