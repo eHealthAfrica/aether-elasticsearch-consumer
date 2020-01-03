@@ -40,7 +40,7 @@ from elasticsearch.exceptions import TransportError as ESTransportError
 
 # Consumer SDK
 from aet.exceptions import ConsumerHttpException
-from aet.job import BaseJob
+from aet.job import BaseJob, JobStatus
 from aet.kafka import KafkaConsumer, FilterConfig, MaskConfig
 from aet.logger import callback_logger, get_logger
 from aet.resource import BaseResource, Draft7Validator, lock
@@ -288,8 +288,11 @@ class ESJob(BaseJob):
         self.log_stack = []
         self.log = callback_logger('JOB', self.log_stack, 100)
         self.group_name = f'{self.tenant}.{self._id}'
+        self.sleep_delay: float = 0.5
+        self.report_interval: int = 100
         args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
         args['group.id'] = self.group_name
+        LOG.debug(args)
         self.consumer = KafkaConsumer(**args)
 
     def _job_elasticsearch(self, config=None) -> ESInstance:
@@ -345,14 +348,15 @@ class ESJob(BaseJob):
         except ConsumerHttpException as cer:
             # don't fetch messages if we can't post them
             self.log.debug(f'Job not ready: {cer}')
-            sleep(.25)
+            self.status = JobStatus.RECONFIGURE
+            sleep(self.sleep_delay * 10)
             return []
         except Exception as err:
             import traceback
             traceback_str = ''.join(traceback.format_tb(err.__traceback__))
             self.log.critical(f'unhandled error: {str(err)} | {traceback_str}')
             raise err
-            sleep(.25)
+            sleep(self.sleep_delay)
             return []
 
     def _handle_new_subscriptions(self, subs):
@@ -371,14 +375,13 @@ class ESJob(BaseJob):
             self.consumer.subscribe(new_subs, on_assign=self._on_assign)
 
     def _handle_messages(self, config, messages):
+        self.log.debug(f'{self.group_name} | reading {len(messages)} messages')
         count = 0
         for msg in messages:
             topic = msg.topic
-            self.log.debug(f'read PK: {topic} {msg.value.get("staff_doctors")}')
             schema = msg.schema
             if schema != self._schemas.get(topic):
-                self.log.info('Schema change on type %s' % topic)
-                self.log.debug('schema: %s' % schema)
+                self.log.info(f'{self._id} Schema change on {topic}')
                 self._update_topic(topic, schema)
                 self._schemas[topic] = schema
             else:
@@ -388,9 +391,6 @@ class ESJob(BaseJob):
             doc_type = self._doc_types[topic]
             route_getter = self._routes[topic]
             doc = processor.process(msg.value)
-            self.log.debug(
-                f'Kafka READ [{topic}:{self.group_name}]'
-                f' -> {doc.get("id")}')
             self.submit(
                 index_name,
                 doc_type,
@@ -398,8 +398,6 @@ class ESJob(BaseJob):
                 topic,
                 route_getter,
             )
-            self.log.debug(
-                f'Kafka COMMIT [{topic}:{self.group_name}]')
             count += 1
         self.log.info(f'processed {count} {topic} docs in tenant {self.tenant}')
 
@@ -413,7 +411,7 @@ class ESJob(BaseJob):
                 self._previous_topics.append(_part.topic)
 
     def _apply_consumer_filters(self, topic):
-        self.log.debug(f'Applying filter for new topic {topic}')
+        self.log.debug(f'{self._id} applying filter for new topic {topic}')
         subscription = self._job_subscription_for_topic(topic)
         if not subscription:
             self.log.error(f'Could not find subscription for topic {topic}')

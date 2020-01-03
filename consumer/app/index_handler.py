@@ -24,6 +24,7 @@ from typing import Any, Mapping
 from requests import Session
 from requests.exceptions import HTTPError
 
+from aet.exceptions import ConsumerHttpException
 from aet.logger import get_logger
 from aether.python.avro.schema import Node
 
@@ -225,7 +226,7 @@ def check_for_kibana_update(
             mode='READ',
             _type='index-pattern'
         )
-    except HTTPError as hpe:
+    except (HTTPError, ConsumerHttpException) as hpe:
         LOG.debug(f'Could not get old kibana index: {hpe}')
         old_kibana_index = {}
     LOG.debug(json.dumps({
@@ -299,7 +300,7 @@ def update_kibana_index(
             LOG.debug(
                 f'default index {default_index} already set. Ignoring.')
         return True
-    except HTTPError as her:
+    except (HTTPError, ConsumerHttpException) as her:
         LOG.critical(f'Kibana index update failed: {her}')
         raise her
     except Exception as err:
@@ -525,7 +526,7 @@ def update_kibana_artifact(
             'CREATE',
             _type
         )
-    except HTTPError:
+    except (HTTPError, ConsumerHttpException):
         handle_kibana_artifact(
             alias_name,
             tenant,
@@ -561,7 +562,7 @@ def handle_kibana_artifact(
     res = conn.request(operation, index_url, json=payload)
     try:
         handle_http(res)
-    except HTTPError as her:
+    except (HTTPError, ConsumerHttpException) as her:
         LOG.info(f'Kibana index handle failed op: {operation}:{res.status_code}')
         LOG.debug(res.text)
         LOG.debug(f'index: {json.dumps(index, indent=2)}')
@@ -584,7 +585,7 @@ def get_default_index(tenant, conn: Session):
             .get('defaultIndex', {}) \
             .get('userValue')
         return default
-    except HTTPError as her:
+    except (HTTPError, ConsumerHttpException) as her:
         LOG.debug(f'Could not get default index: {her}')
         return None
 
@@ -596,6 +597,6 @@ def set_default_index(tenant, conn: Session, index_name):
     try:
         handle_http(res)
         return True
-    except HTTPError as her:
+    except (HTTPError, ConsumerHttpException) as her:
         LOG.debug(f'Could not set default index to {index_name}: {her}')
         return False
