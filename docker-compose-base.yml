@@ -5,8 +5,18 @@ services:
     build: consumer
     image: aether-elasticsearch-consumer
     stdin_open: true
-    ports:
-      - "9009:9009"
+    volumes:
+     - ./consumer:/code
+    environment:
+     - PYTHONUNBUFFERED=0
+    command: start
+
+  es-consumer-base-local:
+    build:
+      context: ./consumer
+      dockerfile: Dockerfile.local
+    image: aether-elasticsearch-consumer
+    stdin_open: true
     volumes:
      - ./consumer:/code
     environment:
