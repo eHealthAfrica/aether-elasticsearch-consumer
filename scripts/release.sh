@@ -40,7 +40,6 @@ release_app () {
   AETHER_APP="aether-${1}"
   echo "$AETHER_APP"
   echo "version: $VERSION"
-  # echo "TRAVIS_COMMIT: $TRAVIS_COMMIT"
   echo "Building Docker image ${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
   docker-compose -f $COMPOSE_PATH build --build-arg VERSION=$VERSION $APP_NAME
 

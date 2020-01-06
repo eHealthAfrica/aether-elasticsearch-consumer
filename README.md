@@ -1,22 +1,21 @@
 ## Aether Elasticsearch Kafka Consumer
 
 This is an Aether Elasticsearch Kafka Consumer, which consumes datа from Kafka and feeds
-into an Elasticsearch instance.
+into Elasticsearch instances.
+
+The consumer runs on the Aether Consumer SDK, and can function in the multi-tenanted Aether environment.
 
 ### Running the app
 
-To run the app just type:
-
-```
-docker-compose up
-```
+The simplest way to try the consumer, is to use `aether-bootstrap` and opt for Elasticsearch integration. The after system setup, consumer API will then be available at `/{tenant}/es-consumer`. Please refer to the `aether-bootstrap` documentation for more details on getting started.
 
 ### Configuration
 
 #### `conf/consumer/kafka.json`
 
-Connection to a Kafka instance can be configured via `conf/consumer/kafka.json`. This is a sample of its shape
-and data:
+To setup the main consumer, the kafka.json file should match your preferred Kafka settings. This is not user facing. The consumer running multi-tenanted assumes that you have employed topic level access control, and that a user coming from {tenant} should be allowed to read topics matching ^{tenant}.*
+
+You can also set the default masking and message filtering settings here, but if specified, the user's rules will take precedence.
 
 ```json
 {
@@ -32,11 +31,89 @@ and data:
 }
 ```
 
-### Running the tests
+### Usage
 
-To run the tests type the following command which also checks for PEP8 errors:
+As with all consumers built on the SDK, tasks are driven by a Job which has a set of Resources. In this case, a Job has a `subscription` to a topic (or wildcard) on Kafka, and sends data to a pair of`elasticsearch` and `kibana` instance. All resource examples and schemas can be found in `/consumer/app/fixtures`
 
+#### Elasticsearch
+
+(post to /elasticsearch/add as json)
+
+```json
+{
+    "id": "es-test",
+    "name": "Test ES Instance",
+    "url": "http://elasticsearch:9200",
+    "user": "admin",
+    "password": "admin"
+}
 ```
-docker-compose -f docker-compose.test.yml up --build
+#### Kibana
+
+(post to /kibana/add as json)
+```json
+{
+    "id": "k-test",
+    "name": "Test Kibana Instance",
+    "url": "http://kibana:5601/kibana-app",
+    "user": "admin",
+    "password": "admin"
+}
+```
+#### Subscription 
+
+(post to /subscription/add as json)
+
+```json
+{
+    "id": "sub-test",
+    "name": "Test Subscription",
+    "topic_pattern": "*",
+    "topic_options": {
+        "masking_annotation": "@aether_masking",
+        "masking_levels": ["public", "private"],
+        "masking_emit_level": "public",
+        "filter_required": true,
+        "filter_field_path": "operational_status",
+        "filter_pass_values": ["operational"]
+    },
+    "es_options": {
+        "alias_name": "test",
+        "auto_timestamp": true,
+        "geo_point_creation": true,
+        "geo_point_name": "geopoint"
+    },
+    "kibana_options": {
+        "auto_vizualization": "schema"
+    },
+    "visualizations": []
+}
 ```
 
+#### Job
+
+Finally we, tie it together with a Job that references the above artifacts by ID.
+(post to /job/add as json)
+
+```json
+{
+    "id": "j-test-foreign",
+    "name": "ES Consumer Job",
+    "kibana": "k-test",
+    "elasticsearch": "es-test",
+    "subscription": ["sub-test"]
+}
+```
+
+
+If the consumer is configured to use a default, multi-tenanted Elasticsearch/Kibana cluster, you can create artifacts those those via the `local_elasticsearch` && `local_kibana` API endpoints, and then reference them in a job like so:
+
+```json
+{
+    "id": "j-test-local",
+    "name": "ES Consumer Job using Local Cluster",
+    "local_kibana": "default",
+    "local_elasticsearch": "default",
+    "subscription": ["sub-test"]
+}
+```
