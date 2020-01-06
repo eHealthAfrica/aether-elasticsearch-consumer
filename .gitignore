@@ -38,6 +38,7 @@ pip-delete-this-directory.txt
 # Unit test / coverage reports
 htmlcov/
 .tox/
+consumer/.coverage
 .coverage
 .coverage.*
 .cache
@@ -83,6 +84,7 @@ celerybeat-schedule
 
 # Environments
 .env
+test.env
 .venv
 env/
 venv/

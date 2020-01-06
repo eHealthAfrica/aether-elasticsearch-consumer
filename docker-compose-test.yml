@@ -1,88 +1,67 @@
 version: "2.1"
+
 services:
-
-  # Elasticsearch Containers
-
-  elasticsearch-test-6:
-    extends:
-      file: docker-compose-base.yml
-      service: elasticsearch-base-6
-    networks:
-      - test_net
-
-  elasticsearch-test-5:
-    extends:
-      file: docker-compose-base.yml
-      service: elasticsearch-base-5
-    networks:
-      - test_net
 
   # ES Test Containers
 
-  elasticsearch-consumer-test:
+  consumer-test:
     extends:
       file: docker-compose-base.yml
       service: es-consumer-base
-    networks:
-      - test_net
     volumes:
       - ./consumer/tests:/code/tests
     environment:
-      ELASTICSEARCH_PORT: 9200
-      KAFKA_URL: "kafka-test:29092"
-      CONSUMER_PORT: 9099
+      TENANCY_HEADER: x-oauth-realm
+      REDIS_DB: 0
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: password
+      
+      CONSUMER_NAME: 'ES-TEST'
+      
+      KIBANA_URL: http://kibana:5601/kibana-app
+      ELASTICSEARCH_URL: elasticsearch:9200
+      ELASTICSEARCH_USER: admin
+      ELASTICSEARCH_PASSWORD: admin
+      
+      KAFKA_URL: ${KAFKA_URL}
+      SECURITY.PROTOCOL: SASL_SSL
+      SASL.MECHANISM: PLAIN
+      SASL.USERNAME: ${KAFKA_SASL_USERNAME}
+      SASL.PASSWORD: ${KAFKA_SASL_PASSWORD}
+      
+      EXPOSE_PORT: 9013
       LOG_LEVEL: "DEBUG"
       ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
       STARTUP_CONNECTION_RETRY: 3
+    
 
-  # ES 5
-
-  elasticsearch-consumer-test-5:
-    extends:
-      service: elasticsearch-consumer-test
-    links:
-      - elasticsearch-test-5
+  elasticsearch:
+    image: amazon/opendistro-for-elasticsearch:${AMAZON_ES_VERSION:-1.2.1}
     environment:
-      ELASTICSEARCH_URL: "elasticsearch-test-5"
-      INDEX_PATH: "/code/tests/test_index/es5"
-      LOG_NAME: "ES_5-Consumer"
-      KAFKA_TOPIC_TEMPLATE: "elastic5_{es_index_name}_{data_type}"
-
-  # ES 6
-
-  elasticsearch-consumer-test-6:
-    extends:
-      service: elasticsearch-consumer-test
-    links:
-      - elasticsearch-test-6
-    environment:
-      ELASTICSEARCH_URL: "elasticsearch-test-6"
-      INDEX_PATH: "/code/tests/test_index/es6"
-      LOG_NAME: "ES_6-Consumer"
-      KAFKA_TOPIC_TEMPLATE: "elastic6_{es_index_name}_{data_type}"
-
-
-  # ---------------------------------
-  # Mock Data Container
-  # ---------------------------------
-  assets-test:
-    build:
-      context: ./aether-bootstrap/assets/generation
-      dockerfile: Dockerfile
+      discovery.type: single-node
+      opendistro_security.ssl.http.enabled: 'false'
     volumes:
-      - ./aether-bootstrap/assets:/code/assets
-    environment:
-      KERNEL_URL: http://kernel-test:9000
-      KERNEL_USER: ${TEST_KERNEL_ADMIN_USERNAME}
-      KERNEL_PASSWORD: ${TEST_KERNEL_ADMIN_PASSWORD}
-      PROJECT_NAME: DefaultDemo
-      SUBMISSION_ENDPOINT: default_mapping
-    networks:
-      - test_net
+      - ./conf/log4j2.properties:/usr/share/elasticsearch/config/log4j2.properties
+      - ./conf/security.yml:/usr/share/elasticsearch/plugins/opendistro_security/securityconfig/config.yml
+    ports:
+      - 9200:9200
 
-networks:
-  test_net:
-    external:
-      name: aether_test
+
+  kibana:
+    image: amazon/opendistro-for-elasticsearch-kibana:${AMAZON_ES_VERSION:-1.2.1}
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_PRESERVEHOST: 'false'
+      SERVER_BASEPATH: /kibana-app
+      SERVER_REWRITEBASEPATH: 'true'
+      opendistro_security.ssl.http.enabled: 'false'
+    volumes:
+      - ./conf/security.yml:/usr/share/kibana/plugins/opendistro_security/securityconfig/config.yml
+      - ./conf/kibana.yml:/usr/share/kibana/config/kibana.yml
+    depends_on:
+      - elasticsearch
+    ports:
+      - 5601:5601

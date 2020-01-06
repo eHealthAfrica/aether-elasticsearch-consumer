@@ -20,8 +20,8 @@
 
 import os
 
-from . import *  # get all test assets from test/__init__.py
-from app.main import kafka_config
+from . import *  # noqa # get all test assets from test/__init__.py
+from app import utils
 
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
@@ -35,25 +35,12 @@ from app.main import kafka_config
 
 @pytest.mark.unit
 def test__get_config_alias():
-    assert(kafka_config.get('bootstrap_servers') is not None)
-    args = kafka_config.copy()
-    assert('bootstrap_servers' in args)
-    assert(args.get('bootstrap_servers') == os.environ.get('KAFKA_URL'))
-    assert(args.get('kafka_url') is None)
-    assert(kafka_config.get('kafka_url') is None)
-
-
-@pytest.mark.unit
-def test__get_index_for_topic(MockConsumerManager, AutoConfigSettings):
-    name = 'Person'
-    MockConsumerManager = MockConsumerManager()
-    geo_name = AutoConfigSettings.get('geo_point_name')
-    index = MockConsumerManager.get_index_for_topic(name, geo_name)
-    index = index.get('mappings', None)
-    assert(len(index) is 1)
-    assert(index.get(name) is not None)
-    assert(index.get(name).get('properties').get(geo_name) is not None)
-    assert(index.get(name).get('properties').get(geo_name).get('type') is 'geo_point')
+    assert(KAFKA_CONFIG.get('bootstrap.servers') is not None), KAFKA_CONFIG
+    args = KAFKA_CONFIG.copy()
+    bootstrap = 'bootstrap.servers'.upper()
+    assert(bootstrap in args)
+    assert(args.get(bootstrap) == os.environ.get('KAFKA_URL'))
+    assert(args.get('KAFKA_URL') is None)
 
 
 @pytest.mark.unit
@@ -73,8 +60,8 @@ def test__get_field_by_name():
 @pytest.mark.unit
 def test__process_geo_field():
     to_test = [
-        [TYPE_INSTRUCTIONS, DOC_SCHEMA, SAMPLE_DOC],
-        [TYPE_INSTRUCTIONS, DOC_SCHEMA2, SAMPLE_DOC2]
+        [TYPE_INSTRUCTIONS, AUTOGEN_SCHEMA, SAMPLE_DOC],
+        [TYPE_INSTRUCTIONS, SIMPLE_SCHEMA, SAMPLE_DOC2]
     ]
     for instr, schema, doc in to_test:
         processor = ESItemProcessor('test', instr)
@@ -84,3 +71,46 @@ def test__process_geo_field():
         assert(res.get('lat') is not None)
         doc = processor.process(doc)
         assert(doc.get('geo_point').get('lon') is not None)
+
+
+@pytest.mark.unit
+def test__hash():
+    pairs = [
+        ('a', 'n', False),
+        ({
+            'b': ['a', 'b'],
+            'a': ['a', 'b']},  # swap order of keys
+            {
+            'a': ['a', 'b'],
+            'b': ['a', 'b']},
+            True),
+        (1, 2, False),
+        ('a', 'a', True),
+        (2, 2, True),
+    ]
+
+    for a, b, match in pairs:
+        assert((utils.hash(a) == utils.hash(b)) == match), [a, b, match]
+
+
+@pytest.mark.unit
+def test__merge_dicts():
+    cases = [
+        (
+            {'a': [1, 2, 3]},
+            {'b': [4, 5, 6]},
+            {'a': [1, 2, 3], 'b': [4, 5, 6]}
+        ),
+        (
+            {'a': [1, 2, 3]},
+            {'a': [4, 5, 6]},
+            {'a': [1, 2, 3, 4, 5, 6]}
+        ),
+        (
+            {'a': {'a': 1, 'b': 0, 'c': 0}, 'b': {'a': 0, 'b': 2, 'c': 3}},
+            {'a': {'b': 2, 'c': 3}, 'b': {'b': 0, 'c': 0}},
+            {'a': {'a': 1, 'b': 2, 'c': 3}, 'b': {'a': 0, 'b': 0, 'c': 0}}
+        )
+    ]
+    for a, b, c in cases:
+        assert(utils.merge_dicts(a, b) == c)

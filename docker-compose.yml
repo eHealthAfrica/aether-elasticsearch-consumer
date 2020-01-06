@@ -3,27 +3,11 @@ version: "2.1"
 networks:
   aether:
     external:
-      name: aether_internal
+      name: aether_bootstrap_net
 
 services:
 
-  elasticsearch:
-    extends:
-      file: docker-compose-base.yml
-      service: elasticsearch-base-6
-    networks:
-      - aether
-
-  kibana:
-    extends:
-      file: docker-compose-base.yml
-      service: kibana-base
-    depends_on:
-      - elasticsearch
-    networks:
-      - aether
-
-  elasticsearch-consumer:
+  consumer:
     extends:
       file: docker-compose-base.yml
       service: es-consumer-base
@@ -32,7 +16,5 @@ services:
       ES_CONSUMER_CONFIG_PATH: "/code/conf/consumer/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/conf/consumer/kafka.json"
       LOG_LEVEL: "DEBUG"
-    links:
-      - elasticsearch
     networks:
       - aether

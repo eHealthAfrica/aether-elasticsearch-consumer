@@ -1,0 +1,18 @@
+server.name: kibana
+server.host: "0"
+elasticsearch.hosts: https://localhost:9200
+elasticsearch.ssl.verificationMode: none
+elasticsearch.username: kibanaserver
+elasticsearch.password: kibanaserver
+
+opendistro_security.multitenancy.enabled: true
+
+elasticsearch.requestHeadersWhitelist: ["securitytenant","Authorization", "x-forwarded-for", "x-forwarded-by", "x-oauth-preferred_username", "x-oauth-realm"]
+opendistro_security.multitenancy.tenants.enable_private: false
+opendistro_security.multitenancy.tenants.enable_global: false
+opendistro_security.auth.type: "basicauth"
+
+console.enabled: false
+
+map.tilemap.url: https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png
+map.tilemap.options.maxZoom: 18

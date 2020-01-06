@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
+# Copyright (C) 2019 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
 # regarding copyright ownership.
@@ -18,9 +18,19 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-
 set -Eeuo pipefail
 
-docker-compose -f ./docker-compose-test.yml up -d elasticsearch kibana
-docker-compose -f ./docker-compose-test.yml run --rm consumer-test test_integration
-docker-compose -f docker-compose-test.yml down
+# Build docker images
+IMAGE_REPO='ehealthafrica'
+COMPOSE_PATH='docker-compose.yml'
+VERSION='local'
+
+APP_NAME="elasticsearch-consumer"
+AETHER_APP="aether-${APP_NAME}"
+echo "$AETHER_APP"
+echo "version: $VERSION"
+# echo "TRAVIS_COMMIT: $TRAVIS_COMMIT"
+echo "Building Docker image ${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
+docker-compose -f $COMPOSE_PATH build --build-arg VERSION=$VERSION $APP_NAME
+
+docker tag ${AETHER_APP} "${IMAGE_REPO}/${AETHER_APP}:${VERSION}"

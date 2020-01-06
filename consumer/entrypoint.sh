@@ -19,22 +19,24 @@ show_help() {
     """
 }
 
+PYTEST="pytest --cov-report term-missing --cov=app --cov-append -p no:cacheprovider"
+
 test_flake8() {
     flake8 /code/. --config=/code/conf/extras/flake8.cfg
 }
 
 test_unit() {
-    pytest -m unit
+    $PYTEST -m unit
     cat /code/conf/extras/good_job.txt
-    rm -R .pytest_cache
-    rm -rf tests/__pycache__
+    rm -R .pytest_cache || true
+    rm -rf tests/__pycache__ || true
 }
 
 test_integration() {
-    pytest -m integration
+    $PYTEST -m integration
     cat /code/conf/extras/good_job.txt
-    rm -R .pytest_cache
-    rm -rf tests/__pycache__
+    rm -R .pytest_cache || true
+    rm -rf tests/__pycache__ || true
 }
 
 case "$1" in

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
+# Copyright (C) 2019 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
 # regarding copyright ownership.
@@ -18,20 +18,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import logging
-from . import config
+from deepmerge import always_merger
+from hashlib import md5
+import json
 
-consumer_config = config.get_consumer_config()
+
+def hash(obj):
+    try:
+        _sorted = json.dumps(obj, sort_keys=True)
+    except Exception:
+        _sorted = str(obj)
+    encoded = _sorted.encode('utf-8')
+    hash = str(md5(encoded).hexdigest())[:16]  # 64bit hash
+    return hash
 
 
-def get_module_logger(mod_name):
-    logger = logging.getLogger(mod_name)
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s [%(name)-12s] %(levelname)-8s %(message)s')
-    handler.setFormatter(formatter)
-    logger.handlers = []
-    logger.addHandler(handler)
-    level = logging.getLevelName(consumer_config.get('log_level'))
-    logger.setLevel(level)
-    return logger
+def merge_dicts(base, new):
+    return always_merger.merge(base, new)

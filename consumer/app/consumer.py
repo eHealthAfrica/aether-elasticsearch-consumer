@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
+# Copyright (C) 2019 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
 # regarding copyright ownership.
@@ -18,17 +18,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from time import sleep
-from app.consumer import ElasticsearchConsumer
-from app.config import consumer_config, kafka_config
+from aet.consumer import BaseConsumer
+from aet.logger import get_logger
 
-if __name__ == '__main__':
-    manager = ElasticsearchConsumer(consumer_config, kafka_config)
-    while True:
-        try:
-            for x in range(10):
-                sleep(1)
-            else:
-                break
-        except KeyboardInterrupt:
-            manager.stop()
+from app import artifacts
+
+LOG = get_logger('MAIN')
+
+
+class ElasticsearchConsumer(BaseConsumer):
+
+    def __init__(self, CON_CONF, KAFKA_CONF, redis_instance=None):
+        self.job_class = artifacts.ESJob
+        super(ElasticsearchConsumer, self).__init__(
+            CON_CONF,
+            KAFKA_CONF,
+            self.job_class,
+            redis_instance=redis_instance
+        )

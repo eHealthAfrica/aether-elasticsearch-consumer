@@ -8,13 +8,15 @@
 #                                                                              					#
 #################################################################################################
 
-aet.consumer
-elasticsearch>=5.0.0,<6.0.0
-blessings
+aet.consumer >= 3.3.3
+aether-python
+deepmerge
+eha_jsonpath
+elasticsearch # >=5.0.0,<6.0.0
 flake8
 flake8-quotes
-jsonpath_ng
-mock
 pytest
+pytest-cov
 pytest-runner
 requests
+responses
