@@ -91,13 +91,6 @@ def test__get_es_types_from_schema(ComplexSchema):
     assert(len(list(res.keys())) == 54)
 
 
-# @pytest.mark.integration
-# def test__register_es_index():
-#     # TODO add test
-#     # Only ES functionality
-#     pass
-
-
 @pytest.mark.unit
 def test__make_kibana_index(AutoGenSchema):
     name = 'kibana-index-name'

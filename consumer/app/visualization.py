@@ -19,7 +19,7 @@
 # under the License.
 
 import json
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Mapping
 
 from aet.logger import get_logger
 from aether.python.avro.schema import Node
@@ -42,8 +42,9 @@ def format_viz(fn):
         alias = kwargs['alias']
         node = kwargs['node']
         field_name = kwargs['field_name']
+        sub = kwargs['subscription']
         label = node.doc if hasattr(node, 'doc') else node.name
-        vis_state = fn(title, alias, label, field_name, node)
+        vis_state = fn(title, alias, label, field_name, node, sub)
         source_search = {
             'index': alias,
             'query': {
@@ -74,7 +75,8 @@ def get_map(
     alias: str,
     label: str,
     field_name: str,
-    node: Node
+    node: Node,
+    subscription: Mapping[str, Any]
 
 ):
     # MAP is a special case because the field name in the schema is incorrect
@@ -82,8 +84,8 @@ def get_map(
     # creation time.
 
     # lookup actual field name
-    geo_field_name = consumer_config.get(
-        'autoconfig_settings').get(
+    geo_field_name = subscription.get(
+        'es_options', {}).get(
         'geo_point_name', None
     )
     if not geo_field_name:
@@ -156,7 +158,8 @@ def get_table_histogram(  # numeric
     alias: str,
     label: str,
     field_name: str,
-    node: Node
+    node: Node,
+    subscription: Mapping[str, Any]
 
 ):
     vis_state = {
@@ -205,7 +208,8 @@ def get_pie_chart(
     alias: str,
     label: str,
     field_name: str,
-    node: Node
+    node: Node,
+    subscription: Mapping[str, Any]
 
 ):
     vis_state = {
@@ -261,7 +265,8 @@ def get_table_buckets(  # text only
     alias: str,
     label: str,
     field_name: str,
-    node: Node
+    node: Node,
+    subscription: Mapping[str, Any]
 
 ):
     vis_state = {
@@ -315,7 +320,8 @@ def get_barchart(  # numeric histogram / as bars
     alias: str,
     label: str,
     field_name: str,
-    node: Node
+    node: Node,
+    subscription: Mapping[str, Any]
 
 ):
     vis_state = {
@@ -414,18 +420,6 @@ def get_barchart(  # numeric histogram / as bars
 
     return vis_state
 
-# @format_viz
-# def get_(
-#     title: str,
-#     alias: str,
-#     label: str,
-#     field_name: str,
-#     node: Node
-
-# ):
-#     vis_state = {}
-#     return vis_state
-
 
 VIS_MAP = {
     'geopoint': [
@@ -492,6 +486,7 @@ def schema_defined_visualizations(
     alias_name: str,
     alias_index: str,
     node: Node,
+    subscription: Mapping[str, Any],  # Subscription.definition
 ) -> Dict[str, Any]:
     visualizations = {}
     paths = [i for i in node.find_children(
@@ -526,7 +521,8 @@ def schema_defined_visualizations(
             title=title,
             alias=alias_index,
             field_name=field_name,
-            node=target_node
+            node=target_node,
+            subscription=subscription
         )
         visualizations[_id] = res
     return visualizations
@@ -536,6 +532,7 @@ def auto_visualizations(
     alias_name: str,
     alias_index: str,
     node: Node,
+    subscription: Mapping[str, Any],  # Subscription.definition
     path_filters: List[Callable[[str], bool]] = __default_path_filters()
 ) -> Dict[str, Any]:
     LOG.debug(f'Getting visualizations for {alias_name}')
@@ -578,7 +575,8 @@ def auto_visualizations(
                     title=title,
                     alias=alias_index,
                     field_name=field_name,
-                    node=node.get_node(path)
+                    node=node.get_node(path),
+                    subscription=subscription
                 )
                 visualizations[_id] = res
     return visualizations

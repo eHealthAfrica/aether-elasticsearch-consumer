@@ -10,8 +10,6 @@ services:
       service: es-consumer-base
     volumes:
       - ./consumer/tests:/code/tests
-    env_file:
-     - test.env
     environment:
       TENANCY_HEADER: x-oauth-realm
       REDIS_DB: 0
@@ -26,10 +24,13 @@ services:
       ELASTICSEARCH_USER: admin
       ELASTICSEARCH_PASSWORD: admin
       
+      KAFKA_URL: ${KAFKA_URL}
       SECURITY.PROTOCOL: SASL_SSL
       SASL.MECHANISM: PLAIN
+      SASL.USERNAME: ${KAFKA_SASL_USERNAME}
+      SASL.PASSWORD: ${KAFKA_SASL_PASSWORD}
       
-      CONSUMER_PORT: 9099
+      EXPOSE_PORT: 9013
       LOG_LEVEL: "DEBUG"
       ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
@@ -38,7 +39,7 @@ services:
     
 
   elasticsearch:
-    image: amazon/opendistro-for-elasticsearch:${AMAZON_ES_VERSION:-1.2.0}
+    image: amazon/opendistro-for-elasticsearch:${AMAZON_ES_VERSION:-1.2.1}
     environment:
       discovery.type: single-node
       opendistro_security.ssl.http.enabled: 'false'
@@ -50,7 +51,7 @@ services:
 
 
   kibana:
-    image: amazon/opendistro-for-elasticsearch-kibana:${AMAZON_ES_VERSION:-1.2.0}
+    image: amazon/opendistro-for-elasticsearch-kibana:${AMAZON_ES_VERSION:-1.2.1}
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       ELASTICSEARCH_PRESERVEHOST: 'false'

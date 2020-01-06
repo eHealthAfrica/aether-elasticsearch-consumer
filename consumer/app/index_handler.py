@@ -405,14 +405,16 @@ def merge_kibana_artifacts(
         visualizations = auto_visualizations(
             alias_name,
             alias_index,
-            Node(schema)
+            Node(schema),
+            subscription
         )
     elif auto_viz_flag == 'schema':
         LOG.info('Only creating vis from @aether_default_visualization')
         visualizations = schema_defined_visualizations(
             alias_name,
             alias_index,
-            Node(schema)
+            Node(schema),
+            subscription
         )
     else:
         LOG.info('Not creating visualizations')
