@@ -7,7 +7,7 @@ networks:
 
 services:
 
-  consumer:
+  elasticsearch-consumer:
     extends:
       file: docker-compose-base.yml
       service: es-consumer-base
