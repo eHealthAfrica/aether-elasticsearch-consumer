@@ -19,7 +19,6 @@ You can also set the default masking and message filtering settings here, but if
 
 ```json
 {
-    "bootstrap_servers" : ["kafka:29092"], 
     "auto_offset_reset" : "earliest",
     "aether_emit_flag_required" : false,
     "aether_masking_schema_levels" : ["false", "true"],
@@ -116,4 +115,11 @@ If the consumer is configured to use a default, multi-tenanted Elasticsearch/Kib
     "local_elasticsearch": "default",
     "subscription": ["sub-test"]
 }
+```
+
+### Control and Artifact Functions
+
+The Aether Consumer SDK allows exposure of functionality on a per Job or per Resource basis. You can query for a list of available functions on any of the artifacts by hitting its `describe` endpoint. For example; `/job/describe` yields:
+
+```json
 ```
