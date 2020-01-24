@@ -228,7 +228,7 @@ class LocalKibanaInstance(KibanaInstance):
         self.session = requests.Session()
         headers = {
             'x-forwarded-for': '255.0.0.1',
-            'x-oauth-preferred_username': 'aether-consumer',
+            'x-oauth-preferred_username': 'user',
             'x-oauth-realm': self.tenant,
             'kbn-xsrf': 'f'
         }
