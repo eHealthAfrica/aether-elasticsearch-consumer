@@ -88,7 +88,6 @@ def get_kafka_config():
                 kafka_config[name] = kafka_config.get(alias)
             else:
                 kafka_config[name] = kafka_config.get(name)
-    print(kafka_config)
     return kafka_config
 
 
