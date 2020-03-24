@@ -287,7 +287,7 @@ class ESJob(BaseJob):
         self._previous_topics = []
         self.log_stack = []
         self.log = callback_logger('JOB', self.log_stack, 100)
-        self.group_name = f'{self.tenant}.{self._id}'
+        self.group_name = f'{self.tenant}.esconsumer.{self._id}'
         self.sleep_delay: float = 0.5
         self.report_interval: int = 100
         args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}

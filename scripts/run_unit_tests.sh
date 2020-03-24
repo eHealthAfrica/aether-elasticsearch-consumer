@@ -20,5 +20,7 @@
 #
 set -Eeuo pipefail
 
-
+docker-compose -f docker-compose-test.yml up -d redis
 docker-compose -f docker-compose-test.yml run --rm consumer-test test_unit
+docker-compose -f docker-compose-test.yml kill redis
+docker-compose -f docker-compose-test.yml rm -f redis

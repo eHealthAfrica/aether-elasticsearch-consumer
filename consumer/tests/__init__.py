@@ -25,8 +25,7 @@ import requests
 from time import sleep
 from uuid import uuid4
 
-import birdisle
-import birdisle.redis
+from redis import Redis
 from spavro.schema import parse
 
 from aet.kafka import KafkaConsumer
@@ -80,54 +79,43 @@ def first(path, obj):
 
 @pytest.mark.unit
 @pytest.fixture(scope='session')
-def birdisle_server():
-    password = config.get_consumer_config().get('REDIS_PASSWORD')
-    server = birdisle.Server(f'requirepass {password}')
-    yield server
-    server.close()
-
-
-@pytest.mark.unit
-@pytest.fixture(scope='session')
-def Birdisle(birdisle_server):
-    birdisle.redis.LocalSocketConnection.health_check_interval = 0
-    password = config.get_consumer_config().get('REDIS_PASSWORD')
-    r = birdisle.redis.StrictRedis(server=birdisle_server, password=password)
-    r.config_set('notify-keyspace-events', 'KEA')
-    return r
+def RedisInstance():
+    password = os.environ.get('REDIS_PASSWORD')
+    r = Redis(host='redis', password=password)
+    yield r
 
 
 @pytest.mark.unit
 @pytest.mark.integration
 @pytest.fixture(scope='session')
-def ElasticsearchConsumer(birdisle_server, Birdisle):
+def ElasticsearchConsumer(RedisInstance):
     settings = config.get_consumer_config()
-    c = consumer.ElasticsearchConsumer(settings, None, Birdisle)
+    c = consumer.ElasticsearchConsumer(settings, None, RedisInstance)
     yield c
     c.stop()
 
 
-# @pytest.mark.integration
 @pytest.fixture(scope='session', autouse=True)
 def create_remote_kafka_assets(request, sample_generator, *args):
     # @mark annotation does not work with autouse=True.
     if 'integration' not in request.config.invocation_params.args:
         LOG.debug(f'NOT creating Kafka Assets')
-        # return
-    LOG.debug(f'Creating Kafka Assets')
-    kafka_security = config.get_kafka_admin_config()
-    kadmin = get_admin_client(kafka_security)
-    new_topic = f'{TENANT}.{TEST_TOPIC}'
-    create_topic(kadmin, new_topic)
-    GENERATED_SAMPLES[new_topic] = []
-    producer = get_producer(kafka_security)
-    schema = parse(json.dumps(ANNOTATED_SCHEMA))
-    for subset in sample_generator(max=100, chunk=10):
-        GENERATED_SAMPLES[new_topic].extend(subset)
-        produce(subset, schema, new_topic, producer)
-    yield None  # end of work before clean-up
-    LOG.debug(f'deleting topic: {new_topic}')
-    delete_topic(kadmin, new_topic)
+        yield None
+    else:
+        LOG.debug(f'Creating Kafka Assets')
+        kafka_security = config.get_kafka_admin_config()
+        kadmin = get_admin_client(kafka_security)
+        new_topic = f'{TENANT}.{TEST_TOPIC}'
+        create_topic(kadmin, new_topic)
+        GENERATED_SAMPLES[new_topic] = []
+        producer = get_producer(kafka_security)
+        schema = parse(json.dumps(ANNOTATED_SCHEMA))
+        for subset in sample_generator(max=100, chunk=10):
+            GENERATED_SAMPLES[new_topic].extend(subset)
+            produce(subset, schema, new_topic, producer)
+        yield None  # end of work before clean-up
+        LOG.debug(f'deleting topic: {new_topic}')
+        delete_topic(kadmin, new_topic)
 
 
 @pytest.fixture(scope='session', autouse=True)

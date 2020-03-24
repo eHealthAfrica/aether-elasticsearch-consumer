@@ -20,6 +20,6 @@
 #
 set -Eeuo pipefail
 
-docker-compose -f ./docker-compose-test.yml up -d elasticsearch kibana
+docker-compose -f ./docker-compose-test.yml up -d elasticsearch kibana redis
 scripts/run_unit_tests.sh
 scripts/run_integration_tests.sh

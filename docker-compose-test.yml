@@ -15,28 +15,26 @@ services:
       REDIS_DB: 0
       REDIS_HOST: localhost
       REDIS_PORT: 6379
-      REDIS_PASSWORD: password
-      
+      # REDIS_PASSWORD: password
       CONSUMER_NAME: 'ES-TEST'
-      
+
       KIBANA_URL: http://kibana:5601/kibana-app
       ELASTICSEARCH_URL: elasticsearch:9200
       ELASTICSEARCH_USER: admin
       ELASTICSEARCH_PASSWORD: admin
-      
+
       KAFKA_URL: ${KAFKA_URL}
       SECURITY.PROTOCOL: SASL_SSL
       SASL.MECHANISM: PLAIN
-      SASL.USERNAME: ${KAFKA_SASL_USERNAME}
-      SASL.PASSWORD: ${KAFKA_SASL_PASSWORD}
-      
+      KAFKA_CONSUMER_USER: ${KAFKA_SASL_USERNAME}
+      KAFKA_CONSUMER_PASSWORD: ${KAFKA_SASL_PASSWORD}
+
       EXPOSE_PORT: 9013
       LOG_LEVEL: "DEBUG"
       ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
       ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
       STARTUP_CONNECTION_RETRY: 3
-    
 
   elasticsearch:
     image: amazon/opendistro-for-elasticsearch:${AMAZON_ES_VERSION:-1.2.1}
@@ -48,7 +46,6 @@ services:
       - ./conf/security.yml:/usr/share/elasticsearch/plugins/opendistro_security/securityconfig/config.yml
     ports:
       - 9200:9200
-
 
   kibana:
     image: amazon/opendistro-for-elasticsearch-kibana:${AMAZON_ES_VERSION:-1.2.1}
@@ -65,3 +62,11 @@ services:
       - elasticsearch
     ports:
       - 5601:5601
+
+  redis:
+    image: redis:alpine
+    # environment:
+    #   EXPOSE_PORT: 6379
+    #   LOG_LEVEL: debug
+    # ports:
+    #   - 6379:6379
