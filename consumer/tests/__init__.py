@@ -48,6 +48,7 @@ from aether.python.avro.schema import Node
 from app import config
 from app.fixtures import examples
 from app.processor import ESItemProcessor
+from app.artifacts import Subscription
 
 from app import consumer
 
@@ -220,6 +221,13 @@ def RequestClientT2():
 @pytest.fixture(scope='session')
 def SubscriptionDefinition():
     return examples.SUBSCRIPTION
+
+
+@pytest.mark.unit
+@pytest.mark.integration
+@pytest.fixture(scope='function')
+def MockSubscription(SubscriptionDefinition):
+    yield Subscription(TENANT, SubscriptionDefinition)
 
 
 @pytest.mark.unit

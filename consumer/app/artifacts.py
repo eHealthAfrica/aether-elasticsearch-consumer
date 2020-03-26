@@ -244,7 +244,7 @@ class Subscription(BaseResource):
     def _handles_topic(self, topic, tenant):
         topic_str = self.definition.topic_pattern
         # remove tenant information
-        no_tenant = topic.lstrip(f'{tenant}.')
+        no_tenant = topic[:].replace(f'{tenant}.', '', 1)
         return fnmatch.fnmatch(no_tenant, topic_str)
 
 
