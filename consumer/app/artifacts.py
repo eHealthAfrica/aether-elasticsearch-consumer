@@ -447,7 +447,7 @@ class ESJob(BaseJob):
             self.log.error(f'No topic options for {subscription.id}| {aer}')
 
     def _name_from_topic(self, topic):
-        return topic.lstrip(f'{self.tenant}.')
+        return topic[:].replace(f'{self.tenant}.', '', 1)
 
     def _update_topic(self, topic, schema: Mapping[Any, Any]):
         self.log.debug(f'{self.tenant} is updating topic: {topic}')
