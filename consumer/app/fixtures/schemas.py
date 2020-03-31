@@ -370,11 +370,10 @@ SUBSCRIPTION = '''
         },
         "auto_timestamp": {
           "$id": "#/properties/es_options/properties/auto_timestamp",
-          "type": "boolean",
+          "type": ["null", "string", "boolean"],
           "title": "The Auto_timestamp Schema",
-          "default": false,
           "examples": [
-            true
+            "my-timestamp"
           ]
         },
         "geo_point_creation": {
