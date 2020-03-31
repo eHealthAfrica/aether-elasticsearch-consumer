@@ -112,7 +112,7 @@ def test__api_get_schema(ElasticsearchConsumer, RequestClientT1, endpoint):
 
 @pytest.mark.unit
 def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestClientT2):
-    doc_id = examples.KIBANA_INSTANCE.get("id")
+    doc_id = examples.KIBANA_INSTANCE.get('id')
     res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
     assert(res.json() is True)
     res = RequestClientT1.get(f'{URL}/kibana/list')
@@ -137,7 +137,7 @@ def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestC
 
 @pytest.mark.unit
 def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
-    doc_id = examples.ES_INSTANCE.get("id")
+    doc_id = examples.ES_INSTANCE.get('id')
     res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
     assert(res.json() is True)
     res = RequestClientT1.get(f'{URL}/elasticsearch/list')
@@ -162,7 +162,7 @@ def test__api_resource_es_local(ElasticsearchConsumer, RequestClientT1):
 
 @pytest.mark.integration
 def test__api_resource_es_foreign(ElasticsearchConsumer, RequestClientT1):
-    doc_id = examples.ES_INSTANCE.get("id")
+    doc_id = examples.ES_INSTANCE.get('id')
     res = RequestClientT1.post(f'{URL}/elasticsearch/add', json=examples.ES_INSTANCE)
     assert(res.json() is True)
     res = RequestClientT1.get(f'{URL}/elasticsearch/list')
@@ -170,6 +170,10 @@ def test__api_resource_es_foreign(ElasticsearchConsumer, RequestClientT1):
     res = RequestClientT1.get(f'{URL}/elasticsearch/test_connection?id={doc_id}')
     res.raise_for_status()
     assert(res.json().get('cluster_name') is not None)
+    # test masking
+    res = RequestClientT1.get(f'{URL}/elasticsearch/get?id={doc_id}')
+    password = res.json().get('password')
+    assert(password != examples.ES_INSTANCE.get('password'))
 
 
 @pytest.mark.integration
@@ -186,7 +190,7 @@ def test__api_resource_kibana_local(ElasticsearchConsumer, RequestClientT1):
 
 @pytest.mark.integration
 def test__api_resource_kibana_foreign(ElasticsearchConsumer, RequestClientT1):
-    doc_id = examples.KIBANA_INSTANCE.get("id")
+    doc_id = examples.KIBANA_INSTANCE.get('id')
     res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
     assert(res.json() is True)
     res = RequestClientT1.get(f'{URL}/kibana/list')
