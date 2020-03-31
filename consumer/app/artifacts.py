@@ -42,7 +42,7 @@ from elasticsearch.exceptions import TransportError as ESTransportError
 from aet.exceptions import ConsumerHttpException
 from aet.job import BaseJob, JobStatus
 from aet.kafka import KafkaConsumer, FilterConfig, MaskConfig
-from aet.logger import callback_logger, get_logger
+from aet.logger import get_logger
 from aet.resource import BaseResource, Draft7Validator, lock
 
 # Aether python lib
@@ -69,6 +69,7 @@ class ESInstance(BaseResource):
     public_actions = BaseResource.public_actions + [
         'test_connection'
     ]
+    _masked_fields: List[str] = ['$.password']
 
     session: Elasticsearch = None
 
@@ -117,6 +118,7 @@ class LocalESInstance(ESInstance):
     jobs_path = '$.local_elasticsearch'
     name = 'local_elasticsearch'
     public_actions = ESInstance.public_actions
+    _masked_fields: List[str] = []
 
     @classmethod
     def _validate(cls, definition) -> bool:
@@ -154,6 +156,7 @@ class KibanaInstance(BaseResource):
     public_actions = BaseResource.public_actions + [
         'test_connection'
     ]
+    _masked_fields: List[str] = ['$.password']
 
     session: requests.Session = None
 
@@ -211,7 +214,7 @@ class LocalKibanaInstance(KibanaInstance):
     schema = schemas.LOCAL_KIBANA_INSTANCE
     jobs_path = '$.local_kibana'
     name = 'local_kibana'
-    # public_actions = KibanaInstance.public_actions
+    _masked_fields: List[str] = []
 
     @classmethod
     def _validate(cls, definition) -> bool:
@@ -255,7 +258,6 @@ class ESJob(BaseJob):
     schema = schemas.ES_JOB
 
     public_actions = BaseJob.public_actions + [
-        'get_logs',
         'list_topics',
         'list_subscribed_topics'
     ]
@@ -285,8 +287,6 @@ class ESJob(BaseJob):
         self._routes = {}
         self._subscriptions = []
         self._previous_topics = []
-        self.log_stack = []
-        self.log = callback_logger('JOB', self.log_stack, 100)
         self.group_name = f'{self.tenant}.esconsumer.{self._id}'
         self.sleep_delay: float = 0.5
         self.report_interval: int = 100
@@ -567,15 +567,3 @@ class ESJob(BaseJob):
         A List of topics currently subscribed to by this job
         '''
         return list(self.subscribed_topics.values())
-
-    # public
-    def get_logs(self, *arg, **kwargs):
-        '''
-        A list of the last 100 log entries from this job in format
-        [
-            (timestamp, log_level, message),
-            (timestamp, log_level, message),
-            ...
-        ]
-        '''
-        return self.log_stack[:]
