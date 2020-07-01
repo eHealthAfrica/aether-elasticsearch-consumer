@@ -8,7 +8,7 @@
 # then run 'docker-compose run myconsumer pip_freeze'                                   #
 #                                                                              		    #
 #########################################################################################
-aet.consumer==3.5.0
+aet.consumer==3.8.0
 aether.python==1.0.17
 atomicwrites==1.1.5
 attrs==18.1.0
@@ -24,10 +24,10 @@ coverage==5.0
 decorator==4.3.0
 deepmerge==0.1.0
 eha-jsonpath==0.5.1
-elasticsearch==7.6.0
+elasticsearch==7.8.0
 entrypoints==0.3
-flake8==3.7.9
-flake8-quotes==3.0.0
+flake8==3.8.3
+flake8-quotes==3.2.0
 Flask==1.1.1
 idna==2.7
 importlib-metadata==0.17
@@ -45,17 +45,17 @@ pbr==4.0.3
 pluggy==0.12.0
 ply==3.11
 py==1.5.3
-pycodestyle==2.5.0
+pycodestyle==2.6.0
 pycparser==2.19
-pyflakes==2.1.1
+pyflakes==2.2.0
 pyparsing==2.4.0
 pyrsistent==0.15.4
-pytest==5.4.1
-pytest-cov==2.8.1
+pytest==5.4.3
+pytest-cov==2.10.0
 pytest-runner==5.2
 redis==3.3.8
-requests==2.23.0
-responses==0.10.12
+requests==2.24.0
+responses==0.10.15
 six==1.11.0
 soupsieve==1.9.3
 spavro==1.1.17

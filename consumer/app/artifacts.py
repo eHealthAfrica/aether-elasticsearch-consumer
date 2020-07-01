@@ -23,6 +23,7 @@ import json
 import logging
 import requests
 from time import sleep
+import traceback
 from typing import (
     Any,
     Callable,
@@ -352,7 +353,6 @@ class ESJob(BaseJob):
             sleep(self.sleep_delay * 10)
             return []
         except Exception as err:
-            import traceback
             traceback_str = ''.join(traceback.format_tb(err.__traceback__))
             self.log.critical(f'unhandled error: {str(err)} | {traceback_str}')
             raise err
