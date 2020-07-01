@@ -288,7 +288,7 @@ def SubscriptionDefinition():
 @pytest.mark.integration
 @pytest.fixture(scope='function')
 def MockSubscription(SubscriptionDefinition):
-    yield Subscription(TENANT, SubscriptionDefinition)
+    yield Subscription(TENANT, SubscriptionDefinition, None)
 
 
 @pytest.mark.unit
