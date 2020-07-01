@@ -23,6 +23,7 @@ import json
 import logging
 import requests
 from time import sleep
+import traceback
 from typing import (
     Any,
     Callable,
@@ -352,7 +353,6 @@ class ESJob(BaseJob):
             sleep(self.sleep_delay * 10)
             return []
         except Exception as err:
-            import traceback
             traceback_str = ''.join(traceback.format_tb(err.__traceback__))
             self.log.critical(f'unhandled error: {str(err)} | {traceback_str}')
             raise err
@@ -506,7 +506,7 @@ class ESJob(BaseJob):
         self._doc_types[topic] = doc_type
         self._processors[topic] = ESItemProcessor(topic, instr)
         self._processors[topic].load_avro(schema)
-        self. _routes[topic] = self._processors[topic].create_route()
+        self._routes[topic] = self._processors[topic].create_route()
 
     def submit(self, index_name, doc_type, doc, topic, route_getter):
         es = self._job_elasticsearch().get_session()
@@ -514,34 +514,38 @@ class ESJob(BaseJob):
         if parent:  # _parent field can only be in metadata apparently
             del doc['_parent']
         route = route_getter(doc)
+        _id = doc.get('id')
         try:
             es.create(
                 index=index_name,
-                id=doc.get('id'),
+                id=_id,
                 routing=route,
                 doc_type=doc_type,
                 body=doc
             )
             self.log.debug(
                 f'ES CREATE-OK [{index_name}:{self.group_name}]'
-                f' -> {doc.get("id")}')
+                f' -> {_id}')
 
         except (Exception, ESTransportError) as ese:
             self.log.debug('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
-                route = self. _routes[topic](doc)
+                route = self._routes[topic](doc)
                 es.update(
                     index=index_name,
-                    id=doc.get('id'),
+                    id=_id,
                     routing=route,
                     doc_type=doc_type,
-                    body=doc
+                    body={'doc': doc}
                 )
                 self.log.debug(
                     f'ES UPDATE-OK [{index_name}:{self.group_name}]'
-                    f' -> {doc.get("id")}')
-            except ESTransportError:
-                self.log.info(f'''conflict!, ignoring doc with id {doc.get('id', 'unknown')}''')
+                    f' -> {_id}')
+            except ESTransportError as ese2:
+                self.log.info(
+                    f'''conflict!, ignoring doc with id {_id}'''
+                    f'{ese2}'
+                )
 
     # public
     def list_topics(self, *args, **kwargs):
