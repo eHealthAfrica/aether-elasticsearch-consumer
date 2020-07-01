@@ -114,3 +114,16 @@ def test__merge_dicts():
     ]
     for a, b, c in cases:
         assert(utils.merge_dicts(a, b) == c)
+
+
+@pytest.mark.unit
+def test__subscription_handles_topic(MockSubscription):
+    tests = [
+        ('abc', 'cde', 'abc.cde', True),
+        ('abc', 'cd*', 'abc.cde', True),
+        ('abc', 'cde', 'abc.bde', False)
+    ]
+    for tenant, topic_pattern, test, xpct in tests:
+        MockSubscription.tenant = tenant
+        MockSubscription.definition['topic_pattern'] = topic_pattern
+        assert MockSubscription._handles_topic(test, tenant) is xpct

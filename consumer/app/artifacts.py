@@ -23,6 +23,7 @@ import json
 import logging
 import requests
 from time import sleep
+import traceback
 from typing import (
     Any,
     Callable,
@@ -42,7 +43,7 @@ from elasticsearch.exceptions import TransportError as ESTransportError
 from aet.exceptions import ConsumerHttpException
 from aet.job import BaseJob, JobStatus
 from aet.kafka import KafkaConsumer, FilterConfig, MaskConfig
-from aet.logger import callback_logger, get_logger
+from aet.logger import get_logger
 from aet.resource import BaseResource, Draft7Validator, lock
 
 # Aether python lib
@@ -69,6 +70,7 @@ class ESInstance(BaseResource):
     public_actions = BaseResource.public_actions + [
         'test_connection'
     ]
+    _masked_fields: List[str] = ['$.password']
 
     session: Elasticsearch = None
 
@@ -117,6 +119,7 @@ class LocalESInstance(ESInstance):
     jobs_path = '$.local_elasticsearch'
     name = 'local_elasticsearch'
     public_actions = ESInstance.public_actions
+    _masked_fields: List[str] = []
 
     @classmethod
     def _validate(cls, definition) -> bool:
@@ -154,6 +157,7 @@ class KibanaInstance(BaseResource):
     public_actions = BaseResource.public_actions + [
         'test_connection'
     ]
+    _masked_fields: List[str] = ['$.password']
 
     session: requests.Session = None
 
@@ -211,7 +215,7 @@ class LocalKibanaInstance(KibanaInstance):
     schema = schemas.LOCAL_KIBANA_INSTANCE
     jobs_path = '$.local_kibana'
     name = 'local_kibana'
-    # public_actions = KibanaInstance.public_actions
+    _masked_fields: List[str] = []
 
     @classmethod
     def _validate(cls, definition) -> bool:
@@ -244,7 +248,7 @@ class Subscription(BaseResource):
     def _handles_topic(self, topic, tenant):
         topic_str = self.definition.topic_pattern
         # remove tenant information
-        no_tenant = topic.lstrip(f'{tenant}.')
+        no_tenant = topic[:].replace(f'{tenant}.', '', 1)
         return fnmatch.fnmatch(no_tenant, topic_str)
 
 
@@ -255,7 +259,6 @@ class ESJob(BaseJob):
     schema = schemas.ES_JOB
 
     public_actions = BaseJob.public_actions + [
-        'get_logs',
         'list_topics',
         'list_subscribed_topics'
     ]
@@ -285,9 +288,7 @@ class ESJob(BaseJob):
         self._routes = {}
         self._subscriptions = []
         self._previous_topics = []
-        self.log_stack = []
-        self.log = callback_logger('JOB', self.log_stack, 100)
-        self.group_name = f'{self.tenant}.{self._id}'
+        self.group_name = f'{self.tenant}.esconsumer.{self._id}'
         self.sleep_delay: float = 0.5
         self.report_interval: int = 100
         args = {k.lower(): v for k, v in KAFKA_CONFIG.copy().items()}
@@ -352,7 +353,6 @@ class ESJob(BaseJob):
             sleep(self.sleep_delay * 10)
             return []
         except Exception as err:
-            import traceback
             traceback_str = ''.join(traceback.format_tb(err.__traceback__))
             self.log.critical(f'unhandled error: {str(err)} | {traceback_str}')
             raise err
@@ -447,7 +447,7 @@ class ESJob(BaseJob):
             self.log.error(f'No topic options for {subscription.id}| {aer}')
 
     def _name_from_topic(self, topic):
-        return topic.lstrip(f'{self.tenant}.')
+        return topic[:].replace(f'{self.tenant}.', '', 1)
 
     def _update_topic(self, topic, schema: Mapping[Any, Any]):
         self.log.debug(f'{self.tenant} is updating topic: {topic}')
@@ -506,7 +506,7 @@ class ESJob(BaseJob):
         self._doc_types[topic] = doc_type
         self._processors[topic] = ESItemProcessor(topic, instr)
         self._processors[topic].load_avro(schema)
-        self. _routes[topic] = self._processors[topic].create_route()
+        self._routes[topic] = self._processors[topic].create_route()
 
     def submit(self, index_name, doc_type, doc, topic, route_getter):
         es = self._job_elasticsearch().get_session()
@@ -514,34 +514,38 @@ class ESJob(BaseJob):
         if parent:  # _parent field can only be in metadata apparently
             del doc['_parent']
         route = route_getter(doc)
+        _id = doc.get('id')
         try:
             es.create(
                 index=index_name,
-                id=doc.get('id'),
+                id=_id,
                 routing=route,
                 doc_type=doc_type,
                 body=doc
             )
             self.log.debug(
                 f'ES CREATE-OK [{index_name}:{self.group_name}]'
-                f' -> {doc.get("id")}')
+                f' -> {_id}')
 
         except (Exception, ESTransportError) as ese:
             self.log.debug('Could not create doc because of error: %s\nAttempting update.' % ese)
             try:
-                route = self. _routes[topic](doc)
+                route = self._routes[topic](doc)
                 es.update(
                     index=index_name,
-                    id=doc.get('id'),
+                    id=_id,
                     routing=route,
                     doc_type=doc_type,
-                    body=doc
+                    body={'doc': doc}
                 )
                 self.log.debug(
                     f'ES UPDATE-OK [{index_name}:{self.group_name}]'
-                    f' -> {doc.get("id")}')
-            except ESTransportError:
-                self.log.info(f'''conflict!, ignoring doc with id {doc.get('id', 'unknown')}''')
+                    f' -> {_id}')
+            except ESTransportError as ese2:
+                self.log.info(
+                    f'''conflict!, ignoring doc with id {_id}'''
+                    f'{ese2}'
+                )
 
     # public
     def list_topics(self, *args, **kwargs):
@@ -567,15 +571,3 @@ class ESJob(BaseJob):
         A List of topics currently subscribed to by this job
         '''
         return list(self.subscribed_topics.values())
-
-    # public
-    def get_logs(self, *arg, **kwargs):
-        '''
-        A list of the last 100 log entries from this job in format
-        [
-            (timestamp, log_level, message),
-            (timestamp, log_level, message),
-            ...
-        ]
-        '''
-        return self.log_stack[:]

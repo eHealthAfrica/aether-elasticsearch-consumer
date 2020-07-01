@@ -58,7 +58,7 @@ SUBSCRIPTION = {
     },
     'es_options': {
         'alias_name': 'test',
-        'auto_timestamp': True,
+        'auto_timestamp': 'aes_ts',
         'geo_point_creation': True,
         'geo_point_name': 'geopoint'
     },
