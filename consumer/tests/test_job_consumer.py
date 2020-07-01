@@ -150,6 +150,22 @@ def test__api_resource_es(ElasticsearchConsumer, RequestClientT1):
 
 
 @pytest.mark.integration
+def test__document_conflict(MockESJob):
+    _index = 'test_conflict'
+    _id = 'a-doc-id'
+    _doc_type = 'a_type'
+    doc = {'id': _id, 'a': 'b'}
+
+    route_getter = MockESJob._routes['topic']
+    _es = MockESJob._job_elasticsearch().get_session()
+    MockESJob.submit(_index, _doc_type, doc, 'topic', route_getter)
+    doc['a'] = 'c'
+    MockESJob.submit(_index, _doc_type, doc, 'topic', route_getter)
+    updated = _es.get(_index, _id)
+    assert(json.dumps(updated['_source'], indent=2) == json.dumps(doc, indent=2))
+
+
+@pytest.mark.integration
 def test__api_resource_es_local(ElasticsearchConsumer, RequestClientT1):
     doc_id = examples.LOCAL_ES_INSTANCE.get("id")
     res = RequestClientT1.post(f'{URL}/local_elasticsearch/add', json=examples.LOCAL_ES_INSTANCE)

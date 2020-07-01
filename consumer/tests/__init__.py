@@ -25,6 +25,7 @@ import requests
 from time import sleep
 from uuid import uuid4
 
+from elasticsearch import Elasticsearch
 from redis import Redis
 from spavro.schema import parse
 
@@ -41,6 +42,7 @@ from aet.kafka_utils import (
 from aet.helpers import chunk_iterable
 from aet.logger import get_logger
 from aet.jsonpath import CachedParser
+from aet.resource import ResourceDefinition
 
 from aether.python.avro import generation
 from aether.python.avro.schema import Node
@@ -48,7 +50,7 @@ from aether.python.avro.schema import Node
 from app import config
 from app.fixtures import examples
 from app.processor import ESItemProcessor
-from app.artifacts import Subscription
+from app.artifacts import Subscription, ESJob, LocalESInstance
 
 from app import consumer
 
@@ -72,6 +74,51 @@ TEST_TOPIC = 'es_test_topic'
 GENERATED_SAMPLES = {}
 
 
+class _TestESInstance(LocalESInstance):
+    def __init__(self):
+        self.definition = ResourceDefinition({})
+        self.session = None
+
+    def update(self, definition):
+        pass
+
+    def get_session(self):
+        # have to redefine this because @lock requires a context which we don't want to use
+        if not self.definition.get('url'):
+            self.definition['url'] = CONSUMER_CONFIG.get('elasticsearch_url')
+            self.definition['user'] = CONSUMER_CONFIG.get('elasticsearch_user')
+            self.definition['password'] = CONSUMER_CONFIG.get('elasticsearch_password')
+        if self.session:
+            return self.session
+        url = self.definition.url
+        conn_info = {
+            'http_auth': [
+                self.definition.user,
+                self.definition.password
+            ],
+            'sniff_on_start': False
+        }
+        self.session = Elasticsearch(url, **conn_info)
+        # add an _id so we can check the instance
+        setattr(self.session, 'instance_id', str(uuid4()))
+        return self.session
+
+
+class _MockESJob(ESJob):
+
+    def __init__(self):
+        self.log = LOG
+        self._id = 'id'
+        self.tenant = TENANT
+        self.group_name = 'MockGroup'
+
+    def _setup(self):
+        pass
+
+    def _start(self):
+        pass
+
+
 # convenience function for jsonpath (used in test_index_handler)
 def first(path, obj):
     m = CachedParser.find(path, obj)
@@ -84,6 +131,20 @@ def RedisInstance():
     password = os.environ.get('REDIS_PASSWORD')
     r = Redis(host='redis', password=password)
     yield r
+
+
+@pytest.mark.unit
+@pytest.mark.integration
+@pytest.fixture(scope='session')
+def MockESJob():
+
+    def _fn(doc):
+        return 'route'
+
+    _job = _MockESJob()
+    _job._routes = {'topic': _fn}
+    _job._elasticsearch = _TestESInstance()
+    yield _job
 
 
 @pytest.mark.unit
