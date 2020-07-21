@@ -63,7 +63,7 @@ SUBSCRIPTION = {
         'geo_point_name': 'geopoint'
     },
     'kibana_options': {
-        'auto_vizualization': 'schema'  # enum ['full', 'schema', 'none']
+        'auto_visualization': 'schema'  # enum ['full', 'schema', 'none']
     },
     'visualizations': []  # manual visualizations
 }

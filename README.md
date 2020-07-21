@@ -19,14 +19,14 @@ You can also set the default masking and message filtering settings here, but if
 
 ```json
 {
-    "auto_offset_reset" : "earliest",
     "aether_emit_flag_required" : false,
-    "aether_masking_schema_levels" : ["false", "true"],
     "aether_masking_schema_emit_level": "false",
+    "aether_masking_schema_levels" : ["false", "true"],
+    "auto_offset_reset" : "earliest",
+    "consumer_timeout_ms": 17000,
     "heartbeat_interval_ms": 2500,
-    "session_timeout_ms": 18000,
     "request_timeout_ms": 20000,
-    "consumer_timeout_ms": 17000
+    "session_timeout_ms": 18000
 }
 ```
 
@@ -59,7 +59,7 @@ As with all consumers built on the SDK, tasks are driven by a Job which has a se
     "password": "admin"
 }
 ```
-#### Subscription 
+#### Subscription
 
 (post to /subscription/add as json)
 
@@ -83,7 +83,7 @@ As with all consumers built on the SDK, tasks are driven by a Job which has a se
         "geo_point_name": "geopoint"
     },
     "kibana_options": {
-        "auto_vizualization": "schema"
+        "auto_visualization": "schema"
     },
     "visualizations": []
 }
