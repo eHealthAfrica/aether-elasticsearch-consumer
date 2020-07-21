@@ -399,8 +399,8 @@ def merge_kibana_artifacts(
     index_hash = utils.hash(kibana_index)
     # TODO
     alias_index = f'{tenant}.{alias_name}'
-    auto_viz_flag = subscription.get('kibana_options', {}).get('auto_vizualization')
-    if auto_viz_flag == 'full':
+    auto_vis_flag = subscription.get('kibana_options', {}).get('auto_visualization')
+    if auto_vis_flag == 'full':
         LOG.info('Creating automatic visualizations')
         visualizations = auto_visualizations(
             alias_name,
@@ -408,7 +408,7 @@ def merge_kibana_artifacts(
             Node(schema),
             subscription
         )
-    elif auto_viz_flag == 'schema':
+    elif auto_vis_flag == 'schema':
         LOG.info('Only creating vis from @aether_default_visualization')
         visualizations = schema_defined_visualizations(
             alias_name,
