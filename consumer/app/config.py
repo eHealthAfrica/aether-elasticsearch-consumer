@@ -35,6 +35,7 @@ kafka_admin_uses = [
 
 # Mappings types to ES equivalents
 AVRO_TYPES = [
+    # avro -> type, [optional] format
     ('boolean', 'boolean'),
     ('int', 'integer'),
     ('long', 'long'),
@@ -47,7 +48,15 @@ AVRO_TYPES = [
     ('array', 'nested'),
     ('fixed', 'string'),
     ('object', 'object'),
-    ('array:string', 'object')
+    ('array:string', 'object'),
+]
+
+AVRO_LOGICAL_TYPES = [
+    # avro logical types
+    # # requires conversion (days since epoch [int] -> seconds)
+    ('date', ('date', 'epoch_second')),
+    ('timestamp-millis', ('date', 'epoch_millis')),
+    ('uuid', 'string'),
 ]
 
 AETHER_TYPES = [

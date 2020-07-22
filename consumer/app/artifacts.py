@@ -504,8 +504,8 @@ class ESJob(BaseJob):
         # update processor for type
         doc_type, instr = list(es_index['body']['mappings'].items())[0]
         self._doc_types[topic] = doc_type
-        self._processors[topic] = ESItemProcessor(topic, instr)
-        self._processors[topic].load_avro(schema)
+        self._processors[topic] = ESItemProcessor(topic, instr, node)
+        # self._processors[topic].load_avro(schema)
         self._routes[topic] = self._processors[topic].create_route()
 
     def submit(self, index_name, doc_type, doc, topic, route_getter):

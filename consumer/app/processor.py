@@ -18,14 +18,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
-import spavro
 
 from aet.logger import get_logger
 from aet.jsonpath import CachedParser
+from aether.python.utils import replace_nested
+from aether.python.avro.schema import Node
 
-from .config import get_consumer_config
+from .config import get_consumer_config, AVRO_TYPES
 
 
 LOG = get_logger('PROCESS')
@@ -37,22 +38,70 @@ ES_RESERVED = [
     '_routing', '_index', '_size', '_timestamp', '_ttl', '_version'
 ]
 
+AVRO_BASE_COERSCE = {
+    # avro_type -> handler
+}
+
+AVRO_LOGICAL_COERSCE = {
+    # logical_avro_type -> handler
+    # int(days since epoch) -> iso_string
+    'date': lambda x: (
+        (datetime(1970, 1, 1) + timedelta(days=x)).isoformat())[:10]
+}
+
 
 class ESItemProcessor(object):
 
-    def __init__(self, type_name, type_instructions):
+    @staticmethod
+    def _get_doc_field(doc, name):
+        if not name:
+            raise ValueError('Invalid field name')
+        doc = json.loads(json.dumps(doc))
+        try:
+            matches = CachedParser.find(name, doc)
+            if not matches:
+                raise ValueError(name, doc)
+            if len(matches) > 1:
+                LOG.warn(f'More than one value for {name} using first')
+            return matches[0].value
+        except ValueError as ve:
+            LOG.debug(f'Error getting field {name}')
+            raise ve
+
+    @staticmethod
+    def _coersce_field(doc, field_path=None, trans_fn=None, **kwargs):
+        try:
+            field_value = ESItemProcessor._get_doc_field(doc, field_path)
+            value = trans_fn(field_value)
+            replace_nested(doc, field_path.split('.'), value, False)
+            return doc
+        except Exception as err:
+            LOG.error(f'could not coersce field {field_path}: {err}')
+            return doc
+
+    @staticmethod
+    def _most_permissive_avro_type(_types):
+        if not isinstance(_types, list):
+            return _types
+        try:
+            return [_type for _type, _ in AVRO_TYPES if _type in _types][-1]
+        except IndexError:
+            return None
+
+    def __init__(self, type_name, type_instructions, schema: Node):
         self.pipeline = []
-        self.schema = None
-        self.schema_obj = None
+        self.schema = schema
+        # self.schema_obj = None
         self.es_type = type_name
         self.type_instructions = type_instructions
         self.topic_name = type_name
         self.has_parent = False
-
-    def load_avro(self, schema_obj):
-        self.schema = spavro.schema.parse(json.dumps(schema_obj))
-        self.schema_obj = schema_obj
         self.load()
+
+    # def load_avro(self, schema_obj):
+    #     self.schema = spavro.schema.parse(json.dumps(schema_obj))
+    #     self.schema_obj = schema_obj
+    #     self.load()
 
     def load(self):
         self.pipeline = []
@@ -98,6 +147,27 @@ class ESItemProcessor(object):
                           % (key, self.es_type))
             else:
                 LOG.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
+        for full_path in self.schema.iter_children():
+            _base_name = f'{self.schema.name}.'
+            if full_path.startswith(_base_name):
+                path = full_path[len(_base_name):]
+            else:
+                path = full_path
+            child = self.schema.get_node(full_path)
+            permissive_type = self._most_permissive_avro_type(child.avro_type)
+            if hasattr(child, 'logical_type') and child.logical_type in AVRO_LOGICAL_COERSCE:
+                cmd = {
+                    'function': '_coersce_field',
+                    'field_path': path,
+                    'trans_fn': AVRO_LOGICAL_COERSCE[child.logical_type]
+                }
+                self.pipeline.append(cmd)
+            elif permissive_type in AVRO_BASE_COERSCE:
+                cmd = {
+                    'function': '_coersce_field',
+                    'field_path': path,
+                    'trans_fn': AVRO_BASE_COERSCE[permissive_type]
+                }
         LOG.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
 
     def create_route(self):
@@ -160,36 +230,19 @@ class ESItemProcessor(object):
         doc[field_name] = str(datetime.now().isoformat())
         return doc
 
-    def _get_doc_field(self, doc, name):
-        if not name:
-            raise ValueError('Invalid field name')
-        doc = json.loads(json.dumps(doc))
-        try:
-            matches = CachedParser.find(name, doc)
-            if not matches:
-                raise ValueError(name, doc)
-            if len(matches) > 1:
-                LOG.warn('More than one value for %s in doc type %s, using first' %
-                         (name, self.es_type))
-            return matches[0].value
-        except ValueError as ve:
-            LOG.debug('Error getting field %s from doc type %s' %
-                      (name, self.es_type))
-            LOG.debug(doc)
-            raise ve
-
     def _find_geopoints(self):
+        LOG.debug([i for i in self.schema.iter_children()])
         res = {}
         latitude_fields = CONSUMER_CONFIG.get('latitude_fields')
         longitude_fields = CONSUMER_CONFIG.get('longitude_fields')
         LOG.debug(f'looking for matches in {latitude_fields} & {longitude_fields}')
         for lat in latitude_fields:
-            path = self.find_path_in_schema(self.schema_obj, lat)
+            path = self.find_path_in_schema(self.schema, lat)
             if path:
                 res['lat'] = path[0]  # Take the first Lat
                 break
         for lng in longitude_fields:
-            path = self.find_path_in_schema(self.schema_obj, lng)
+            path = self.find_path_in_schema(self.schema, lng)
             if path:
                 res['lon'] = path[0]  # Take the first Lng
                 break
@@ -198,35 +251,16 @@ class ESItemProcessor(object):
                 'location', self.es_type))
         return res
 
-    def find_path_in_schema(self, schema, test, previous_path='$'):
-        # Searches a schema document for matching instances of an element.
-        # Will look in nested objects. Aggregates matching paths.
-        # LOG.debug(f'search: {test}:{previous_path}')
-        matches = []
-        if isinstance(schema, list):
-            for _dict in schema:
-                types = _dict.get('type')
-                if not isinstance(types, list):
-                    types = [types]  # treat everything as a union
-                for _type in types:
-                    if not _type:  # ignore nulls in unions
-                        continue
-                    if isinstance(_type, dict):
-                        name = _dict.get('name')
-                        next_level = _type.get('fields')
-                        if next_level:
-                            matches.extend(
-                                self.find_path_in_schema(
-                                    next_level,
-                                    test,
-                                    f'{previous_path}.{name}'
-                                )
-                            )
-                    test_name = _dict.get('name', '').lower()
-                    if str(test_name) == str(test.lower()):
-                        return [f'{previous_path}.{test_name}']
-        elif schema.get('fields'):
-            matches.extend(
-                self.find_path_in_schema(schema.get('fields'), test, previous_path)
+    def find_path_in_schema(self, schema: Node, test):
+        LOG.debug(f'looking for {test}')
+        _base_name = f'{schema.name}.'
+        matches = [
+            i[len(_base_name):]
+            if i.startswith(_base_name)
+            else i
+            for i in schema.find_children(
+                {'match_attr': [{'name': test}]}
             )
-        return [m for m in matches if m]
+        ]
+        LOG.debug(f'found {matches} for query {test}')
+        return matches if matches else []

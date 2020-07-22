@@ -125,6 +125,12 @@ def first(path, obj):
     return [i.value for i in m][0]
 
 
+@pytest.mark.integration
+@pytest.fixture(scope='session')
+def TestElasticsearch():
+    _TestESInstance()
+
+
 @pytest.mark.unit
 @pytest.fixture(scope='session')
 def RedisInstance():
@@ -136,14 +142,14 @@ def RedisInstance():
 @pytest.mark.unit
 @pytest.mark.integration
 @pytest.fixture(scope='session')
-def MockESJob():
+def MockESJob(TestElasticsearch):
 
     def _fn(doc):
         return 'route'
 
     _job = _MockESJob()
     _job._routes = {'topic': _fn}
-    _job._elasticsearch = _TestESInstance()
+    _job._elasticsearch = TestElasticsearch
     yield _job
 
 
@@ -397,7 +403,8 @@ TYPE_INSTRUCTIONS = {
         'aet_subscribed_topics': [
             'Residence_Questionnaire_1_3'
         ],
-        'aet_geopoint': 'geo_point'
+        'aet_geopoint': 'geo_point',
+        'aet_auto_ts': 'a_ts'
     }
 }
 
@@ -1619,6 +1626,31 @@ ANNOTATED_SCHEMA = {
             'doc': 'UUID',
             'name': 'id',
             'type': 'string'
+        },
+        {
+            'doc': 'Some vestigial garbage',
+            'name': '__junk',
+            'type': [
+                'null',
+                'string'
+            ]
+        },
+        {
+            'doc': 'a mandatory date',
+            'name': 'mandatory_date',
+            'type': 'int',
+            'logicalType': 'date'
+        },
+        {
+            'doc': 'an optional datetime',
+            'name': 'optional_dt',
+            'type': [
+                'null',
+                {
+                    'type': 'long',
+                    'logicalType': 'timestamp-millis'
+                }
+            ]
         }
     ],
     'namespace': 'org.ehealthafrica.aether.odk.xforms.Mysurvey'

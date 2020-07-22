@@ -96,41 +96,56 @@ def get_index_for_topic(
     return {'mappings': mappings}
 
 
+def __handle_mapping_addition(matches, mappings, foreign_type, es_type):
+    for match in matches:
+        path = remove_formname(match)
+        if path and path not in ES_RESERVED:
+            if not isinstance(es_type, tuple):
+                mappings[path] = {'type': es_type}
+            else:
+                _type, _format = es_type
+                mappings[path] = {
+                    'type': _type,
+                    'format': _format
+                }
+
+
 def get_es_types_from_schema(schema: Node):
     # since we handle union types, we sort these in increasing importance
     # to ES's handling of them. I.E. if it can be an object or a string,
     # it's more tolerant to treat it as an object, etc.
-
     mappings = {}
-
+    # basic avro types
     for avro_type, es_type in config.AVRO_TYPES:
         matches = [i for i in schema.find_children(
             {'attr_contains': [{'avro_type': avro_type}]})
         ]
-        for match in matches:
-            path = remove_formname(match)
-            if path and path not in ES_RESERVED:
-                mappings[path] = {'type': es_type}
-
+        __handle_mapping_addition(matches, mappings, avro_type, es_type)
+    # logical avro types
+    for avro_type, es_type in config.AVRO_LOGICAL_TYPES:
+        matches = [i for i in schema.find_children(
+            {'attr_contains': [{'logical_type': avro_type}]})
+        ]
+        __handle_mapping_addition(matches, mappings, avro_type, es_type)
+    # aether types
     for aether_type, es_type in config.AETHER_TYPES:
         matches = [i for i in schema.find_children(
             {'match_attr': [{'__extended_type': aether_type}]})
         ]
-        for match in matches:
-            path = remove_formname(match)
-            if path and path not in ES_RESERVED:
-                mappings[path] = {'type': es_type}
-
+        __handle_mapping_addition(matches, mappings, aether_type, es_type)
     return mappings
 
 
 def register_es_index(es, index, alias=None):
     index_name = index.get('name')
     if es.indices.exists(index=index.get('name')):
-        LOG.debug('Index %s already exists, skipping creation.' % index_name)
+        # TODO check hash for artifact (body)
+        # TODO if hash has changed, update
+        LOG.debug(f'Index {index_name} unchanged.')
         return False
     else:
         LOG.info('Creating Index %s' % index.get('name'))
+        # TODO create hash for artifact (body)
         es.indices.create(
             index=index_name,
             body=index.get('body'),
@@ -468,13 +483,13 @@ def __get_es_artifact_index_name(tenant):
     return f'{tenant}._aether_artifacts_v1'.lower()
 
 
-def __get_es_artifact_doc_name(alias):
-    return f'kibana.{alias}'
+def __get_es_artifact_doc_name(alias, artifact_type):
+    return f'{artifact_type}.{alias}'
 
 
-def get_es_artifact_for_alias(alias, tenant, es):
+def get_es_artifact_for_alias(alias, tenant, es, artifact_type='kibana'):
     index = __get_es_artifact_index_name(tenant)
-    _id = __get_es_artifact_doc_name(alias)
+    _id = __get_es_artifact_doc_name(alias, artifact_type)
     if es.exists(index=index, id=_id):
         doc = es.get(index=index, id=_id)
         return doc.get('_source', {})
@@ -490,9 +505,9 @@ def make_es_artifact_index(tenant, es):
     return
 
 
-def put_es_artifact_for_alias(name, tenant, doc, es):
+def put_es_artifact_for_alias(name, tenant, doc, es, artifact_type='kibana'):
     index = __get_es_artifact_index_name(tenant)
-    _id = __get_es_artifact_doc_name(name)
+    _id = __get_es_artifact_doc_name(name, artifact_type)
     make_es_artifact_index(tenant, es)  # make sure we have an index
     if not es.exists(index=index, id=_id):
         LOG.debug(f'Creating ES Artifact for {tenant}:{name}')
@@ -502,7 +517,7 @@ def put_es_artifact_for_alias(name, tenant, doc, es):
             body=doc
         )
     else:
-        LOG.debug(f'Updating ES Artifact for {tenant}:{name}:{_id}')
+        LOG.debug(f'Updating ES Artifact for {tenant}/{index}/{_id}')
         LOG.debug(json.dumps(doc, indent=2))
         es.update(
             index=index,

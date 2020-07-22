@@ -20,8 +20,11 @@
 
 import os
 
+from aether.python.avro.schema import Node
+
 from . import *  # noqa # get all test assets from test/__init__.py
 from app import utils
+
 
 # Test Suite contains both unit and integration tests
 # Unit tests can be run on their own from the root directory
@@ -45,7 +48,6 @@ def test__get_config_alias():
 
 @pytest.mark.unit
 def test__get_field_by_name():
-    processor = ESItemProcessor(None, None)
     vals = [
         ('today', SAMPLE_DOC.get('today')),
         ('residents_module', SAMPLE_DOC.get('residents_module')),
@@ -54,19 +56,20 @@ def test__get_field_by_name():
         ('geo.latitude', SAMPLE_DOC.get('geo').get('latitude'))
     ]
     for field, value in vals:
-        assert(processor._get_doc_field(SAMPLE_DOC, field) == value)
+        assert(ESItemProcessor._get_doc_field(SAMPLE_DOC, field) == value)
 
 
 @pytest.mark.unit
 def test__process_geo_field():
     to_test = [
-        [TYPE_INSTRUCTIONS, AUTOGEN_SCHEMA, SAMPLE_DOC],
-        [TYPE_INSTRUCTIONS, SIMPLE_SCHEMA, SAMPLE_DOC2]
+        [TYPE_INSTRUCTIONS, AUTOGEN_SCHEMA, SAMPLE_DOC, 'autogen'],
+        [TYPE_INSTRUCTIONS, SIMPLE_SCHEMA, SAMPLE_DOC2, 'simple']
     ]
-    for instr, schema, doc in to_test:
-        processor = ESItemProcessor('test', instr)
-        processor.schema_obj = schema
-        processor.load()
+    for instr, schema, doc, name in to_test:
+        node = Node(schema)
+        processor = ESItemProcessor(name, instr, node)
+        # processor.schema_obj = schema
+        # processor.load()
         res = processor._find_geopoints()
         assert(res.get('lat') is not None)
         doc = processor.process(doc)

@@ -38,7 +38,7 @@ LOG = get_logger('TEST-VIZ')
 def test__get_auto_visualizations(ComplexSchema):
     res = auto_visualizations('test.example', 'test', ComplexSchema, examples.SUBSCRIPTION)
     LOG.debug(json.dumps(res, indent=2))
-    assert(sum([1 for k in res.keys()]) == 67)
+    assert(sum([1 for k in res.keys()]) == 69)
 
 
 @pytest.mark.unit

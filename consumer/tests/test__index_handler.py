@@ -88,7 +88,11 @@ def test__get_es_types_from_schema(ComplexSchema):
     assert(first('$._start.type', res) == 'date')
     assert(first('$.geometry.type', res) == 'object')
     assert(first('$.meta.type', res) == 'object')
-    assert(len(list(res.keys())) == 54)
+    assert(first('$.mandatory_date.type', res) == 'date')
+    assert(first('$.mandatory_date.format', res) == 'epoch_second')
+    assert(first('$.optional_dt.type', res) == 'date')
+    assert(first('$.optional_dt.format', res) == 'epoch_millis')
+    assert(len(list(res.keys())) == 57)
 
 
 @pytest.mark.unit
@@ -133,3 +137,16 @@ def test__get_alias_from_namespace():
     namespace = 'A_Gather_Form_V1'
     res = index_handler.get_alias_from_namespace(namespace)
     assert(res == 'A_Gather_Form')
+
+
+@pytest.mark.integration
+def test__update_es_index(TestElasticsearch):
+    # register index with mapping
+    es = TestElasticsearch.get_session()
+    assert(index_handler.register_es_index(es, index, alias) is True)
+    # no update needed on same hash
+    assert(index_handler.register_es_index(es, index, alias) is False)
+    # add doc
+    # mutate mapping
+    # register index with new mapping
+    # check doc
