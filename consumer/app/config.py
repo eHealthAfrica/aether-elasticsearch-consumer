@@ -54,7 +54,7 @@ AVRO_TYPES = [
 AVRO_LOGICAL_TYPES = [
     # avro logical types
     # # requires conversion (days since epoch [int] -> seconds)
-    ('date', ('date', 'epoch_second')),
+    ('date', ('date', 'date')),
     ('timestamp-millis', ('date', 'epoch_millis')),
     ('uuid', 'string'),
 ]

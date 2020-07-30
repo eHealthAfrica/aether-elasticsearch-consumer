@@ -125,10 +125,11 @@ def first(path, obj):
     return [i.value for i in m][0]
 
 
+@pytest.mark.unit
 @pytest.mark.integration
 @pytest.fixture(scope='session')
 def TestElasticsearch():
-    _TestESInstance()
+    yield _TestESInstance()
 
 
 @pytest.mark.unit
@@ -143,6 +144,8 @@ def RedisInstance():
 @pytest.mark.integration
 @pytest.fixture(scope='session')
 def MockESJob(TestElasticsearch):
+
+    assert(TestElasticsearch is not None)
 
     def _fn(doc):
         return 'route'
@@ -313,6 +316,20 @@ def AutoGenSchema():
 @pytest.fixture(scope='module')
 def ComplexSchema():
     return Node(ANNOTATED_SCHEMA)  # noqa
+
+
+@pytest.mark.es
+@pytest.mark.unit
+@pytest.fixture(scope='module')
+def PolySchemaA():
+    return Node(POLY_SCHEMA_A)  # noqa
+
+
+@pytest.mark.es
+@pytest.mark.unit
+@pytest.fixture(scope='module')
+def PolySchemaB():
+    return Node(POLY_SCHEMA_B)  # noqa
 
 
 SAMPLE_FIELD_LOOKUP = {
@@ -1654,4 +1671,36 @@ ANNOTATED_SCHEMA = {
         }
     ],
     'namespace': 'org.ehealthafrica.aether.odk.xforms.Mysurvey'
+}
+
+POLY_SCHEMA_A = {
+    'name': 'polymorph',
+    'fields': [
+        {
+            'doc': 'UUID',
+            'name': 'id',
+            'type': 'string'
+        },
+        {
+            'doc': 'Polymorphing Field',
+            'name': 'poly',
+            'type': 'string'
+        }
+    ]
+}
+
+POLY_SCHEMA_B = {
+    'name': 'polymorph',
+    'fields': [
+        {
+            'doc': 'UUID',
+            'name': 'id',
+            'type': 'string'
+        },
+        {
+            'doc': 'Polymorphing Field',
+            'name': 'poly',
+            'type': 'int'
+        }
+    ]
 }

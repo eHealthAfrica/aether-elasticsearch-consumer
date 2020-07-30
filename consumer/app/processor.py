@@ -98,11 +98,6 @@ class ESItemProcessor(object):
         self.has_parent = False
         self.load()
 
-    # def load_avro(self, schema_obj):
-    #     self.schema = spavro.schema.parse(json.dumps(schema_obj))
-    #     self.schema_obj = schema_obj
-    #     self.load()
-
     def load(self):
         self.pipeline = []
         self.has_parent = False

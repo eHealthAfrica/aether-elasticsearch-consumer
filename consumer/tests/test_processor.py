@@ -50,13 +50,15 @@ def test__end_to_end(ComplexSchema):
     _instr = TYPE_INSTRUCTIONS
     proc = processor.ESItemProcessor(_name, _instr, ComplexSchema)
     # proc.load_avro(_schema)
-    doc = {'geometry': {'latitude': 1.0, 'longitude': 1.0}, 'mandatory_date': 10957}
+    doc = {'geometry': {
+        'latitude': 1.0, 'longitude': 1.0}, 'mandatory_date': 10957, 'optional_dt': 1595431696000}
     res = proc.process(doc)
     LOG.debug(res)
     assert(res['geo_point']['lat'] == res['geo_point']['lon'])
     assert(isinstance(res['a_ts'], str))
     assert(isinstance(res['mandatory_date'], str))
     assert(res['mandatory_date'] == '2000-01-01')
+    assert(res['optional_dt'] == 1595431696000)
 
 
 @pytest.mark.unit
