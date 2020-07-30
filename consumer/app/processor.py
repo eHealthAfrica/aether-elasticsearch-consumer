@@ -91,7 +91,6 @@ class ESItemProcessor(object):
     def __init__(self, type_name, type_instructions, schema: Node):
         self.pipeline = []
         self.schema = schema
-        # self.schema_obj = None
         self.es_type = type_name
         self.type_instructions = type_instructions
         self.topic_name = type_name
@@ -103,10 +102,10 @@ class ESItemProcessor(object):
         self.has_parent = False
         meta = self.type_instructions.get('_meta')
         if not meta:
-            LOG.debug('type: %s has no meta arguments' % (self.es_type))
+            LOG.debug(f'type: {self.es_type} has no meta arguments')
             return
         for key, value in meta.items():
-            LOG.debug('Type %s has meta type: %s' % (self.es_type, key))
+            LOG.debug(f'Type {self.es_type} has meta type: key')
             if key == 'aet_parent_field':
                 join_field = meta.get('aet_join_field', None)
                 if join_field:  # ES 6
@@ -130,7 +129,7 @@ class ESItemProcessor(object):
                     cmd.update(self._find_geopoints())
                     self.pipeline.append(cmd)
                 except ValueError as ver:
-                    LOG.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
+                    LOG.error(f'In finding geopoints in pipeline {self.es_type} : {ver}')
             elif key == 'aet_auto_ts':
                 cmd = {
                     'function': '_add_timestamp',
@@ -138,10 +137,9 @@ class ESItemProcessor(object):
                 }
                 self.pipeline.append(cmd)
             elif key.startswith('aet'):
-                LOG.debug('aet _meta keyword %s in type %s generates no command'
-                          % (key, self.es_type))
+                LOG.debug(f'aet _meta keyword {key} in type {self.es_type} generates no command')
             else:
-                LOG.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
+                LOG.debug(f'Unknown meta keyword {key} in type {self.es_type}')
         for full_path in self.schema.iter_children():
             _base_name = f'{self.schema.name}.'
             if full_path.startswith(_base_name):
@@ -163,18 +161,18 @@ class ESItemProcessor(object):
                     'field_path': path,
                     'trans_fn': AVRO_BASE_COERSCE[permissive_type]
                 }
-        LOG.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
+        LOG.debug(f'Pipeline for {self.es_type}: {self.pipeline}')
 
     def create_route(self):
         meta = self.type_instructions.get('_meta', {})
         join_field = meta.get('aet_join_field', None)
         if not self.has_parent or not join_field:
-            LOG.debug('NO Routing created for type %s' % self.es_type)
+            LOG.debug(f'NO Routing created for type {self.es_type}')
             return lambda *args: None
 
         def route(doc):
             return doc.get(join_field).get('parent')
-        LOG.debug('Routing created for child type %s' % self.es_type)
+        LOG.debug(f'Routing created for child type {self.es_type}')
         return route
 
     def rename_reserved_fields(self, doc):
@@ -206,8 +204,8 @@ class ESItemProcessor(object):
             }
             doc[join_field] = payload
         except Exception as e:
-            LOG.error('Could not add parent to doc type %s. Error: %s' %
-                      (self.es_type, e))
+            LOG.error(f'Could not add parent to doc type {self.es_type}. '
+                      f'Error: {e}')
         return doc
 
     def _add_geopoint(self, doc, field_name=None, lat=None, lon=None, **kwargs):
@@ -217,8 +215,8 @@ class ESItemProcessor(object):
             geo['lon'] = float(self._get_doc_field(doc, lon))
             doc[field_name] = geo
         except Exception as e:
-            LOG.debug('Could not add geo to doc type %s. Error: %s | %s' %
-                      (self.es_type, e, (lat, lon),))
+            LOG.debug(f'Could not add geo to doc type {self.es_type}. '
+                      f'Error: {e} | {lat} {lon}')
         return doc
 
     def _add_timestamp(self, doc, field_name=None, **kwargs):
@@ -226,7 +224,6 @@ class ESItemProcessor(object):
         return doc
 
     def _find_geopoints(self):
-        LOG.debug([i for i in self.schema.iter_children()])
         res = {}
         latitude_fields = CONSUMER_CONFIG.get('latitude_fields')
         longitude_fields = CONSUMER_CONFIG.get('longitude_fields')
@@ -247,7 +244,6 @@ class ESItemProcessor(object):
         return res
 
     def find_path_in_schema(self, schema: Node, test):
-        LOG.debug(f'looking for {test}')
         _base_name = f'{schema.name}.'
         matches = [
             i[len(_base_name):]
@@ -257,5 +253,4 @@ class ESItemProcessor(object):
                 {'match_attr': [{'name': test}]}
             )
         ]
-        LOG.debug(f'found {matches} for query {test}')
         return matches if matches else []
