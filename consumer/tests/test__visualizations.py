@@ -31,7 +31,7 @@ from app.fixtures import examples
 
 from . import *  # noqa  # fixtures
 
-LOG = get_logger('TEST-VIZ')
+LOG = get_logger('TEST-VIS')
 
 
 @pytest.mark.unit

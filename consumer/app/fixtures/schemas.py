@@ -404,10 +404,10 @@ SUBSCRIPTION = '''
       "required": [
       ],
       "properties": {
-        "auto_vizualization": {
-          "$id": "#/properties/kibana_options/properties/auto_vizualization",
+        "auto_visualization": {
+          "$id": "#/properties/kibana_options/properties/auto_visualization",
           "type": "string",
-          "title": "The Auto_vizualization Schema",
+          "title": "The Auto_visualization Schema",
           "enum": ["full", "schema", "none"],
           "examples": [
             "full"

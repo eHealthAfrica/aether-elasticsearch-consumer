@@ -29,14 +29,14 @@ from . import index_handler
 from .processor import ES_RESERVED
 
 consumer_config = config.get_consumer_config()
-LOG = get_logger('VIZ')
+LOG = get_logger('VIS')
 
 
 AVRO_TYPES = [a_type for a_type, es_type in config.AVRO_TYPES]
 AETHER_TYPES = [a_type for a_type, es_type in config.AETHER_TYPES]
 
 
-def format_viz(fn):
+def format_vis(fn):
     def do_format(*args, **kwargs):
         title = kwargs['title']
         alias = kwargs['alias']
@@ -69,7 +69,7 @@ def format_viz(fn):
     return do_format
 
 
-@format_viz
+@format_vis
 def get_map(
     title: str,
     alias: str,
@@ -152,7 +152,7 @@ def get_map(
     return vis_state
 
 
-@format_viz
+@format_vis
 def get_table_histogram(  # numeric
     title: str,
     alias: str,
@@ -202,7 +202,7 @@ def get_table_histogram(  # numeric
     return vis_state
 
 
-@format_viz
+@format_vis
 def get_pie_chart(
     title: str,
     alias: str,
@@ -259,7 +259,7 @@ def get_pie_chart(
     return vis_state
 
 
-@format_viz
+@format_vis
 def get_table_buckets(  # text only
     title: str,
     alias: str,
@@ -314,7 +314,7 @@ def get_table_buckets(  # text only
     return vis_state
 
 
-@format_viz
+@format_vis
 def get_barchart(  # numeric histogram / as bars
     title: str,
     alias: str,

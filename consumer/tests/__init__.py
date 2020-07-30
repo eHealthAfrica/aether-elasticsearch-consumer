@@ -144,7 +144,6 @@ def RedisInstance():
 @pytest.mark.integration
 @pytest.fixture(scope='session')
 def MockESJob(TestElasticsearch):
-
     assert(TestElasticsearch is not None)
 
     def _fn(doc):
@@ -153,6 +152,7 @@ def MockESJob(TestElasticsearch):
     _job = _MockESJob()
     _job._routes = {'topic': _fn}
     _job._elasticsearch = TestElasticsearch
+
     yield _job
 
 
