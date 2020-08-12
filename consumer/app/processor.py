@@ -18,14 +18,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
-import spavro
 
 from aet.logger import get_logger
 from aet.jsonpath import CachedParser
+from aether.python.utils import replace_nested
+from aether.python.avro.schema import Node
 
-from .config import get_consumer_config
+from .config import get_consumer_config, AVRO_TYPES
 
 
 LOG = get_logger('PROCESS')
@@ -37,21 +38,63 @@ ES_RESERVED = [
     '_routing', '_index', '_size', '_timestamp', '_ttl', '_version'
 ]
 
+AVRO_BASE_COERSCE = {
+    # avro_type -> handler
+}
+
+AVRO_LOGICAL_COERSCE = {
+    # logical_avro_type -> handler
+    # int(days since epoch) -> iso_string
+    'date': lambda x: (
+        (datetime(1970, 1, 1) + timedelta(days=x)).isoformat())[:10]
+}
+
 
 class ESItemProcessor(object):
 
-    def __init__(self, type_name, type_instructions):
+    @staticmethod
+    def _get_doc_field(doc, name):
+        if not name:
+            raise ValueError('Invalid field name')
+        doc = json.loads(json.dumps(doc))
+        try:
+            matches = CachedParser.find(name, doc)
+            if not matches:
+                raise ValueError(name, doc)
+            if len(matches) > 1:
+                LOG.warn(f'More than one value for {name} using first')
+            return matches[0].value
+        except ValueError as ve:
+            LOG.debug(f'Error getting field {name}')
+            raise ve
+
+    @staticmethod
+    def _coersce_field(doc, field_path=None, trans_fn=None, **kwargs):
+        try:
+            field_value = ESItemProcessor._get_doc_field(doc, field_path)
+            value = trans_fn(field_value)
+            replace_nested(doc, field_path.split('.'), value, False)
+            return doc
+        except Exception as err:
+            LOG.error(f'could not coersce field {field_path}: {err}')
+            return doc
+
+    @staticmethod
+    def _most_permissive_avro_type(_types):
+        if not isinstance(_types, list):
+            return _types
+        try:
+            return [_type for _type, _ in AVRO_TYPES if _type in _types][-1]
+        except IndexError:
+            return None
+
+    def __init__(self, type_name, type_instructions, schema: Node):
         self.pipeline = []
-        self.schema = None
-        self.schema_obj = None
+        self.schema = schema
         self.es_type = type_name
         self.type_instructions = type_instructions
         self.topic_name = type_name
         self.has_parent = False
-
-    def load_avro(self, schema_obj):
-        self.schema = spavro.schema.parse(json.dumps(schema_obj))
-        self.schema_obj = schema_obj
         self.load()
 
     def load(self):
@@ -59,10 +102,10 @@ class ESItemProcessor(object):
         self.has_parent = False
         meta = self.type_instructions.get('_meta')
         if not meta:
-            LOG.debug('type: %s has no meta arguments' % (self.es_type))
+            LOG.debug(f'type: {self.es_type} has no meta arguments')
             return
         for key, value in meta.items():
-            LOG.debug('Type %s has meta type: %s' % (self.es_type, key))
+            LOG.debug(f'Type {self.es_type} has meta type: key')
             if key == 'aet_parent_field':
                 join_field = meta.get('aet_join_field', None)
                 if join_field:  # ES 6
@@ -86,7 +129,7 @@ class ESItemProcessor(object):
                     cmd.update(self._find_geopoints())
                     self.pipeline.append(cmd)
                 except ValueError as ver:
-                    LOG.error('In finding geopoints in pipeline %s : %s' % (self.es_type, ver))
+                    LOG.error(f'In finding geopoints in pipeline {self.es_type} : {ver}')
             elif key == 'aet_auto_ts':
                 cmd = {
                     'function': '_add_timestamp',
@@ -94,22 +137,42 @@ class ESItemProcessor(object):
                 }
                 self.pipeline.append(cmd)
             elif key.startswith('aet'):
-                LOG.debug('aet _meta keyword %s in type %s generates no command'
-                          % (key, self.es_type))
+                LOG.debug(f'aet _meta keyword {key} in type {self.es_type} generates no command')
             else:
-                LOG.debug('Unknown meta keyword %s in type %s' % (key, self.es_type))
-        LOG.debug('Pipeline for %s: %s' % (self.es_type, self.pipeline))
+                LOG.debug(f'Unknown meta keyword {key} in type {self.es_type}')
+        for full_path in self.schema.iter_children():
+            _base_name = f'{self.schema.name}.'
+            if full_path.startswith(_base_name):
+                path = full_path[len(_base_name):]
+            else:
+                path = full_path
+            child = self.schema.get_node(full_path)
+            permissive_type = self._most_permissive_avro_type(child.avro_type)
+            if hasattr(child, 'logical_type') and child.logical_type in AVRO_LOGICAL_COERSCE:
+                cmd = {
+                    'function': '_coersce_field',
+                    'field_path': path,
+                    'trans_fn': AVRO_LOGICAL_COERSCE[child.logical_type]
+                }
+                self.pipeline.append(cmd)
+            elif permissive_type in AVRO_BASE_COERSCE:
+                cmd = {
+                    'function': '_coersce_field',
+                    'field_path': path,
+                    'trans_fn': AVRO_BASE_COERSCE[permissive_type]
+                }
+        LOG.debug(f'Pipeline for {self.es_type}: {self.pipeline}')
 
     def create_route(self):
         meta = self.type_instructions.get('_meta', {})
         join_field = meta.get('aet_join_field', None)
         if not self.has_parent or not join_field:
-            LOG.debug('NO Routing created for type %s' % self.es_type)
+            LOG.debug(f'NO Routing created for type {self.es_type}')
             return lambda *args: None
 
         def route(doc):
             return doc.get(join_field).get('parent')
-        LOG.debug('Routing created for child type %s' % self.es_type)
+        LOG.debug(f'Routing created for child type {self.es_type}')
         return route
 
     def rename_reserved_fields(self, doc):
@@ -141,8 +204,8 @@ class ESItemProcessor(object):
             }
             doc[join_field] = payload
         except Exception as e:
-            LOG.error('Could not add parent to doc type %s. Error: %s' %
-                      (self.es_type, e))
+            LOG.error(f'Could not add parent to doc type {self.es_type}. '
+                      f'Error: {e}')
         return doc
 
     def _add_geopoint(self, doc, field_name=None, lat=None, lon=None, **kwargs):
@@ -152,31 +215,13 @@ class ESItemProcessor(object):
             geo['lon'] = float(self._get_doc_field(doc, lon))
             doc[field_name] = geo
         except Exception as e:
-            LOG.debug('Could not add geo to doc type %s. Error: %s | %s' %
-                      (self.es_type, e, (lat, lon),))
+            LOG.debug(f'Could not add geo to doc type {self.es_type}. '
+                      f'Error: {e} | {lat} {lon}')
         return doc
 
     def _add_timestamp(self, doc, field_name=None, **kwargs):
         doc[field_name] = str(datetime.now().isoformat())
         return doc
-
-    def _get_doc_field(self, doc, name):
-        if not name:
-            raise ValueError('Invalid field name')
-        doc = json.loads(json.dumps(doc))
-        try:
-            matches = CachedParser.find(name, doc)
-            if not matches:
-                raise ValueError(name, doc)
-            if len(matches) > 1:
-                LOG.warn('More than one value for %s in doc type %s, using first' %
-                         (name, self.es_type))
-            return matches[0].value
-        except ValueError as ve:
-            LOG.debug('Error getting field %s from doc type %s' %
-                      (name, self.es_type))
-            LOG.debug(doc)
-            raise ve
 
     def _find_geopoints(self):
         res = {}
@@ -184,12 +229,12 @@ class ESItemProcessor(object):
         longitude_fields = CONSUMER_CONFIG.get('longitude_fields')
         LOG.debug(f'looking for matches in {latitude_fields} & {longitude_fields}')
         for lat in latitude_fields:
-            path = self.find_path_in_schema(self.schema_obj, lat)
+            path = self.find_path_in_schema(self.schema, lat)
             if path:
                 res['lat'] = path[0]  # Take the first Lat
                 break
         for lng in longitude_fields:
-            path = self.find_path_in_schema(self.schema_obj, lng)
+            path = self.find_path_in_schema(self.schema, lng)
             if path:
                 res['lon'] = path[0]  # Take the first Lng
                 break
@@ -198,35 +243,14 @@ class ESItemProcessor(object):
                 'location', self.es_type))
         return res
 
-    def find_path_in_schema(self, schema, test, previous_path='$'):
-        # Searches a schema document for matching instances of an element.
-        # Will look in nested objects. Aggregates matching paths.
-        # LOG.debug(f'search: {test}:{previous_path}')
-        matches = []
-        if isinstance(schema, list):
-            for _dict in schema:
-                types = _dict.get('type')
-                if not isinstance(types, list):
-                    types = [types]  # treat everything as a union
-                for _type in types:
-                    if not _type:  # ignore nulls in unions
-                        continue
-                    if isinstance(_type, dict):
-                        name = _dict.get('name')
-                        next_level = _type.get('fields')
-                        if next_level:
-                            matches.extend(
-                                self.find_path_in_schema(
-                                    next_level,
-                                    test,
-                                    f'{previous_path}.{name}'
-                                )
-                            )
-                    test_name = _dict.get('name', '').lower()
-                    if str(test_name) == str(test.lower()):
-                        return [f'{previous_path}.{test_name}']
-        elif schema.get('fields'):
-            matches.extend(
-                self.find_path_in_schema(schema.get('fields'), test, previous_path)
+    def find_path_in_schema(self, schema: Node, test):
+        _base_name = f'{schema.name}.'
+        matches = [
+            i[len(_base_name):]
+            if i.startswith(_base_name)
+            else i
+            for i in schema.find_children(
+                {'match_attr': [{'name': test}]}
             )
-        return [m for m in matches if m]
+        ]
+        return matches if matches else []

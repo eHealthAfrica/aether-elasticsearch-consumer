@@ -126,6 +126,13 @@ def first(path, obj):
 
 
 @pytest.mark.unit
+@pytest.mark.integration
+@pytest.fixture(scope='session')
+def TestElasticsearch():
+    yield _TestESInstance()
+
+
+@pytest.mark.unit
 @pytest.fixture(scope='session')
 def RedisInstance():
     password = os.environ.get('REDIS_PASSWORD')
@@ -136,14 +143,16 @@ def RedisInstance():
 @pytest.mark.unit
 @pytest.mark.integration
 @pytest.fixture(scope='session')
-def MockESJob():
+def MockESJob(TestElasticsearch):
+    assert(TestElasticsearch is not None)
 
     def _fn(doc):
         return 'route'
 
     _job = _MockESJob()
     _job._routes = {'topic': _fn}
-    _job._elasticsearch = _TestESInstance()
+    _job._elasticsearch = TestElasticsearch
+
     yield _job
 
 
@@ -309,6 +318,20 @@ def ComplexSchema():
     return Node(ANNOTATED_SCHEMA)  # noqa
 
 
+@pytest.mark.es
+@pytest.mark.unit
+@pytest.fixture(scope='module')
+def PolySchemaA():
+    return Node(POLY_SCHEMA_A)  # noqa
+
+
+@pytest.mark.es
+@pytest.mark.unit
+@pytest.fixture(scope='module')
+def PolySchemaB():
+    return Node(POLY_SCHEMA_B)  # noqa
+
+
 SAMPLE_FIELD_LOOKUP = {
     'operational_status': {
         'id': 'static_lookup',
@@ -397,7 +420,8 @@ TYPE_INSTRUCTIONS = {
         'aet_subscribed_topics': [
             'Residence_Questionnaire_1_3'
         ],
-        'aet_geopoint': 'geo_point'
+        'aet_geopoint': 'geo_point',
+        'aet_auto_ts': 'a_ts'
     }
 }
 
@@ -1619,7 +1643,64 @@ ANNOTATED_SCHEMA = {
             'doc': 'UUID',
             'name': 'id',
             'type': 'string'
+        },
+        {
+            'doc': 'Some vestigial garbage',
+            'name': '__junk',
+            'type': [
+                'null',
+                'string'
+            ]
+        },
+        {
+            'doc': 'a mandatory date',
+            'name': 'mandatory_date',
+            'type': 'int',
+            'logicalType': 'date'
+        },
+        {
+            'doc': 'an optional datetime',
+            'name': 'optional_dt',
+            'type': [
+                'null',
+                {
+                    'type': 'long',
+                    'logicalType': 'timestamp-millis'
+                }
+            ]
         }
     ],
     'namespace': 'org.ehealthafrica.aether.odk.xforms.Mysurvey'
+}
+
+POLY_SCHEMA_A = {
+    'name': 'polymorph',
+    'fields': [
+        {
+            'doc': 'UUID',
+            'name': 'id',
+            'type': 'string'
+        },
+        {
+            'doc': 'Polymorphing Field',
+            'name': 'poly',
+            'type': 'string'
+        }
+    ]
+}
+
+POLY_SCHEMA_B = {
+    'name': 'polymorph',
+    'fields': [
+        {
+            'doc': 'UUID',
+            'name': 'id',
+            'type': 'string'
+        },
+        {
+            'doc': 'Polymorphing Field',
+            'name': 'poly',
+            'type': 'int'
+        }
+    ]
 }

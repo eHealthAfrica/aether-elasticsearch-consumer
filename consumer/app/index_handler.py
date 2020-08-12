@@ -18,6 +18,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from datetime import datetime
 import json
 from typing import Any, Mapping
 
@@ -40,128 +41,7 @@ consumer_config = config.get_consumer_config()
 kafka_config = config.get_kafka_config()
 
 
-def handle_http(req):
-    req.raise_for_status()
-
-
-def get_es_index_from_subscription(
-    es_options,
-    name=None,
-    tenant=None,
-    schema: Node = None
-):
-    geo_point = (
-        es_options.get('geo_point_name', None)
-        if es_options.get('geo_point_creation', False)
-        else None
-    )
-    auto_ts = es_options.get('auto_timestamp', None)
-    topic_name = f'{tenant}.{name}'
-    index_name = f'{tenant}.{name}'.lower()
-    index = {
-        'name': index_name,
-        'body': get_index_for_topic(
-            topic_name, geo_point, auto_ts, schema
-        )
-    }
-    return index
-
-
-def get_index_for_topic(
-    name,
-    geo_point=None,
-    auto_ts=None,
-    schema: Node = None
-):
-    LOG.debug('Creating mappings for topic %s' % name)
-    mappings = {
-        # name: {
-        #     '_meta': {
-        #         'aet_subscribed_topics': [name]
-        #     }
-        # }
-        '_doc': {  # 7.x has made names illegal here...
-            '_meta': {
-                'aet_subscribed_topics': [name]
-            }
-        }
-    }
-    mappings['_doc']['properties'] = get_es_types_from_schema(schema)
-    if geo_point:
-        mappings['_doc']['_meta']['aet_geopoint'] = geo_point
-        mappings['_doc']['properties'][geo_point] = {'type': 'geo_point'}
-    if auto_ts:
-        mappings['_doc']['_meta']['aet_auto_ts'] = auto_ts
-    LOG.debug('created mappings: %s' % mappings)
-    return {'mappings': mappings}
-
-
-def get_es_types_from_schema(schema: Node):
-    # since we handle union types, we sort these in increasing importance
-    # to ES's handling of them. I.E. if it can be an object or a string,
-    # it's more tolerant to treat it as an object, etc.
-
-    mappings = {}
-
-    for avro_type, es_type in config.AVRO_TYPES:
-        matches = [i for i in schema.find_children(
-            {'attr_contains': [{'avro_type': avro_type}]})
-        ]
-        for match in matches:
-            path = remove_formname(match)
-            if path and path not in ES_RESERVED:
-                mappings[path] = {'type': es_type}
-
-    for aether_type, es_type in config.AETHER_TYPES:
-        matches = [i for i in schema.find_children(
-            {'match_attr': [{'__extended_type': aether_type}]})
-        ]
-        for match in matches:
-            path = remove_formname(match)
-            if path and path not in ES_RESERVED:
-                mappings[path] = {'type': es_type}
-
-    return mappings
-
-
-def register_es_index(es, index, alias=None):
-    index_name = index.get('name')
-    if es.indices.exists(index=index.get('name')):
-        LOG.debug('Index %s already exists, skipping creation.' % index_name)
-        return False
-    else:
-        LOG.info('Creating Index %s' % index.get('name'))
-        es.indices.create(
-            index=index_name,
-            body=index.get('body'),
-            params={'include_type_name': 'true'}  # json true...
-        )
-        if alias:
-            es.indices.put_alias(index=index_name, name=alias)
-        return True
-
-
-def get_alias_from_namespace(namespace: str):
-    parts = namespace.split('_')
-    if len(parts) < 2:
-        return f'{namespace}'
-    return '_'.join(parts[:-1])
-
-
-def make_kibana_index(name, schema: Node):
-    lookups = _format_lookups(schema)
-    data = {
-        'attributes': {
-            'title': name,
-            'timeFieldName': _find_timestamp(schema),
-            'fieldFormatMap': json.dumps(  # Kibana requires this be escaped
-                lookups,
-                sort_keys=True
-            ) if lookups else None  # Don't include if there aren't any
-        }
-    }
-    return data
-
+# Kibana Change Handler
 
 def kibana_handle_schema_change(
     tenant: str,
@@ -217,7 +97,7 @@ def check_for_kibana_update(
 ):
     # if the schema is unchanged, we don't need to do anything.
     index_hash = utils.hash(kibana_index)
-    artifact = get_es_artifact_for_alias(alias, tenant, es_conn)
+    artifact = get_artifact_doc(alias, tenant, es_conn)
     try:
         old_kibana_index = handle_kibana_artifact(
             alias,
@@ -247,6 +127,175 @@ def check_for_kibana_update(
     return False
 
 
+# Index
+
+# # ES Index
+
+def update_es_index(es, index, tenant, alias=None):
+    index_name = index.get('name')
+    if not es.indices.exists(index=index_name):
+        create_es_index(es, index_name, index, tenant, alias)
+        return
+    LOG.info(f'Updating Index: {index_name} for {tenant}')
+    temp_index = f'{index_name}.migrate'
+
+    if migrate_es_index(es, index_name, temp_index, index, tenant, alias):
+        delete_es_index(es, index_name, tenant)
+    else:
+        LOG.error(f'ES Index {index_name} update failed. Keeping old index state')
+        delete_es_index(es, temp_index, tenant)
+        return
+    create_es_index(es, index_name, index, tenant, alias)
+    if migrate_es_index(es, temp_index, index_name, index, tenant, alias):
+        delete_es_index(es, temp_index, tenant)
+    else:
+        LOG.critical(f'ES Index update {index_name} failed. Stuck in migration state: {temp_index}')
+
+
+def create_es_index(es, index_name, index, tenant, alias=None):
+    LOG.info(f'Creating Index: {index_name} for {tenant}')
+    # TODO create hash for artifact (body)
+    es.indices.create(
+        index=index_name,
+        body=index.get('body'),
+        params={'include_type_name': 'true'}  # json true...
+    )
+    es.indices.refresh(index=index_name)
+    index_hash = utils.hash(index)
+    es_index_artifact = {'hash': index_hash, 'created': f'{datetime.now().isoformat()}'}
+    put_artifact_doc(
+        index_name,
+        tenant,
+        es_index_artifact,
+        es,
+        artifact_type='es_index')
+    if alias:
+        es.indices.put_alias(index=index_name, name=alias)
+
+
+def delete_es_index(es, index_name, tenant):
+    LOG.info(f'Deleting Index: {index_name} for {tenant}')
+    return es.indices.delete(index=index_name)
+
+
+def __count_from_stats(stats, name):
+    return stats.get(
+        'indices', {}).get(
+        name, {}).get(
+        'primaries', {}).get(
+        'docs', {}).get(
+        'count')
+
+
+def migrate_es_index(es, source, dest, index, tenant, alias=None) -> bool:
+    es.indices.refresh(index=source)
+    LOG.info(f'Migrating {source} -> {dest} for update')
+    if not es.indices.exists(index=dest):
+        LOG.debug(f'creating temporary index {dest}')
+        create_es_index(es, dest, index, tenant, alias)
+
+    es.reindex(
+        {
+            'source': {
+                'index': source
+            },
+            'dest': {
+                'index': dest
+            }
+        }, params={
+            'refresh': 'true'
+        })
+
+    es.indices.refresh(index=dest)
+    source_stats = es.indices.stats(
+        index=','.join([i for i in [source, dest]]),
+        metric='docs')
+    src_docs = __count_from_stats(source_stats, source)
+    dest_docs = __count_from_stats(source_stats, dest)
+    if src_docs == dest_docs:
+        LOG.info(f'sync {source} -> {dest} was successful')
+        return True
+    else:
+        LOG.error(f'sync {source} -> {dest} FAILED!')
+        return False
+
+
+def es_index_changed(es, index, tenant) -> bool:
+    index_name = index.get('name')
+    if es.indices.exists(index=index_name):
+        artifact = get_artifact_doc(index_name, tenant, es, artifact_type='es_index')
+        existing_hash = artifact.get('hash')
+        if not artifact and existing_hash:
+            return True
+        index_hash = utils.hash(index)
+        return index_hash != existing_hash
+    return True
+
+
+def get_es_index_from_subscription(
+    es_options,
+    name=None,
+    tenant=None,
+    schema: Node = None
+):
+    geo_point = (
+        es_options.get('geo_point_name', None)
+        if es_options.get('geo_point_creation', False)
+        else None
+    )
+    auto_ts = es_options.get('auto_timestamp', None)
+    topic_name = f'{tenant}.{name}'
+    index_name = f'{tenant}.{name}'.lower()
+    index = {
+        'name': index_name,
+        'body': get_index_for_topic(
+            topic_name, geo_point, auto_ts, schema
+        )
+    }
+    return index
+
+
+def get_index_for_topic(
+    name,
+    geo_point=None,
+    auto_ts=None,
+    schema: Node = None
+):
+    LOG.debug('Creating mappings for topic %s' % name)
+    mappings = {
+        '_doc': {
+            '_meta': {
+                'aet_subscribed_topics': [name]
+            }
+        }
+    }
+    mappings['_doc']['properties'] = get_es_types_from_schema(schema)
+    if geo_point:
+        mappings['_doc']['_meta']['aet_geopoint'] = geo_point
+        mappings['_doc']['properties'][geo_point] = {'type': 'geo_point'}
+    if auto_ts:
+        mappings['_doc']['_meta']['aet_auto_ts'] = auto_ts
+    LOG.debug('created mappings: %s' % mappings)
+    return {'mappings': mappings}
+
+# # Kibana Index
+
+
+def make_kibana_index(name, schema: Node):
+    lookups = _format_lookups(schema)
+    data = {
+        'attributes': {
+            'title': name,
+            'timeFieldName': _find_timestamp(schema),
+            'fieldFormatMap': json.dumps(  # Kibana requires this be escaped
+                lookups,
+                sort_keys=True
+            ) if lookups else None  # Don't include if there aren't any
+        }
+    }
+    return data
+
+
 def update_kibana_index(
     tenant: str,
     alias_name: str,
@@ -260,7 +309,7 @@ def update_kibana_index(
     # find differences between indices
     # create new asset
 
-    old_artifact = get_es_artifact_for_alias(alias_name, tenant, es_conn)
+    old_artifact = get_artifact_doc(alias_name, tenant, es_conn)
     merged_index, new_artifact, updated_visuals = merge_kibana_artifacts(
         tenant,
         alias_name,
@@ -291,7 +340,7 @@ def update_kibana_index(
             )
         # save the new hashes last in case of partial failure
         # on restart, it should try again
-        put_es_artifact_for_alias(alias_name, tenant, new_artifact, es_conn)
+        put_artifact_doc(alias_name, tenant, new_artifact, es_conn)
         default_index = get_default_index(tenant, kibana_conn)
         if not default_index:
             LOG.debug(f'No default index is set, using: {alias_name}')
@@ -308,62 +357,88 @@ def update_kibana_index(
         raise err
 
 
-def remove_formname(name):
-    pieces = name.split('.')
-    return '.'.join(pieces[1:])
+def get_default_index(tenant, conn: Session):
+    url = '/api/kibana/settings'
+    op = 'get'
+    res = conn.request(op, url)
+    try:
+        handle_http(res)
+        default = res.json().get('settings', {}) \
+            .get('defaultIndex', {}) \
+            .get('userValue')
+        return default
+    except (HTTPError, ConsumerHttpException) as her:
+        LOG.debug(f'Could not get default index: {her}')
+        return None
 
 
-def get_formname(name):
-    return name.split('.')[0]
+def set_default_index(tenant, conn: Session, index_name):
+    url = '/api/kibana/settings/defaultIndex'
+    op = 'post'
+    res = conn.request(op, url, json={'value': index_name})
+    try:
+        handle_http(res)
+        return True
+    except (HTTPError, ConsumerHttpException) as her:
+        LOG.debug(f'Could not set default index to {index_name}: {her}')
+        return False
 
 
-def _find_timestamp(schema: Node):
-    # takes a field matching timestamp, or the first timestamp
-    matching = schema.collect_matching(
-        {'match_attr': [{'__extended_type': 'dateTime'}]}
-    )
-    fields = sorted([key for key, node in matching])
-    timestamps = [f for f in fields if 'timestamp' in f]
-    if timestamps:
-        return remove_formname(timestamps[0])
-    elif fields:
-        return remove_formname(fields[0])
+# ARTIFACTS
+# # documents that save state information about created indices and visualizations
+
+
+def __get_es_artifact_index_name(tenant):
+    return f'{tenant}._aether_artifacts_v1'.lower()
+
+
+def __get_es_artifact_doc_name(artifact_id, artifact_type):
+    return f'{artifact_type}.{artifact_id}'
+
+
+def make_es_artifact_index(tenant, es):
+    index_name = __get_es_artifact_index_name(tenant)
+    if not es.indices.exists(index_name):
+        LOG.debug(f'Creating artifact index {index_name} for tenant {tenant}')
+        es.indices.create(index=index_name)
+    return
+
+
+def get_artifact_doc(artifact_id, tenant, es, artifact_type='kibana'):
+    index = __get_es_artifact_index_name(tenant)
+    _id = __get_es_artifact_doc_name(artifact_id, artifact_type)
+    if es.exists(index=index, id=_id):
+        doc = es.get(index=index, id=_id)
+        return doc.get('_source', {})
+    LOG.debug(f'No artifact doc for {_id}')
+    return None
+
+
+def put_artifact_doc(artifact_id, tenant, doc, es, artifact_type='kibana'):
+    index = __get_es_artifact_index_name(tenant)
+    _id = __get_es_artifact_doc_name(artifact_id, artifact_type)
+    make_es_artifact_index(tenant, es)  # make sure we have an index
+    if not es.exists(index=index, id=_id):
+        LOG.debug(f'Creating ES Artifact for {tenant}: -> {_id}')
+        es.create(
+            index=index,
+            id=_id,
+            body=doc
+        )
     else:
-        return consumer_config.get(
-            'es_optionsig_settings', {}).get(
-            'auto_timestamp', None)
+        LOG.debug(f'Updating ES Artifact for {tenant}/{index}/{_id}')
+        LOG.debug(json.dumps(doc, indent=2))
+        es.update(
+            index=index,
+            id=_id,
+            body={'doc': doc}
+        )
 
 
-def _format_lookups(schema: Node, default='Other', strip_form_name=True):
-    matching = schema.collect_matching(
-        {'has_attr': ['__lookup']}
-    )
-    if not matching:
-        return {}
-    if not strip_form_name:
-        return {
-            key: _format_single_lookup(node, default)
-            for key, node in matching
-        }
-    else:
-        return {
-            remove_formname(key): _format_single_lookup(node, default)
-            for key, node in matching
-        }
+# # Kibana Artifacts
+# # # for a single index alias rollup, describes the kibana index and visualizations
 
-
-def _format_single_lookup(node: Node, default='Other'):
-    lookup = node.__lookup
-    definition = {
-        'id': 'static_lookup',
-        'params': {'lookupEntries': [
-            {'value': pair['label'], 'key': pair['value']} for pair in lookup
-        ], 'unknownKeyValue': default}
-    }
-    return definition
-
-
-def _make_artifact(index=None, visualization=None, old_artifact=None):
+def make_kibana_artifact(index=None, visualization=None, old_artifact=None):
     indices = {
         k: v for k, v in index.items()} \
         if isinstance(index, dict)  \
@@ -420,10 +495,11 @@ def merge_kibana_artifacts(
         LOG.info('Not creating visualizations')
         visualizations = {}
     vis_hashes = {k: utils.hash(v) for k, v in visualizations.items()}
+
     if not old_artifact:
         # use the new one since there is no old one
 
-        artifact = _make_artifact(
+        artifact = make_kibana_artifact(
             index={schema_name: index_hash},
             visualization=vis_hashes
         )
@@ -456,59 +532,12 @@ def merge_kibana_artifacts(
         _type='index-pattern'
     )
     new_kibana_index = utils.merge_dicts(old_kibana_index, kibana_index)
-    artifact = _make_artifact(
+    artifact = make_kibana_artifact(
         index={schema_name: index_hash},
         visualization=vis_hashes,
         old_artifact=old_artifact
     )
     return new_kibana_index, artifact, updated_visuals
-
-
-def __get_es_artifact_index_name(tenant):
-    return f'{tenant}._aether_artifacts_v1'.lower()
-
-
-def __get_es_artifact_doc_name(alias):
-    return f'kibana.{alias}'
-
-
-def get_es_artifact_for_alias(alias, tenant, es):
-    index = __get_es_artifact_index_name(tenant)
-    _id = __get_es_artifact_doc_name(alias)
-    if es.exists(index=index, id=_id):
-        doc = es.get(index=index, id=_id)
-        return doc.get('_source', {})
-    LOG.debug(f'No artifact doc for {_id}')
-    return None
-
-
-def make_es_artifact_index(tenant, es):
-    index_name = __get_es_artifact_index_name(tenant)
-    if not es.indices.exists(index_name):
-        LOG.debug(f'Creating artifact index {index_name} for tenant {tenant}')
-        es.indices.create(index=index_name)
-    return
-
-
-def put_es_artifact_for_alias(name, tenant, doc, es):
-    index = __get_es_artifact_index_name(tenant)
-    _id = __get_es_artifact_doc_name(name)
-    make_es_artifact_index(tenant, es)  # make sure we have an index
-    if not es.exists(index=index, id=_id):
-        LOG.debug(f'Creating ES Artifact for {tenant}:{name}')
-        es.create(
-            index=index,
-            id=_id,
-            body=doc
-        )
-    else:
-        LOG.debug(f'Updating ES Artifact for {tenant}:{name}:{_id}')
-        LOG.debug(json.dumps(doc, indent=2))
-        es.update(
-            index=index,
-            id=_id,
-            body={'doc': doc}
-        )
 
 
 def update_kibana_artifact(
@@ -577,28 +606,109 @@ def handle_kibana_artifact(
     return res
 
 
-def get_default_index(tenant, conn: Session):
-    url = '/api/kibana/settings'
-    op = 'get'
-    res = conn.request(op, url)
-    try:
-        handle_http(res)
-        default = res.json().get('settings', {}) \
-            .get('defaultIndex', {}) \
-            .get('userValue')
-        return default
-    except (HTTPError, ConsumerHttpException) as her:
-        LOG.debug(f'Could not get default index: {her}')
-        return None
+# Utilites
+
+def get_es_types_from_schema(schema: Node):
+    # since we handle union types, we sort these in increasing importance
+    # to ES's handling of them. I.E. if it can be an object or a string,
+    # it's more tolerant to treat it as an object, etc.
+    mappings = {}
+    # basic avro types
+    for avro_type, es_type in config.AVRO_TYPES:
+        matches = [i for i in schema.find_children(
+            {'attr_contains': [{'avro_type': avro_type}]})
+        ]
+        __handle_mapping_addition(matches, mappings, avro_type, es_type)
+    # logical avro types
+    for avro_type, es_type in config.AVRO_LOGICAL_TYPES:
+        matches = [i for i in schema.find_children(
+            {'attr_contains': [{'logical_type': avro_type}]})
+        ]
+        __handle_mapping_addition(matches, mappings, avro_type, es_type)
+    # aether types
+    for aether_type, es_type in config.AETHER_TYPES:
+        matches = [i for i in schema.find_children(
+            {'match_attr': [{'__extended_type': aether_type}]})
+        ]
+        __handle_mapping_addition(matches, mappings, aether_type, es_type)
+    return mappings
 
 
-def set_default_index(tenant, conn: Session, index_name):
-    url = '/api/kibana/settings/defaultIndex'
-    op = 'post'
-    res = conn.request(op, url, json={'value': index_name})
-    try:
-        handle_http(res)
-        return True
-    except (HTTPError, ConsumerHttpException) as her:
-        LOG.debug(f'Could not set default index to {index_name}: {her}')
-        return False
+def __handle_mapping_addition(matches, mappings, foreign_type, es_type):
+    for match in matches:
+        path = remove_formname(match)
+        if path and path not in ES_RESERVED:
+            if not isinstance(es_type, tuple):
+                mappings[path] = {'type': es_type}
+            else:
+                _type, _format = es_type
+                mappings[path] = {
+                    'type': _type,
+                    'format': _format
+                }
+
+
+def handle_http(req):
+    req.raise_for_status()
+
+
+def get_alias_from_namespace(namespace: str):
+    parts = namespace.split('_')
+    if len(parts) < 2:
+        return f'{namespace}'
+    return '_'.join(parts[:-1])
+
+
+def remove_formname(name):
+    pieces = name.split('.')
+    return '.'.join(pieces[1:])
+
+
+def get_formname(name):
+    return name.split('.')[0]
+
+
+def _find_timestamp(schema: Node):
+    # takes a field matching timestamp, or the first timestamp
+    matching = schema.collect_matching(
+        {'match_attr': [{'__extended_type': 'dateTime'}]}
+    )
+    fields = sorted([key for key, node in matching])
+    timestamps = [f for f in fields if 'timestamp' in f]
+    if timestamps:
+        return remove_formname(timestamps[0])
+    elif fields:
+        return remove_formname(fields[0])
+    else:
+        return consumer_config.get(
+            'es_optionsig_settings', {}).get(
+            'auto_timestamp', None)
+
+
+def _format_lookups(schema: Node, default='Other', strip_form_name=True):
+    matching = schema.collect_matching(
+        {'has_attr': ['__lookup']}
+    )
+    if not matching:
+        return {}
+    if not strip_form_name:
+        return {
+            key: _format_single_lookup(node, default)
+            for key, node in matching
+        }
+    else:
+        return {
+            remove_formname(key): _format_single_lookup(node, default)
+            for key, node in matching
+        }
+
+
+def _format_single_lookup(node: Node, default='Other'):
+    lookup = node.__lookup
+    definition = {
+        'id': 'static_lookup',
+        'params': {'lookupEntries': [
+            {'value': pair['label'], 'key': pair['value']} for pair in lookup
+        ], 'unknownKeyValue': default}
+    }
+    return definition

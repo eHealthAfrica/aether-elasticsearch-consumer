@@ -468,14 +468,15 @@ class ESJob(BaseJob):
             alias = index_handler.get_alias_from_namespace(node.namespace)
         # Try to add the indices / ES alias
         es_instance = self._job_elasticsearch().get_session()
-        self.log.debug(f'registering ES index:\n{json.dumps(es_index, indent=2)}')
-        updated = index_handler.register_es_index(
-            es_instance,
-            es_index,
-            alias
-        )
-        if updated:
+        if index_handler.es_index_changed(es_instance, es_index, self.tenant):
             self.log.debug(f'{self.tenant} updated schema for {topic}')
+            self.log.debug(f'registering ES index:\n{json.dumps(es_index, indent=2)}')
+            index_handler.update_es_index(
+                es_instance,
+                es_index,
+                self.tenant,
+                alias
+            )
         conn: KibanaInstance = self._job_kibana()
 
         old_schema = self._schemas.get(topic)
@@ -504,8 +505,7 @@ class ESJob(BaseJob):
         # update processor for type
         doc_type, instr = list(es_index['body']['mappings'].items())[0]
         self._doc_types[topic] = doc_type
-        self._processors[topic] = ESItemProcessor(topic, instr)
-        self._processors[topic].load_avro(schema)
+        self._processors[topic] = ESItemProcessor(topic, instr, node)
         self._routes[topic] = self._processors[topic].create_route()
 
     def submit(self, index_name, doc_type, doc, topic, route_getter):

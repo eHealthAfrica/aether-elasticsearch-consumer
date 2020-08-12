@@ -22,6 +22,9 @@ import json
 import pytest
 import requests
 import responses
+from time import sleep
+
+from elasticsearch.exceptions import NotFoundError
 
 from aet.logger import get_logger
 
@@ -88,7 +91,11 @@ def test__get_es_types_from_schema(ComplexSchema):
     assert(first('$._start.type', res) == 'date')
     assert(first('$.geometry.type', res) == 'object')
     assert(first('$.meta.type', res) == 'object')
-    assert(len(list(res.keys())) == 54)
+    assert(first('$.mandatory_date.type', res) == 'date')
+    assert(first('$.mandatory_date.format', res) == 'date')
+    assert(first('$.optional_dt.type', res) == 'date')
+    assert(first('$.optional_dt.format', res) == 'epoch_millis')
+    assert(len(list(res.keys())) == 57)
 
 
 @pytest.mark.unit
@@ -133,3 +140,59 @@ def test__get_alias_from_namespace():
     namespace = 'A_Gather_Form_V1'
     res = index_handler.get_alias_from_namespace(namespace)
     assert(res == 'A_Gather_Form')
+
+
+@pytest.mark.integration
+def test__update_es_index(TestElasticsearch, PolySchemaA, PolySchemaB):
+    # register index with mapping
+    es = TestElasticsearch.get_session()
+    doc_id = 'poly-test-doc'
+    doc = {
+        'id': doc_id,
+        'poly': '1001'
+    }
+
+    index_a = index_handler.get_es_index_from_subscription(
+        es_options={},
+        name='test1',
+        tenant='test-tenant',
+        schema=PolySchemaA
+    )
+    index_name = index_a.get('name')
+    index_b = index_handler.get_es_index_from_subscription(
+        es_options={},
+        name='test1',
+        tenant='test-tenant',
+        schema=PolySchemaB
+    )
+    alias = index_handler.get_alias_from_namespace(PolySchemaA.name)
+    # register schema A
+    index_handler.update_es_index(es, index_a, 'test-tenant', alias)
+    # put doc
+    es.create(
+        index=index_name,
+        id=doc_id,
+        body=doc
+    )
+    es.indices.refresh(index=index_name)
+    res = es.search(index=index_name, body={
+        "query": {"term": {"poly": "1001"}}
+    })
+    assert(res.get('hits').get('max_score') < 1.0)  # find imperfect by string
+    res = es.search(index=index_name, body={
+        "query": {"term": {"poly": 1001}}
+    })
+    assert(res.get('hits').get('max_score') < 1.0)  # find imperfect by string
+
+    # migrate to schema B
+    index_handler.update_es_index(es, index_b, 'test-tenant', alias)
+    es.indices.refresh(index=index_name)
+
+    res = es.search(index=index_name, body={
+        "query": {"term": {"poly": "1001"}}
+    })
+    assert(res.get('hits').get('max_score') == 1.0)  # find by string
+    res = es.search(index=index_name, body={
+        "query": {"term": {"poly": 1001}}
+    })
+    assert(res.get('hits').get('max_score') == 1.0)  # find by int
