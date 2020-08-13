@@ -61,6 +61,8 @@ AVRO_LOGICAL_TYPES = [
 
 AETHER_TYPES = [
     ('dateTime', 'date'),
+    ('epoch_second', ('date', 'epoch_second')),
+    ('epoch_millis', ('date', 'epoch_millis')),
     ('geopoint', 'object'),  # our geopoints don't always fit ES requirements
     ('select', 'keyword'),
     ('select1', 'keyword'),
