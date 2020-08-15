@@ -524,13 +524,18 @@ def merge_kibana_artifacts(
         return None, None, None
 
     # we need to reconcile the update
-    old_kibana_index = handle_kibana_artifact(
-        alias_name,
-        tenant,
-        kibana_conn,
-        mode='READ',
-        _type='index-pattern'
-    )
+    try:
+        old_kibana_index = handle_kibana_artifact(
+            alias_name,
+            tenant,
+            kibana_conn,
+            mode='READ',
+            _type='index-pattern'
+        )
+    except (HTTPError, ConsumerHttpException) as her:
+        LOG.info(f'Old Kibana index not found {her}')
+        old_kibana_index = {}
+
     new_kibana_index = utils.merge_dicts(old_kibana_index, kibana_index)
     artifact = make_kibana_artifact(
         index={schema_name: index_hash},
