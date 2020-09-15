@@ -1,4 +1,4 @@
-version: "2.1"
+version: "2.4"
 
 services:
 
@@ -31,8 +31,8 @@ services:
 
       EXPOSE_PORT: 9013
       LOG_LEVEL: "DEBUG"
-      ES_CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
-      ES_CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
+      CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
+      CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
       STARTUP_CONNECTION_RETRY: 3
 
