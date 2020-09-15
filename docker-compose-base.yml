@@ -1,4 +1,4 @@
-version: "2.1"
+version: "2.4"
 services:
 
   es-consumer-base:
@@ -6,9 +6,9 @@ services:
     image: aether-elasticsearch-consumer
     stdin_open: true
     volumes:
-     - ./consumer:/code
+      - ./consumer:/code
     environment:
-     - PYTHONUNBUFFERED=0
+      - PYTHONUNBUFFERED=0
     command: start
 
   es-consumer-base-local:
@@ -18,7 +18,7 @@ services:
     image: aether-elasticsearch-consumer
     stdin_open: true
     volumes:
-     - ./consumer:/code
+      - ./consumer:/code
     environment:
-     - PYTHONUNBUFFERED=0
+      - PYTHONUNBUFFERED=0
     command: start

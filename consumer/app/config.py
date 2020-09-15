@@ -71,8 +71,14 @@ AETHER_TYPES = [
 
 
 def load_config():
-    CONSUMER_CONFIG_PATH = os.environ.get('ES_CONSUMER_CONFIG_PATH', None)
-    KAFKA_CONFIG_PATH = os.environ.get('ES_CONSUMER_KAFKA_CONFIG_PATH', None)
+    # User generic config path environment variables
+    # but also keep old ones for legacy deployments
+    CONSUMER_CONFIG_PATH = os.environ.get(
+        'CONSUMER_CONFIG_PATH',
+        os.environ.get('ES_CONSUMER_CONFIG_PATH', None))
+    KAFKA_CONFIG_PATH = os.environ.get(
+        'CONSUMER_KAFKA_CONFIG_PATH',
+        os.environ.get('ES_CONSUMER_KAFKA_CONFIG_PATH', None))
     global consumer_config
     consumer_config = Settings(file_path=CONSUMER_CONFIG_PATH)
     global kafka_config
