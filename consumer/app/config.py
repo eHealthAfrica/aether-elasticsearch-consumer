@@ -71,7 +71,7 @@ AETHER_TYPES = [
 
 
 def load_config():
-    # User generic config path environment variables
+    # Use generic config path environment variable names
     # but also keep old ones for legacy deployments
     CONSUMER_CONFIG_PATH = os.environ.get(
         'CONSUMER_CONFIG_PATH',
