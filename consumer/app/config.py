@@ -106,7 +106,8 @@ def get_kafka_config():
                 kafka_config[name] = kafka_config.get(alias)
             else:
                 kafka_config[name] = kafka_config.get(name)
-        if any((missing := [name for name, _ in required if name not in kafka_config])):
+        missing = [name for name, _ in required if name not in kafka_config]
+        if any(missing):
             raise RuntimeError(f'Missing Required Kafka Configuration : {missing}')
     elif not kafka_config.get('INSECURE_KAFKA', False):
         raise RuntimeError(f'Security Protocol not set for Kafka, and not marked insecure')
