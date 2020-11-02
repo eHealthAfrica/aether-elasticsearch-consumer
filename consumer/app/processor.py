@@ -35,7 +35,8 @@ CONSUMER_CONFIG = get_consumer_config()
 
 ES_RESERVED = [
     '_uid', '_id', '_type', '_source', '_all', '_field_names',
-    '_routing', '_index', '_size', '_timestamp', '_ttl', '_version'
+    '_routing', '_index', '_size', '_timestamp', '_ttl', '_version',
+    '_submitted_at', '_surveyor'
 ]
 
 AVRO_BASE_COERSCE = {

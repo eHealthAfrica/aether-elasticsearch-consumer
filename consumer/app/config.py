@@ -77,7 +77,7 @@ def load_config():
         'CONSUMER_CONFIG_PATH',
         os.environ.get('ES_CONSUMER_CONFIG_PATH', None))
     KAFKA_CONFIG_PATH = os.environ.get(
-        'CONSUMER_KAFKA_CONFIG_PATH',
+        'KAFKA_CONFIG_PATH',
         os.environ.get('ES_CONSUMER_KAFKA_CONFIG_PATH', None))
     global consumer_config
     consumer_config = Settings(file_path=CONSUMER_CONFIG_PATH)
@@ -92,19 +92,22 @@ def load_config():
 def get_kafka_config():
     # load security settings in from environment
     # if the security protocol is set
+    required = [
+        ('SECURITY.PROTOCOL', 'KAFKA_CONSUMER_SECURITY_PROTOCOL'),
+        ('SASL.MECHANISM', 'KAFKA_CONSUMER_SASL_MECHANISM'),
+        ('SASL.USERNAME', 'KAFKA_CONSUMER_USER'),
+        ('SASL.PASSWORD', 'KAFKA_CONSUMER_PASSWORD')
+    ]
     protocol = kafka_config.get('SECURITY.PROTOCOL') or \
         kafka_config.get('KAFKA_CONSUMER_SECURITY_PROTOCOL')
     if protocol:
-        for name, alias in [
-            ('SECURITY.PROTOCOL', 'KAFKA_CONSUMER_SECURITY_PROTOCOL'),
-            ('SASL.MECHANISM', 'KAFKA_CONSUMER_SASL_MECHANISM'),
-            ('SASL.USERNAME', 'KAFKA_CONSUMER_USER'),
-            ('SASL.PASSWORD', 'KAFKA_CONSUMER_PASSWORD')
-        ]:
+        for name, alias in required:
             if not kafka_config.get(name):
                 kafka_config[name] = kafka_config.get(alias)
             else:
                 kafka_config[name] = kafka_config.get(name)
+    if any((missing := [name for name, _ in required if name not in kafka_config])):
+        raise RuntimeError(f'Missing Required Kafka Configuration : {missing}')
     return kafka_config
 
 
