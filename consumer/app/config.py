@@ -110,7 +110,7 @@ def get_kafka_config():
         if any(missing):
             raise RuntimeError(f'Missing Required Kafka Configuration : {missing}')
     elif not kafka_config.get('INSECURE_KAFKA', False):
-        raise RuntimeError(f'Security Protocol not set for Kafka, and not marked insecure')
+        raise RuntimeError('Security Protocol not set for Kafka, and not marked insecure')
     return kafka_config
 
 
