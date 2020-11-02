@@ -95,7 +95,7 @@ def test__get_es_types_from_schema(ComplexSchema):
     assert(first('$.mandatory_date.format', res) == 'date')
     assert(first('$.optional_dt.type', res) == 'date')
     assert(first('$.optional_dt.format', res) == 'epoch_millis')
-    assert(len(list(res.keys())) == 57)
+    assert(len(list(res.keys())) == 55)
 
 
 @pytest.mark.unit
