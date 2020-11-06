@@ -678,15 +678,20 @@ def _find_timestamp(schema: Node):
     matching = schema.collect_matching(
         {'match_attr': [{'__extended_type': 'dateTime'}]}
     )
-    fields = sorted([key for key, node in matching])
+    fields = sorted([remove_formname(key) for key, node in matching])
     timestamps = [f for f in fields if 'timestamp' in f]
-    if timestamps:
-        return remove_formname(timestamps[0])
+    preferred = consumer_config.get(
+        'es_options', {}).get(
+        'index_time', None)
+    if fields and preferred in fields:
+        return preferred
+    elif timestamps:
+        return timestamps[0]
     elif fields:
-        return remove_formname(fields[0])
+        return fields[0]
     else:
         return consumer_config.get(
-            'es_optionsig_settings', {}).get(
+            'es_options', {}).get(
             'auto_timestamp', None)
 
 
