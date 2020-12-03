@@ -224,6 +224,8 @@ def es_index_changed(es, index, tenant) -> bool:
     index_name = index.get('name')
     if es.indices.exists(index=index_name):
         artifact = get_artifact_doc(index_name, tenant, es, artifact_type='es_index')
+        if not artifact:
+            return True
         existing_hash = artifact.get('hash')
         if not artifact and existing_hash:
             return True
@@ -411,7 +413,7 @@ def get_artifact_doc(artifact_id, tenant, es, artifact_type='kibana'):
         doc = es.get(index=index, id=_id)
         return doc.get('_source', {})
     LOG.debug(f'No artifact doc for {_id}')
-    return None
+    return {}
 
 
 def put_artifact_doc(artifact_id, tenant, doc, es, artifact_type='kibana'):

@@ -260,7 +260,8 @@ class ESJob(BaseJob):
 
     public_actions = BaseJob.public_actions + [
         'list_topics',
-        'list_subscribed_topics'
+        'list_subscribed_topics',
+        'list_assigned_topics'
     ]
     # publicly available list of topics
     subscribed_topics: dict
@@ -452,6 +453,9 @@ class ESJob(BaseJob):
     def _update_topic(self, topic, schema: Mapping[Any, Any]):
         self.log.debug(f'{self.tenant} is updating topic: {topic}')
         subscription = self._job_subscription_for_topic(topic)
+        if not subscription:
+            self.log.error(f'Could not find subscription for topic {topic}')
+            return
         node: Node = Node(schema)
         self.log.debug('getting index')
         es_index = index_handler.get_es_index_from_subscription(
@@ -571,3 +575,10 @@ class ESJob(BaseJob):
         A List of topics currently subscribed to by this job
         '''
         return list(self.subscribed_topics.values())
+
+    # public
+    def list_assigned_topics(self, *arg, **kwargs):
+        '''
+        A List of topics currently assigned to this consumer
+        '''
+        return self._previous_topics[:]
