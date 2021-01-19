@@ -175,7 +175,7 @@ class ESItemProcessor(object):
         return route
 
     def rename_reserved_fields(self, doc):
-        for key in doc:
+        for key in list(doc.keys()):
             if key in ES_RESERVED:
                 val = self._get_doc_field(doc, key)
                 safe_name = 'es_reserved_%s' % key
