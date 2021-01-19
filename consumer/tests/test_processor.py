@@ -37,7 +37,7 @@ LOG = get_logger('TEST-PRO')
 ])
 @pytest.mark.unit
 def test__required_avro_logical_coersions(_type, test_value, expected):
-    _fn = processor.AVRO_LOGICAL_COERSCE[_type]
+    _fn = processor.AVRO_LOGICAL_COERCE[_type]
     res = _fn(test_value)
     assert(res == expected)
 

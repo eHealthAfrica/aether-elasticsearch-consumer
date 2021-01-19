@@ -13,7 +13,7 @@ The simplest way to try the consumer, is to use `aether-bootstrap` and opt for E
 
 #### `conf/consumer/kafka.json`
 
-To setup the main consumer, the kafka.json file should match your preferred Kafka settings. This is not user facing. The consumer running multi-tenanted assumes that you have employed topic level access control, and that a user coming from {tenant} should be allowed to read topics matching ^{tenant}.*
+To setup the main consumer, the `kafka.json` file should match your preferred Kafka settings. This is not user facing. The consumer running multi-tenanted assumes that you have employed topic level access control, and that a user coming from `{tenant}` should be allowed to read topics matching `^{tenant}.*`.
 
 You can also set the default masking and message filtering settings here, but if specified, the user's rules will take precedence.
 
@@ -32,7 +32,7 @@ You can also set the default masking and message filtering settings here, but if
 
 ### Usage
 
-As with all consumers built on the SDK, tasks are driven by a Job which has a set of Resources. In this case, a Job has a `subscription` to a topic (or wildcard) on Kafka, and sends data to a pair of`elasticsearch` and `kibana` instance. All resource examples and schemas can be found in `/consumer/app/fixtures`
+As with all consumers built on the SDK, tasks are driven by a Job which has a set of Resources. In this case, a Job has a `subscription` to a topic (or wildcard) on Kafka, and sends data to a pair of `elasticsearch` and `kibana` instance. All resource examples and schemas can be found in `/consumer/app/fixtures`.
 
 #### Elasticsearch
 
@@ -105,7 +105,7 @@ Finally we, tie it together with a Job that references the above artifacts by ID
 ```
 
 
-If the consumer is configured to use a default, multi-tenanted Elasticsearch/Kibana cluster, you can create artifacts those those via the `local_elasticsearch` && `local_kibana` API endpoints, and then reference them in a job like so:
+If the consumer is configured to use a default, multi-tenanted Elasticsearch/Kibana cluster, you can create artifacts via the `local_elasticsearch` && `local_kibana` API endpoints, and then reference them in a job like so:
 
 ```json
 {
