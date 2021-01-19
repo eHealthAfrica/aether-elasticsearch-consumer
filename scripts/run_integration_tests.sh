@@ -21,6 +21,25 @@
 
 set -Eeuo pipefail
 
-docker-compose -f ./docker-compose-test.yml up -d elasticsearch kibana redis
-docker-compose -f ./docker-compose-test.yml run --rm consumer-test test_integration
-docker-compose -f docker-compose-test.yml down
+trap '_on_exit' EXIT
+trap '_on_err' ERROR
+
+function _on_exit () {
+  docker-compose -f docker-compose-test.yml down -v
+}
+
+function _on_err () {
+  echo "-------------------------"
+  docker-compose -f docker-compose-test.yml logs redis
+  echo "-------------------------"
+  docker-compose -f docker-compose-test.yml logs elasticsearch
+  echo "-------------------------"
+  docker-compose -f docker-compose-test.yml logs kibana
+  echo "-------------------------"
+
+  exit 1
+}
+
+docker-compose -f docker-compose-test.yml up -d elasticsearch kibana redis
+
+docker-compose -f docker-compose-test.yml run --rm consumer-test test_integration

@@ -22,9 +22,9 @@ set -Eeuo pipefail
 
 # Try to create the common aether network if it doesn't exist.
 {
-    docker network create aether_internal
+  docker network create aether_internal
 } || { # catch
-    echo "aether_internal is ready."
+  echo "aether_internal is ready."
 }
 
 # Build docker images
@@ -46,7 +46,6 @@ release_app () {
   docker tag ${AETHER_APP} "${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
   echo "Pushing Docker image ${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
   docker push "${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
-
 }
 
 for APP in "${CORE_APPS[@]}"

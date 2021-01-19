@@ -8,8 +8,6 @@ services:
     extends:
       file: docker-compose-base.yml
       service: es-consumer-base
-    volumes:
-      - ./consumer/tests:/code/tests
     environment:
       TENANCY_HEADER: x-oauth-realm
       REDIS_DB: 0
@@ -23,7 +21,7 @@ services:
       ELASTICSEARCH_USER: admin
       ELASTICSEARCH_PASSWORD: admin
 
-      KAFKA_URL: ${KAFKA_URL}
+      KAFKA_URL: ${KAFKA_URL:-kafka-test:29092}
       SECURITY.PROTOCOL: SASL_SSL
       SASL.MECHANISM: PLAIN
       KAFKA_CONSUMER_USER: ${KAFKA_SASL_USERNAME}
@@ -35,6 +33,15 @@ services:
       CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
       STARTUP_CONNECTION_RETRY: 3
+
+
+  redis:
+    image: redis:alpine
+
+
+  # ---------------------------------
+  # ES & Kibana
+  # ---------------------------------
 
   elasticsearch:
     image: amazon/opendistro-for-elasticsearch:${AMAZON_ES_VERSION:-1.12.0}
@@ -62,6 +69,3 @@ services:
       - elasticsearch
     ports:
       - 5601:5601
-
-  redis:
-    image: redis:alpine

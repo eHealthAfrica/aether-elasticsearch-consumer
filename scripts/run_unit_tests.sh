@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
 #
@@ -20,7 +20,21 @@
 #
 set -Eeuo pipefail
 
+trap '_on_exit' EXIT
+trap '_on_err' ERROR
+
+function _on_exit () {
+  docker-compose -f docker-compose-test.yml down -v
+}
+
+function _on_err () {
+  echo "-------------------------"
+  docker-compose -f docker-compose-test.yml logs redis
+  echo "-------------------------"
+
+  exit 1
+}
+
 docker-compose -f docker-compose-test.yml up -d redis
+
 docker-compose -f docker-compose-test.yml run --rm consumer-test test_unit
-docker-compose -f docker-compose-test.yml kill redis
-docker-compose -f docker-compose-test.yml rm -f redis
