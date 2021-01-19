@@ -1,4 +1,4 @@
-FROM python:3.7-slim-stretch
+FROM python:3.8-slim-buster
 
 LABEL description="Aether Elasticsearch Kafka consumer" \
       name="aether-elasticsearch-consumer" \

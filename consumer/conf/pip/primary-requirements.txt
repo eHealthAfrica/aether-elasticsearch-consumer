@@ -1,23 +1,24 @@
-#################################################################################################
-#                                                                              					#
-#                             Primary requirements                             					#
-#                                                                              					#
-#                                 CHANGE ME !!!                                					#
-#                                                                              					#
-# Update me and then run 'docker-compose run myconsumer pip_freeze'                             #
-#                                                                              					#
-#################################################################################################
+################################################################################
+#                                                                              #
+#                             Primary requirements                             #
+#                                                                              #
+#                                 CHANGE ME !!!                                #
+#                                                                              #
+# Update me and then run 'docker-compose run myconsumer pip_freeze'            #
+#                                                                              #
+################################################################################
 
 aet.consumer >= 3.9.2
 aether-python
 confluent_kafka >= 1.5.0
 deepmerge
 eha_jsonpath
-elasticsearch # >=5.0.0,<6.0.0
+elasticsearch[requests] # >=5.0.0,<6.0.0
+responses
+
+# Test libraries
 flake8
 flake8-quotes
 pytest
 pytest-cov
 pytest-runner
-requests
-responses
