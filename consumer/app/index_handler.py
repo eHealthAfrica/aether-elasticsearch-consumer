@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright (C) 2019 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
@@ -613,7 +611,7 @@ def handle_kibana_artifact(
     return res
 
 
-# Utilites
+# Utilities
 
 def get_es_types_from_schema(schema: Node):
     # since we handle union types, we sort these in increasing importance
