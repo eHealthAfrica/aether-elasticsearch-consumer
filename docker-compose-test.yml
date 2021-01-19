@@ -37,7 +37,7 @@ services:
       STARTUP_CONNECTION_RETRY: 3
 
   elasticsearch:
-    image: amazon/opendistro-for-elasticsearch:${AMAZON_ES_VERSION:-1.11.0}
+    image: amazon/opendistro-for-elasticsearch:${AMAZON_ES_VERSION:-1.12.0}
     environment:
       discovery.type: single-node
       opendistro_security.ssl.http.enabled: 'false'
@@ -48,7 +48,7 @@ services:
       - 9200:9200
 
   kibana:
-    image: amazon/opendistro-for-elasticsearch-kibana:${AMAZON_ES_VERSION:-1.11.0}
+    image: amazon/opendistro-for-elasticsearch-kibana:${AMAZON_ES_VERSION:-1.12.0}
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
       ELASTICSEARCH_PRESERVEHOST: 'false'
