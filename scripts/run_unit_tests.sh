@@ -20,9 +20,6 @@
 #
 set -Eeuo pipefail
 
-trap '_on_exit' EXIT
-trap '_on_err' ERROR
-
 function _on_exit () {
   docker-compose -f docker-compose-test.yml down -v
 }
@@ -34,6 +31,10 @@ function _on_err () {
 
   exit 1
 }
+
+trap '_on_exit' EXIT
+trap '_on_err' ERR
+
 
 docker-compose -f docker-compose-test.yml up -d redis
 

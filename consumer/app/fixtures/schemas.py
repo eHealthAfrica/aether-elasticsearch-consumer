@@ -551,18 +551,19 @@ ES_JOB = '''
           "pattern": "^(.*)$"
         },
         "subscription": {
-        "$id": "#/properties/subscription",
-        "type": "array",
-        "title": "The Subscriptions Schema",
-        "items": {
-          "$id": "#/properties/subscription/items",
-          "type": "string",
-          "title": "The Items Schema",
-          "default": "",
-          "examples": [
-            "id-of-sub"
-          ],
-          "pattern": "^(.*)$"
+          "$id": "#/properties/subscription",
+          "type": "array",
+          "title": "The Subscriptions Schema",
+          "items": {
+            "$id": "#/properties/subscription/items",
+            "type": "string",
+            "title": "The Items Schema",
+            "default": "",
+            "examples": [
+              "id-of-sub"
+            ],
+            "pattern": "^(.*)$"
+          }
         }
       }
     },
@@ -615,18 +616,19 @@ ES_JOB = '''
           "pattern": "^(.*)$"
         },
         "subscriptions": {
-        "$id": "#/properties/subscriptions",
-        "type": "array",
-        "title": "The Subscriptions Schema",
-        "items": {
-          "$id": "#/properties/subscriptions/items",
-          "type": "string",
-          "title": "The Items Schema",
-          "default": "",
-          "examples": [
-            "id-of-sub"
-          ],
-          "pattern": "^(.*)$"
+          "$id": "#/properties/subscriptions",
+          "type": "array",
+          "title": "The Subscriptions Schema",
+          "items": {
+            "$id": "#/properties/subscriptions/items",
+            "type": "string",
+            "title": "The Items Schema",
+            "default": "",
+            "examples": [
+              "id-of-sub"
+            ],
+            "pattern": "^(.*)$"
+          }
         }
       }
     }
