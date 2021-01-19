@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright (C) 2019 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
@@ -87,7 +85,7 @@ ES_INSTANCE = '''
 
 KIBANA_INSTANCE = '''
 {
-  "definitions": {},
+  "definitions": { },
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "http://example.com/root.json",
   "type": "object",
@@ -154,7 +152,7 @@ KIBANA_INSTANCE = '''
 
 LOCAL_ES_INSTANCE = '''
 {
-  "definitions": {},
+  "definitions": { },
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "http://example.com/root.json",
   "type": "object",
@@ -190,7 +188,7 @@ LOCAL_ES_INSTANCE = '''
 
 LOCAL_KIBANA_INSTANCE = '''
 {
-  "definitions": {},
+  "definitions": { },
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "http://example.com/root.json",
   "type": "object",
@@ -226,7 +224,7 @@ LOCAL_KIBANA_INSTANCE = '''
 
 SUBSCRIPTION = '''
 {
-  "definitions": {},
+  "definitions": { },
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "http://example.com/root.json",
   "type": "object",
@@ -272,12 +270,8 @@ SUBSCRIPTION = '''
       "type": "object",
       "title": "The Topic_options Schema",
       "anyOf": [
-        {"required": [
-          "masking_annotation"
-      ]},
-        {"required": [
-          "filter_required"
-      ]}
+        {"required": ["masking_annotation"]},
+        {"required": ["filter_required"]}
       ],
       "dependencies":{
         "filter_required": ["filter_field_path", "filter_pass_values"],
@@ -502,137 +496,140 @@ SUBSCRIPTION = '''
 
 ES_JOB = '''
 {
-  "definitions": {},
+  "definitions": { },
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "http://example.com/root.json",
   "type": "object",
   "title": "The Root Schema",
-  "oneOf": [{
-    "required": [
-      "id",
-      "name",
-      "local_kibana",
-      "local_elasticsearch"
-    ],
-    "properties": {
-      "id": {
-        "$id": "#/properties/id",
-        "type": "string",
-        "title": "The Id Schema",
-        "default": "",
-        "examples": [
-          "the id for this resource"
-        ],
-        "pattern": "^(.*)$"
-      },
-      "name": {
-        "$id": "#/properties/name",
-        "type": "string",
-        "title": "The Name Schema",
-        "default": "",
-        "examples": [
-          "a nice name for this resource"
-        ],
-        "pattern": "^(.*)$"
-      },
-      "local_kibana": {
-        "$id": "#/properties/local_kibana",
-        "type": "string",
-        "title": "The Local_kibana Schema",
-        "default": "",
-        "examples": [
-          "id of the local kibana to use"
-        ],
-        "pattern": "^(.*)$"
-      },
-      "local_elasticsearch": {
-        "$id": "#/properties/local_elasticsearch",
-        "type": "string",
-        "title": "The Local_elasticsearch Schema",
-        "default": "",
-        "examples": [
-          "id of the local elasticsearch to use"
-        ],
-        "pattern": "^(.*)$"
-      },
-      "subscription": {
-      "$id": "#/properties/subscription",
-      "type": "array",
-      "title": "The Subscriptions Schema",
-      "items": {
-        "$id": "#/properties/subscription/items",
-        "type": "string",
-        "title": "The Items Schema",
-        "default": "",
-        "examples": [
-          "id-of-sub"
-        ],
-        "pattern": "^(.*)$"
+  "oneOf": [
+    {
+      "required": [
+        "id",
+        "name",
+        "local_kibana",
+        "local_elasticsearch"
+      ],
+      "properties": {
+        "id": {
+          "$id": "#/properties/id",
+          "type": "string",
+          "title": "The Id Schema",
+          "default": "",
+          "examples": [
+            "the id for this resource"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "name": {
+          "$id": "#/properties/name",
+          "type": "string",
+          "title": "The Name Schema",
+          "default": "",
+          "examples": [
+            "a nice name for this resource"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "local_kibana": {
+          "$id": "#/properties/local_kibana",
+          "type": "string",
+          "title": "The Local_kibana Schema",
+          "default": "",
+          "examples": [
+            "id of the local kibana to use"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "local_elasticsearch": {
+          "$id": "#/properties/local_elasticsearch",
+          "type": "string",
+          "title": "The Local_elasticsearch Schema",
+          "default": "",
+          "examples": [
+            "id of the local elasticsearch to use"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "subscription": {
+        "$id": "#/properties/subscription",
+        "type": "array",
+        "title": "The Subscriptions Schema",
+        "items": {
+          "$id": "#/properties/subscription/items",
+          "type": "string",
+          "title": "The Items Schema",
+          "default": "",
+          "examples": [
+            "id-of-sub"
+          ],
+          "pattern": "^(.*)$"
+        }
       }
-    }}
-  }, {
-    "required": [
-      "id",
-      "name",
-      "kibana",
-      "elasticsearch"
-    ],
-    "properties": {
-      "id": {
-        "$id": "#/properties/id",
-        "type": "string",
-        "title": "The Id Schema",
-        "default": "",
-        "examples": [
-          "the id for this resource"
-        ],
-        "pattern": "^(.*)$"
-      },
-      "name": {
-        "$id": "#/properties/name",
-        "type": "string",
-        "title": "The Name Schema",
-        "default": "",
-        "examples": [
-          "a nice name for this resource"
-        ],
-        "pattern": "^(.*)$"
-      },
-      "kibana": {
-        "$id": "#/properties/kibana",
-        "type": "string",
-        "title": "The Kibana Schema",
-        "default": "",
-        "examples": [
-          "id of the foreign kibana to use"
-        ],
-        "pattern": "^(.*)$"
-      },
-      "elasticsearch": {
-        "$id": "#/properties/elasticsearch",
-        "type": "string",
-        "title": "The Elasticsearch Schema",
-        "default": "",
-        "examples": [
-          "id of the foreign elasticsearch to use"
-        ],
-        "pattern": "^(.*)$"
-      },
-      "subscriptions": {
-      "$id": "#/properties/subscriptions",
-      "type": "array",
-      "title": "The Subscriptions Schema",
-      "items": {
-        "$id": "#/properties/subscriptions/items",
-        "type": "string",
-        "title": "The Items Schema",
-        "default": "",
-        "examples": [
-          "id-of-sub"
-        ],
-        "pattern": "^(.*)$"
+    },
+    {
+      "required": [
+        "id",
+        "name",
+        "kibana",
+        "elasticsearch"
+      ],
+      "properties": {
+        "id": {
+          "$id": "#/properties/id",
+          "type": "string",
+          "title": "The Id Schema",
+          "default": "",
+          "examples": [
+            "the id for this resource"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "name": {
+          "$id": "#/properties/name",
+          "type": "string",
+          "title": "The Name Schema",
+          "default": "",
+          "examples": [
+            "a nice name for this resource"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "kibana": {
+          "$id": "#/properties/kibana",
+          "type": "string",
+          "title": "The Kibana Schema",
+          "default": "",
+          "examples": [
+            "id of the foreign kibana to use"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "elasticsearch": {
+          "$id": "#/properties/elasticsearch",
+          "type": "string",
+          "title": "The Elasticsearch Schema",
+          "default": "",
+          "examples": [
+            "id of the foreign elasticsearch to use"
+          ],
+          "pattern": "^(.*)$"
+        },
+        "subscriptions": {
+        "$id": "#/properties/subscriptions",
+        "type": "array",
+        "title": "The Subscriptions Schema",
+        "items": {
+          "$id": "#/properties/subscriptions/items",
+          "type": "string",
+          "title": "The Items Schema",
+          "default": "",
+          "examples": [
+            "id-of-sub"
+          ],
+          "pattern": "^(.*)$"
+        }
       }
-    }}
-  }]
+    }
+  ]
 }
 '''

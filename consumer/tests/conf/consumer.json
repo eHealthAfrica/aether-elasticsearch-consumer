@@ -1,6 +1,6 @@
 {
     "elasticsearch_http_auth" : null,
     "latitude_fields": ["lat", "latitude"],
-	"longitude_fields": ["lon", "lng", "long", "longitude"],
-	"log_level": "debug"
+    "longitude_fields": ["lon", "lng", "long", "longitude"],
+    "log_level": "debug"
 }

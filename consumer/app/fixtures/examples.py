@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright (C) 2019 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
@@ -49,12 +47,12 @@ SUBSCRIPTION = {
     'name': 'Test Subscription',
     'topic_pattern': '*',
     'topic_options': {
-        'masking_annotation': '@aether_masking',  # schema key for mask level of a field
-        'masking_levels': ['public', 'private'],  # classifications
-        'masking_emit_level': 'public',           # emit from this level ->
-        'filter_required': True,                 # filter on a message value?
-        'filter_field_path': 'operational_status',    # which field?
-        'filter_pass_values': ['operational'],             # what are the passing values?
+        'masking_annotation': '@aether_masking',    # schema key for mask level of a field
+        'masking_levels': ['public', 'private'],    # classifications
+        'masking_emit_level': 'public',             # emit from this level ->
+        'filter_required': True,                    # filter on a message value?
+        'filter_field_path': 'operational_status',  # which field?
+        'filter_pass_values': ['operational'],      # what are the passing values?
     },
     'es_options': {
         'alias_name': 'test',
