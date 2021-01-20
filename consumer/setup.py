@@ -18,16 +18,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from setuptools import setup
+from setuptools import find_packages, setup
+
 setup(
     name='aether_elasticsearch_consumer',
     author='Shawn Sarwar',
     author_email='shawn.sarwar@ehealthafrica.org',
-    decription='Aether Elasticsearch Kafka consumer',
-    version='3.0.0',
-    setup_requires=['pytest-runner'],
-    tests_require=['pytest', 'pytest-cov'],
+    description='Aether Elasticsearch Kafka consumer',
     url='https://github.com/eHealthAfrica/aether-elasticsearch-consumer',
     keywords=['aet', 'aether', 'kafka', 'consumer', 'elasticsearch'],
-    classifiers=[]
+
+    packages=find_packages(),
 )

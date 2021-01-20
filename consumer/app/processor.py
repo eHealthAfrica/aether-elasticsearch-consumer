@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
@@ -39,11 +37,11 @@ ES_RESERVED = [
     '_submitted_at', '_surveyor'
 ]
 
-AVRO_BASE_COERSCE = {
+AVRO_BASE_COERCE = {
     # avro_type -> handler
 }
 
-AVRO_LOGICAL_COERSCE = {
+AVRO_LOGICAL_COERCE = {
     # logical_avro_type -> handler
     # int(days since epoch) -> iso_string
     'date': lambda x: (
@@ -70,14 +68,14 @@ class ESItemProcessor(object):
             raise ve
 
     @staticmethod
-    def _coersce_field(doc, field_path=None, trans_fn=None, **kwargs):
+    def _coerce_field(doc, field_path=None, trans_fn=None, **kwargs):
         try:
             field_value = ESItemProcessor._get_doc_field(doc, field_path)
             value = trans_fn(field_value)
             replace_nested(doc, field_path.split('.'), value, False)
             return doc
         except Exception as err:
-            LOG.error(f'could not coersce field {field_path}: {err}')
+            LOG.error(f'could not coerce field {field_path}: {err}')
             return doc
 
     @staticmethod
@@ -149,18 +147,18 @@ class ESItemProcessor(object):
                 path = full_path
             child = self.schema.get_node(full_path)
             permissive_type = self._most_permissive_avro_type(child.avro_type)
-            if hasattr(child, 'logical_type') and child.logical_type in AVRO_LOGICAL_COERSCE:
+            if hasattr(child, 'logical_type') and child.logical_type in AVRO_LOGICAL_COERCE:
                 cmd = {
-                    'function': '_coersce_field',
+                    'function': '_coerce_field',
                     'field_path': path,
-                    'trans_fn': AVRO_LOGICAL_COERSCE[child.logical_type]
+                    'trans_fn': AVRO_LOGICAL_COERCE[child.logical_type]
                 }
                 self.pipeline.append(cmd)
-            elif permissive_type in AVRO_BASE_COERSCE:
+            elif permissive_type in AVRO_BASE_COERCE:
                 cmd = {
-                    'function': '_coersce_field',
+                    'function': '_coerce_field',
                     'field_path': path,
-                    'trans_fn': AVRO_BASE_COERSCE[permissive_type]
+                    'trans_fn': AVRO_BASE_COERCE[permissive_type]
                 }
         LOG.debug(f'Pipeline for {self.es_type}: {self.pipeline}')
 
@@ -177,7 +175,7 @@ class ESItemProcessor(object):
         return route
 
     def rename_reserved_fields(self, doc):
-        for key in doc:
+        for key in list(doc.keys()):
             if key in ES_RESERVED:
                 val = self._get_doc_field(doc, key)
                 safe_name = 'es_reserved_%s' % key
@@ -186,14 +184,14 @@ class ESItemProcessor(object):
         return doc
 
     def process(self, doc, schema=None):
-        # Runs the cached insturctions from the built pipeline
+        # Runs the cached instructions from the built pipeline
         for instr in self.pipeline:
             doc = self.exc(doc, instr)
         doc = self.rename_reserved_fields(doc)
         return doc
 
     def exc(self, doc, instr):
-        # Excecute by name
+        # Execute by name
         fn = getattr(self, instr.get('function'))
         return fn(doc, **instr)
 

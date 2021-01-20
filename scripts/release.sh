@@ -20,36 +20,29 @@
 #
 set -Eeuo pipefail
 
-# Try to create the common aether network if it doesn't exist.
-{
-    docker network create aether_internal
-} || { # catch
-    echo "aether_internal is ready."
+function echo_msg {
+  LINE="==============="
+
+  echo -e ""
+  echo -e "\e[2m${LINE}\e[0m ${1}: \e[1;92m${TAG}\e[0m \e[2m${LINE}\e[0m"
+  echo -e ""
 }
 
-# Build docker images
-IMAGE_REPO='ehealthafrica'
-CORE_APPS=( elasticsearch-consumer )
-CORE_COMPOSE='docker-compose.yml'
+# Build and release docker image
+IMAGE_REPO="ehealthafrica"
+APP="elasticsearch-consumer"
 VERSION=$TRAVIS_TAG
+TAG="${IMAGE_REPO}/${APP}:${VERSION}"
 
 
-release_app () {
-  APP_NAME=$1
-  COMPOSE_PATH=$2
-  AETHER_APP="aether-${1}"
-  echo "$AETHER_APP"
-  echo "version: $VERSION"
-  echo "Building Docker image ${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
-  docker-compose -f $COMPOSE_PATH build --build-arg VERSION=$VERSION $APP_NAME
+echo_msg "Building image"
+docker build \
+    --tag $TAG \
+    --build-arg VERSION=$VERSION \
+    --build-arg REVISION=$TRAVIS_COMMIT \
+    ./consumer
+echo_msg "Built image"
 
-  docker tag ${AETHER_APP} "${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
-  echo "Pushing Docker image ${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
-  docker push "${IMAGE_REPO}/${AETHER_APP}:${VERSION}"
-
-}
-
-for APP in "${CORE_APPS[@]}"
-do
-  release_app $APP $CORE_COMPOSE
-done
+echo_msg "Pushing image"
+docker push $TAG
+echo_msg "Pushed image"

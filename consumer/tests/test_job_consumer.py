@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
 #
 # See the NOTICE file distributed with this work for additional information
@@ -112,8 +110,15 @@ def test__api_get_schema(ElasticsearchConsumer, RequestClientT1, endpoint):
 
 @pytest.mark.unit
 def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestClientT2):
-    doc_id = examples.KIBANA_INSTANCE.get('id')
-    res = RequestClientT1.post(f'{URL}/kibana/add', json=examples.KIBANA_INSTANCE)
+    BAD_KIBANA_INSTANCE = {
+        'id': 'bad',
+        'name': 'BAD Kibana Instance',
+        'url': 'http://not-kibana:5601/kibana-app',
+        'user': 'admin',
+        'password': 'admin'
+    }
+    doc_id = BAD_KIBANA_INSTANCE.get('id')
+    res = RequestClientT1.post(f'{URL}/kibana/add', json=BAD_KIBANA_INSTANCE)
     assert(res.json() is True)
     res = RequestClientT1.get(f'{URL}/kibana/list')
     assert(doc_id in res.json())
@@ -123,6 +128,7 @@ def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestC
     except requests.HTTPError as her:
         assert(res.status_code == 500), (her, res.content)
     else:
+        LOG.critical(f'{res.status_code} : {res.content}')
         assert(False), 'Asset should be in-accessible as it does not exist'
     res = RequestClientT2.get(f'{URL}/kibana/test_connection?id={doc_id}')
     try:
@@ -131,7 +137,7 @@ def test__api_resource_instance(ElasticsearchConsumer, RequestClientT1, RequestC
         assert(res.status_code == 404), (her, res.content)
     else:
         assert(False), 'Asset should be missing for this tenant'
-    res = RequestClientT1.delete(f'{URL}/kibana/delete?id={examples.KIBANA_INSTANCE.get("id")}')
+    res = RequestClientT1.delete(f'{URL}/kibana/delete?id={doc_id}')
     assert(res.json() is True)
 
 

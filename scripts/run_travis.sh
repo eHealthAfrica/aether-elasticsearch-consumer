@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Copyright (C) 2018 by eHealth Africa : http://www.eHealthAfrica.org
 #
@@ -18,8 +18,29 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+
 set -Eeuo pipefail
 
-docker-compose -f ./docker-compose-test.yml up -d elasticsearch kibana redis
-scripts/run_unit_tests.sh
-scripts/run_integration_tests.sh
+function _on_exit () {
+  docker-compose -f docker-compose-test.yml down -v
+}
+
+function _on_err () {
+  echo "-------------------------"
+  docker-compose -f docker-compose-test.yml logs redis
+  echo "-------------------------"
+  docker-compose -f docker-compose-test.yml logs elasticsearch
+  echo "-------------------------"
+  docker-compose -f docker-compose-test.yml logs kibana
+  echo "-------------------------"
+
+  exit 1
+}
+
+trap '_on_exit' EXIT
+trap '_on_err' ERR
+
+docker-compose -f docker-compose-test.yml up -d elasticsearch kibana redis
+docker-compose -f docker-compose-test.yml build consumer-test
+
+docker-compose -f docker-compose-test.yml run --rm consumer-test test_all
