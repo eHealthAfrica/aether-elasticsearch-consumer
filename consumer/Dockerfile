@@ -33,4 +33,11 @@ COPY ./ /code
 RUN useradd -ms /bin/false aether
 RUN chown -R aether: /code
 
+ARG VERSION=0.0.0
+ARG REVISION=alpha
+
+RUN mkdir -p /var/tmp && \
+    echo $VERSION > /var/tmp/VERSION && \
+    echo $REVISION > /var/tmp/REVISION
+
 ENTRYPOINT ["/code/entrypoint.sh"]
