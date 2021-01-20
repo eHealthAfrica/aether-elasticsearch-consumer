@@ -23,14 +23,7 @@ jobs:
 
     - name: Test
       stage: test
-      before_script:
-        - docker-compose -f docker-compose-test.yml up -d elasticsearch kibana redis
-        - docker-compose -f docker-compose-test.yml build consumer-test
-      script:
-        - docker-compose -f docker-compose-test.yml run --rm consumer-test test_unit
-        - docker-compose -f docker-compose-test.yml run --rm consumer-test test_integration
-      after_failure: docker-compose -f docker-compose-test.yml logs
-      after_script: docker-compose -f docker-compose-test.yml down -v
+      script: ./scripts/run_travis.sh
 
     - name: Release
       stage: deploy

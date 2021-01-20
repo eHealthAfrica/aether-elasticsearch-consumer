@@ -28,7 +28,7 @@ services:
       KAFKA_CONSUMER_PASSWORD: ${KAFKA_SASL_PASSWORD}
 
       EXPOSE_PORT: 9013
-      LOG_LEVEL: "DEBUG"
+      LOG_LEVEL: "ERROR"
       CONSUMER_CONFIG_PATH: "/code/tests/conf/consumer.json"
       CONSUMER_KAFKA_CONFIG_PATH: "/code/tests/conf/kafka.json"
       CONNECT_RETRY_WAIT: 1
