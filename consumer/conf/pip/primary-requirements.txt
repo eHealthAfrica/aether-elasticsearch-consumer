@@ -13,7 +13,7 @@ aether-python
 confluent_kafka >= 1.5.0
 deepmerge
 eha_jsonpath
-elasticsearch[requests] # >=5.0.0,<6.0.0
+elasticsearch[requests]
 responses
 
 # Test libraries
