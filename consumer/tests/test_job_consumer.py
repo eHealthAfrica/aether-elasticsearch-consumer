@@ -36,7 +36,7 @@ from app.fixtures import examples
 
 LOG = get_logger('TEST')
 
- 
+
 '''
     API Tests
 '''
