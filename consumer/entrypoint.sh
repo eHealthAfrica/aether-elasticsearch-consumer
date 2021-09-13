@@ -41,16 +41,30 @@ show_help() {
     """
 }
 
-clean_test() {
+function pip_freeze {
+    local VENV=/tmp/env
+    rm -rf ${VENV}
+    mkdir -p ${VENV}
+    python3 -m venv ${VENV}
+
+    ${VENV}/bin/pip install -q \
+        -r ./conf/pip/primary-requirements.txt \
+        --upgrade
+
+    cat conf/pip/requirements_header.txt | tee conf/pip/requirements.txt
+    ${VENV}/bin/pip freeze --local | grep -v appdir | tee -a conf/pip/requirements.txt
+}
+
+function clean_test {
     rm -rf .pytest_cache     || true
     rm -rf tests/__pycache__ || true
 }
 
-test_flake8() {
+function test_flake8 {
     flake8
 }
 
-test_unit() {
+function test_unit {
     clean_test
 
     pytest -m unit
@@ -59,7 +73,7 @@ test_unit() {
     clean_test
 }
 
-test_integration() {
+function test_integration {
     clean_test
 
     pytest -m integration
@@ -79,11 +93,7 @@ case "$1" in
 
 
     pip_freeze )
-        rm -rf /tmp/env
-        pip3 install -r ./conf/pip/primary-requirements.txt --upgrade
-
-        cat /code/conf/pip/requirements_header.txt | tee conf/pip/requirements.txt
-        pip freeze --local | grep -v appdir | tee -a conf/pip/requirements.txt
+        pip_freeze
     ;;
 
     start )
