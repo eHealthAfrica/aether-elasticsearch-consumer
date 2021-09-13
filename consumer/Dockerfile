@@ -16,22 +16,26 @@ RUN apt-get update -qq > /dev/null && \
         --allow-remove-essential \
         --allow-change-held-packages \
         install gcc > /dev/null && \
-    pip install -q --upgrade pip
+    useradd -ms /bin/false aether
 
 WORKDIR /code
+ENTRYPOINT ["/code/entrypoint.sh"]
 
-COPY ./conf/pip/requirements.txt /code/conf/pip/requirements.txt
-RUN pip install -q -r /code/conf/pip/requirements.txt
+COPY --chown=aether:aether ./conf/pip/requirements.txt /code/conf/pip/requirements.txt
 
-COPY ./ /code
+ENV VIRTUAL_ENV=/var/run/aether/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+RUN mkdir -p $VIRTUAL_ENV && \
+    python3 -m venv $VIRTUAL_ENV && \
+    pip install -q --upgrade pip && \
+    pip install -q -r /code/conf/pip/requirements.txt
+
+COPY --chown=aether:aether ./ /code
 
 ################################################################################
 ## last setup steps
 ################################################################################
-
-# create user to run container (avoid root user)
-RUN useradd -ms /bin/false aether
-RUN chown -R aether: /code
 
 ARG VERSION=0.0.0
 ARG REVISION=alpha
@@ -39,5 +43,3 @@ ARG REVISION=alpha
 RUN mkdir -p /var/tmp && \
     echo $VERSION > /var/tmp/VERSION && \
     echo $REVISION > /var/tmp/REVISION
-
-ENTRYPOINT ["/code/entrypoint.sh"]

@@ -22,17 +22,21 @@
 set -Eeuo pipefail
 
 function _on_exit () {
-  docker-compose -f docker-compose-test.yml down -v
+  $DC_TEST down -v
 }
 
 function _on_err () {
-  echo "-------------------------"
-  docker-compose -f docker-compose-test.yml logs redis
-  echo "-------------------------"
-  docker-compose -f docker-compose-test.yml logs elasticsearch
-  echo "-------------------------"
-  docker-compose -f docker-compose-test.yml logs kibana
-  echo "-------------------------"
+  echo $LINE
+  $DC_TEST logs redis
+  echo $LINE
+  $DC_TEST logs elasticsearch
+  echo $LINE
+  $DC_TEST logs kibana
+  echo $LINE
+  $DC_TEST logs kafka
+  echo $LINE
+  $DC_TEST logs zookeeper
+  echo $LINE
 
   exit 1
 }
@@ -40,6 +44,13 @@ function _on_err () {
 trap '_on_exit' EXIT
 trap '_on_err' ERR
 
-docker-compose -f docker-compose-test.yml up -d elasticsearch kibana redis
+DC_TEST="docker-compose -f docker-compose-test.yml"
+LINE="---------------------------------------------------------------------------"
 
-docker-compose -f docker-compose-test.yml run --rm consumer-test test_integration
+echo $LINE
+$DC_TEST up -d zookeeper kafka
+$DC_TEST up -d elasticsearch kibana redis
+
+echo $LINE
+$DC_TEST run --rm consumer-test test_integration
+echo $LINE

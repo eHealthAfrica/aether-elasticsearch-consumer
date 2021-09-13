@@ -14,6 +14,10 @@ branches:
 
 install: true
 
+# https://www.docker.com/increase-rate-limits
+# https://docs.docker.com/docker-hub/download-rate-limit/#how-do-i-authenticate-pull-requests
+before_script: docker login -u ehealthafricadevops -p $DOCKER_HUB_PASSWORD
+
 jobs:
   fast_finish: true
   include:
@@ -24,7 +28,6 @@ jobs:
 
     - name: Release
       stage: deploy
-      before_script: docker login -u ehealthafricadevops -p $DOCKER_HUB_PASSWORD
       script: ./scripts/release.sh
       # release only if tag like #.#.# (never in forks or pull requests)
       if: |
