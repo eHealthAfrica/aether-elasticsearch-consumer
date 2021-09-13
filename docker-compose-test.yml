@@ -21,11 +21,8 @@ services:
       ELASTICSEARCH_USER: admin
       ELASTICSEARCH_PASSWORD: admin
 
-      KAFKA_URL: ${KAFKA_URL}
-      SECURITY.PROTOCOL: SASL_SSL
-      SASL.MECHANISM: PLAIN
-      KAFKA_CONSUMER_USER: ${KAFKA_SASL_USERNAME}
-      KAFKA_CONSUMER_PASSWORD: ${KAFKA_SASL_PASSWORD}
+      KAFKA_URL: kafka:29092
+      INSECURE_KAFKA: "true"
 
       EXPOSE_PORT: 9013
       LOG_LEVEL: "ERROR"
@@ -69,3 +66,24 @@ services:
       - elasticsearch
     ports:
       - 5601:5601
+
+
+  # ---------------------------------
+  # Kafka & Zookeeper
+  # ---------------------------------
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:${CONFLUENTINC_VERSION:-latest}
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 32181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:${CONFLUENTINC_VERSION:-latest}
+    links:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:32181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      ADVERTISED_HOST_NAME: kafka
