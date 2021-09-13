@@ -27,7 +27,6 @@ show_help() {
     Commands
     ----------------------------------------------------------------------------
     bash          : run bash
-    build         : build python wheel of library in /dist
     eval          : eval shell command
 
     pip_freeze    : freeze pip dependencies and write to requirements.txt
@@ -91,7 +90,6 @@ case "$1" in
         eval "${@:2}"
     ;;
 
-
     pip_freeze )
         pip_freeze
     ;;
@@ -118,21 +116,6 @@ case "$1" in
         test_flake8
         test_unit "${@:2}"
         test_integration "${@:2}"
-    ;;
-
-    build )
-        # remove previous build if needed
-        rm -rf dist
-        rm -rf build
-        rm -rf .eggs
-        rm -rf aether-sdk-example.egg-info
-
-        # create the distribution
-        python setup.py bdist_wheel --universal
-
-        # remove useless content
-        rm -rf build
-        rm -rf myconsumer.egg-info
     ;;
 
     help )
