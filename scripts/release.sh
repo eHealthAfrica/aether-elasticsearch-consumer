@@ -30,7 +30,7 @@ function echo_msg {
 
 # Build and release docker image
 IMAGE_REPO="ehealthafrica"
-APP="elasticsearch-consumer"
+APP="aether-elasticsearch-consumer"
 VERSION=$TRAVIS_TAG
 TAG="${IMAGE_REPO}/${APP}:${VERSION}"
 
